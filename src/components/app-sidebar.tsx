@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { cn } from "cn";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageToggle } from "@/components/language-toggle";
+import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 type NavItem = {
   href: string;
@@ -28,34 +30,35 @@ type NavGroup = {
   items: NavItem[];
 };
 
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: "Overview",
-    items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }],
-  },
-  {
-    label: "Sourcing",
-    items: [
-      { href: "/brands", label: "Brands", icon: Building2 },
-      { href: "/brands/sourcing", label: "Brand Sourcing", icon: Search, soon: true },
-    ],
-  },
-  {
-    label: "Planning",
-    items: [
-      { href: "/schedules", label: "Schedules", icon: CalendarClock, soon: true },
-      { href: "/reports", label: "Weekly Report", icon: ClipboardList, soon: true },
-    ],
-  },
-  {
-    label: "Admin",
-    items: [{ href: "/settings", label: "Settings", icon: Settings, soon: true }],
-  },
-];
-
-export function AppSidebar() {
+export function AppSidebar({ locale }: { locale: Locale }) {
+  const t = getDictionary(locale);
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
+
+  const navGroups: NavGroup[] = [
+    {
+      label: t.nav.overview,
+      items: [{ href: "/", label: t.nav.dashboard, icon: LayoutDashboard }],
+    },
+    {
+      label: t.nav.sourcing,
+      items: [
+        { href: "/brands", label: t.nav.brands, icon: Building2 },
+        { href: "/brands/sourcing", label: t.nav.brandSourcing, icon: Search, soon: true },
+      ],
+    },
+    {
+      label: t.nav.planning,
+      items: [
+        { href: "/schedules", label: t.nav.schedules, icon: CalendarClock, soon: true },
+        { href: "/reports", label: t.nav.weeklyReport, icon: ClipboardList, soon: true },
+      ],
+    },
+    {
+      label: t.nav.admin,
+      items: [{ href: "/settings", label: t.nav.settings, icon: Settings, soon: true }],
+    },
+  ];
 
   return (
     <>
@@ -104,7 +107,7 @@ export function AppSidebar() {
         </div>
 
         <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-2">
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
             <div key={group.label}>
               <p className="px-3 pb-1.5 text-xs font-semibold tracking-wider text-sidebar-foreground/50 uppercase">
                 {group.label}
@@ -137,7 +140,7 @@ export function AppSidebar() {
                       </span>
                       {item.soon && (
                         <span className="rounded-full border border-sidebar-border px-1.5 py-0.5 text-[10px] font-medium text-sidebar-foreground/50">
-                          Soon
+                          {t.nav.soon}
                         </span>
                       )}
                     </Link>
@@ -148,9 +151,15 @@ export function AppSidebar() {
           ))}
         </nav>
 
-        <div className="flex items-center justify-between border-t border-sidebar-border px-4 py-3">
-          <span className="text-xs text-sidebar-foreground/50">Theme</span>
-          <ThemeToggle />
+        <div className="space-y-1 border-t border-sidebar-border px-4 py-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-sidebar-foreground/50">{t.nav.theme}</span>
+            <ThemeToggle />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-sidebar-foreground/50">{t.nav.language}</span>
+            <LanguageToggle locale={locale} />
+          </div>
         </div>
       </aside>
     </>

@@ -4,7 +4,13 @@ import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 
-export function BrandSearch({ defaultValue }: { defaultValue: string }) {
+export function BrandSearch({
+  defaultValue,
+  placeholder,
+}: {
+  defaultValue: string;
+  placeholder: string;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -30,7 +36,7 @@ export function BrandSearch({ defaultValue }: { defaultValue: string }) {
         type="text"
         value={value}
         onChange={(e) => handleChange(e.target.value)}
-        placeholder="Search by name, country, SKU..."
+        placeholder={placeholder}
         className="w-full rounded-lg border border-border bg-background py-2 pr-3 pl-9 text-sm outline-none focus:ring-2 focus:ring-ring/50"
       />
     </div>

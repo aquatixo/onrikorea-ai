@@ -1,23 +1,14 @@
 import { NextRequest } from "next/server";
 import * as XLSX from "xlsx";
 import { db } from "@/lib/db";
+import { getLocale } from "@/lib/i18n/get-locale";
+import { getDictionary } from "@/lib/i18n/dictionary";
 import type { Prisma } from "@prisma/client";
 
 const PAGE_SIZE = 20;
-const HEADER = [
-  "no",
-  "방법론",
-  "Name",
-  "country",
-  "SKU",
-  "Year",
-  "Website",
-  "Contact point",
-  "Cold Email",
-  "Reply",
-];
 
 export async function GET(request: NextRequest) {
+  const t = getDictionary(await getLocale());
   const { searchParams } = new URL(request.url);
   const scope = searchParams.get("scope") === "page" ? "page" : "all";
   const q = (searchParams.get("q") ?? "").trim();
@@ -52,7 +43,7 @@ export async function GET(request: NextRequest) {
     b.reply ? "O" : "",
   ]);
 
-  const sheet = XLSX.utils.aoa_to_sheet([HEADER, ...rows]);
+  const sheet = XLSX.utils.aoa_to_sheet([[...t.exportHeaders], ...rows]);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Brands");
   const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });

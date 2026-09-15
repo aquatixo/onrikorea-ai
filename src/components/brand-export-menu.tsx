@@ -10,7 +10,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function BrandExportMenu() {
+export function BrandExportMenu({
+  downloadAllLabel,
+  downloadPageLabel,
+  ariaLabel,
+}: {
+  downloadAllLabel: string;
+  downloadPageLabel: string;
+  ariaLabel: string;
+}) {
   const searchParams = useSearchParams();
   const q = searchParams.get("q") ?? "";
   const page = searchParams.get("page") ?? "1";
@@ -23,14 +31,14 @@ export function BrandExportMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="outline" size="icon" aria-label="Download brands as Excel">
+          <Button variant="outline" size="icon" aria-label={ariaLabel}>
             <FileSpreadsheet className="size-4" />
           </Button>
         }
       />
       <DropdownMenuContent align="end">
-        <DropdownMenuItem render={<a href={allHref}>전체 다운로드</a>} />
-        <DropdownMenuItem render={<a href={pageHref}>현재 페이지 다운로드</a>} />
+        <DropdownMenuItem render={<a href={allHref}>{downloadAllLabel}</a>} />
+        <DropdownMenuItem render={<a href={pageHref}>{downloadPageLabel}</a>} />
       </DropdownMenuContent>
     </DropdownMenu>
   );

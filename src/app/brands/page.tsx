@@ -1,5 +1,7 @@
-import { ChevronsLeft, ChevronsRight } from "lucide-react";
+import Link from "next/link";
+import { ChevronsLeft, ChevronsRight, Plus } from "lucide-react";
 import { WebsiteLink } from "@/components/website-link";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -20,6 +22,8 @@ import { BrandRow } from "@/components/brand-row";
 import { BrandSearch } from "@/components/brand-search";
 import { BrandExportMenu } from "@/components/brand-export-menu";
 import { db } from "@/lib/db";
+import { getLocale } from "@/lib/i18n/get-locale";
+import { getDictionary } from "@/lib/i18n/dictionary";
 import type { Prisma } from "@prisma/client";
 
 const PAGE_SIZE = 20;
@@ -39,6 +43,8 @@ function getPageWindow(currentPage: number, totalPages: number, maxLinks: number
 }
 
 export default async function BrandsPage(props: PageProps<"/brands">) {
+  const locale = await getLocale();
+  const t = getDictionary(locale);
   const searchParams = await props.searchParams;
 
   const rawPage = Array.isArray(searchParams.page) ? searchParams.page[0] : searchParams.page;
@@ -78,14 +84,26 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
     <main className="mx-auto w-full max-w-6xl space-y-6 px-6 py-10 sm:px-8 sm:py-12">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Brands</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t.brands.title}</h1>
           <p className="text-sm text-muted-foreground">
-            {total} brand{total === 1 ? "" : "s"} {q ? "matching" : "tracked"}
+            {q ? t.brands.countMatching(total) : t.brands.countTracked(total)}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <BrandSearch defaultValue={q} />
-          <BrandExportMenu />
+          <BrandSearch defaultValue={q} placeholder={t.brands.searchPlaceholder} />
+          <Button
+            nativeButton={false}
+            render={
+              <Link href="/brands/new">
+                <Plus className="size-4" /> {t.brands.addBrand}
+              </Link>
+            }
+          />
+          <BrandExportMenu
+            downloadAllLabel={t.brands.downloadAll}
+            downloadPageLabel={t.brands.downloadPage}
+            ariaLabel={t.brands.downloadAria}
+          />
         </div>
       </div>
 
@@ -94,20 +112,20 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead>No</TableHead>
-                <TableHead>방법론</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Country</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>Year</TableHead>
-                <TableHead>Website</TableHead>
+                <TableHead>{t.brands.colNo}</TableHead>
+                <TableHead>{t.brands.colMethodology}</TableHead>
+                <TableHead>{t.brands.colName}</TableHead>
+                <TableHead>{t.brands.colCountry}</TableHead>
+                <TableHead>{t.brands.colSku}</TableHead>
+                <TableHead>{t.brands.colYear}</TableHead>
+                <TableHead>{t.brands.colWebsite}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {brands.length === 0 && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                    No brands found.
+                    {t.brands.noFound}
                   </TableCell>
                 </TableRow>
               )}
@@ -141,20 +159,20 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
 
       <div className="space-y-2">
         <p className="text-center text-sm text-muted-foreground">
-          Page {currentPage} of {totalPages}
+          {t.brands.pageOf(currentPage, totalPages)}
         </p>
         <Pagination>
           <PaginationContent>
             <PaginationItem>
               {hasPrevious ? (
-                <PaginationLink href={pageHref(1, q)} aria-label="Go to first page">
+                <PaginationLink href={pageHref(1, q)} aria-label={t.brands.goFirst}>
                   <ChevronsLeft className="size-4" />
                 </PaginationLink>
               ) : (
                 <PaginationLink
                   href="#"
                   aria-disabled
-                  aria-label="Go to first page"
+                  aria-label={t.brands.goFirst}
                   className="pointer-events-none opacity-50"
                 >
                   <ChevronsLeft className="size-4" />
@@ -163,9 +181,19 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
             </PaginationItem>
             <PaginationItem>
               {hasPrevious ? (
-                <PaginationPrevious href={pageHref(currentPage - 1, q)} text="" />
+                <PaginationPrevious
+                  href={pageHref(currentPage - 1, q)}
+                  text=""
+                  aria-label={t.brands.goPrevious}
+                />
               ) : (
-                <PaginationPrevious href="#" aria-disabled text="" className="pointer-events-none opacity-50" />
+                <PaginationPrevious
+                  href="#"
+                  aria-disabled
+                  text=""
+                  aria-label={t.brands.goPrevious}
+                  className="pointer-events-none opacity-50"
+                />
               )}
             </PaginationItem>
             {mobilePageWindow.map((page) => (
@@ -184,21 +212,31 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
             ))}
             <PaginationItem>
               {hasNext ? (
-                <PaginationNext href={pageHref(currentPage + 1, q)} text="" />
+                <PaginationNext
+                  href={pageHref(currentPage + 1, q)}
+                  text=""
+                  aria-label={t.brands.goNext}
+                />
               ) : (
-                <PaginationNext href="#" aria-disabled text="" className="pointer-events-none opacity-50" />
+                <PaginationNext
+                  href="#"
+                  aria-disabled
+                  text=""
+                  aria-label={t.brands.goNext}
+                  className="pointer-events-none opacity-50"
+                />
               )}
             </PaginationItem>
             <PaginationItem>
               {hasNext ? (
-                <PaginationLink href={pageHref(totalPages, q)} aria-label="Go to last page">
+                <PaginationLink href={pageHref(totalPages, q)} aria-label={t.brands.goLast}>
                   <ChevronsRight className="size-4" />
                 </PaginationLink>
               ) : (
                 <PaginationLink
                   href="#"
                   aria-disabled
-                  aria-label="Go to last page"
+                  aria-label={t.brands.goLast}
                   className="pointer-events-none opacity-50"
                 >
                   <ChevronsRight className="size-4" />
