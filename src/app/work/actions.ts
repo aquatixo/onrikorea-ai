@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { workFormSchema, workCommentSchema } from "@/lib/validation/work";
+import { workFormSchema, workEditSchema, workCommentSchema } from "@/lib/validation/work";
 import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
+import { uploadWorkAttachment, deleteWorkAttachment } from "@/lib/blob";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { getUserName } from "@/lib/user/get-user-name";
@@ -32,6 +33,11 @@ function localizeFieldErrors(
   return localized;
 }
 
+function realFile(formData: FormData, key: string): File | null {
+  const value = formData.get(key);
+  return value instanceof File && value.size > 0 ? value : null;
+}
+
 export async function createWork(prevState: WorkFormState, formData: FormData): Promise<WorkFormState> {
   const t = getDictionary(await getLocale()).work.form;
 
@@ -40,8 +46,68 @@ export async function createWork(prevState: WorkFormState, formData: FormData): 
     return { errors: localizeFieldErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
   }
 
-  const work = await db.workItem.create({ data: parsed.data });
+  const file = realFile(formData, "file");
+  let fileUrl: string | undefined;
+  let fileName: string | undefined;
+  if (file) {
+    try {
+      const uploaded = await uploadWorkAttachment(file);
+      fileUrl = uploaded.url;
+      fileName = uploaded.fileName;
+    } catch {
+      return { message: t.fileUploadFailed };
+    }
+  }
+
+  const work = await db.workItem.create({ data: { ...parsed.data, fileUrl, fileName } });
   redirect(`/work/${work.id}`);
+}
+
+export async function updateWork(id: string, prevState: WorkFormState, formData: FormData): Promise<WorkFormState> {
+  const t = getDictionary(await getLocale()).work.form;
+
+  const parsed = workEditSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { errors: localizeFieldErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
+  }
+
+  const existing = await db.workItem.findUnique({ where: { id }, select: { fileUrl: true } });
+  if (!existing) return { message: t.fixErrors };
+
+  const file = realFile(formData, "file");
+  let fileUrl: string | null | undefined;
+  let fileName: string | null | undefined;
+
+  if (file) {
+    try {
+      const uploaded = await uploadWorkAttachment(file);
+      fileUrl = uploaded.url;
+      fileName = uploaded.fileName;
+      if (existing.fileUrl) await deleteWorkAttachment(existing.fileUrl);
+    } catch {
+      return { message: t.fileUploadFailed };
+    }
+  } else if (parsed.data.removeFile && existing.fileUrl) {
+    await deleteWorkAttachment(existing.fileUrl);
+    fileUrl = null;
+    fileName = null;
+  }
+
+  await db.workItem.update({
+    where: { id },
+    data: {
+      title: parsed.data.title,
+      assigneeName: parsed.data.assigneeName,
+      category: parsed.data.category ?? null,
+      color: parsed.data.color ?? null,
+      content: parsed.data.content ?? null,
+      startDate: parsed.data.startDate ?? null,
+      endDate: parsed.data.endDate ?? null,
+      ...(fileUrl !== undefined ? { fileUrl, fileName } : {}),
+    },
+  });
+
+  redirect(`/work/${id}`);
 }
 
 export async function updateWorkStatus(id: string, status: WorkStatus): Promise<{ error?: string }> {

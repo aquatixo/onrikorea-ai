@@ -87,9 +87,10 @@ model SourcingCandidate {
 }
 
 enum WorkStatus {
-  TODO
-  IN_PROGRESS
-  DONE
+  TODO           // 대기
+  AWAITING_REPLY // 답변대기
+  IN_PROGRESS    // 진행중
+  DONE           // 완료
 }
 
 model WorkItem {
@@ -97,6 +98,12 @@ model WorkItem {
   title        String
   content      String?       @db.Text
   status       WorkStatus    @default(TODO)
+  color        String?       // exact hex e.g. "#a48bff" -- free-form, not a fixed enum, to match imported label colors exactly
+  category     String?       // brand/topic grouping, e.g. "PG / 피에로구르망"
+  startDate    DateTime?
+  endDate      DateTime?
+  fileUrl      String?       // Vercel Blob URL
+  fileName     String?       // original filename, shown/downloaded as this
   assigneeName String        // no auth yet -- just a plain name, not a user relation
 
   comments     WorkComment[]
@@ -106,6 +113,7 @@ model WorkItem {
 
   @@index([assigneeName])
   @@index([title])
+  @@index([category])
 }
 
 model WorkComment {

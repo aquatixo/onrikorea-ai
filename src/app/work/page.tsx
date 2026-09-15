@@ -135,11 +135,15 @@ export default async function WorkPage(props: {
                 <Link
                   key={item.id}
                   href={`/work/${item.id}`}
-                  className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-muted/50"
+                  style={{ borderLeftColor: item.color ?? "transparent" }}
+                  className="flex items-center justify-between gap-4 border-l-4 px-4 py-3 hover:bg-muted/50"
                 >
                   <div className="min-w-0">
                     <p className="truncate font-medium">{item.title}</p>
-                    <p className="text-xs text-muted-foreground">{item.assigneeName}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {item.assigneeName}
+                      {item.category ? ` · ${item.category}` : ""}
+                    </p>
                   </div>
                   <Badge className={WORK_STATUS_STYLE[item.status]}>{t.work.status[item.status]}</Badge>
                 </Link>
