@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum BrandStatus {
+  NEW
+  SCREENING
+  APPROVED
+  CONTACTED
+  REPLIED
+  REJECTED
+  ONBOARDED
+}
+
+enum OutreachType {
+  COLD_EMAIL_DRAFTED
+  COLD_EMAIL_SENT
+  FOLLOW_UP_DRAFTED
+  FOLLOW_UP_SENT
+  REPLY_RECEIVED
+  NOTE
+}
+
+enum OutreachStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model Brand {
+  id            String      @id @default(uuid())
+  sourceNo      Int?        @unique // legacy 'no' column from the Excel/Firestore import; nullable for brands added later
+  methodology   String?     // 방법론 — sourcing method
+  channel       String?     // 채널
+  name          String
+  website       String?
+  websiteDomain String?     // normalized host (e.g. "mathez.fr"), extracted server-side — used for duplicate detection
+  country       String?
+  sku           String?
+  foundedYear   Int?
+  status        BrandStatus @default(NEW)
+  notes         String?     @db.Text
+
+  contacts      Contact[]
+  outreachLogs  OutreachLog[]
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([name])
+  @@index([websiteDomain])
+  @@unique([name, websiteDomain], map: "brand_name_domain_unique")
+}
+
+model Contact {
+  id          String   @id @default(uuid())
+  brandId     String
+  brand       Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  name        String?
+  email       String?
+  role        String?
+  isPrimary   Boolean  @default(false)
+
+  outreachLogs OutreachLog[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([brandId])
+  @@unique([brandId, email])
+}
+
+model OutreachLog {
+  id             String         @id @default(uuid())
+  brandId        String
+  brand          Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  contactId      String?
+  contact        Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  type           OutreachType
+  status         OutreachStatus @default(PENDING)
+  subject        String?
+  body           String?        @db.Text
+  graphMessageId String?        // Outlook draft/message id from Microsoft Graph — idempotency key, prevents double-drafting on retry
+
+  createdAt      DateTime       @default(now())
+
+  @@index([brandId])
+  @@index([contactId])
+}
