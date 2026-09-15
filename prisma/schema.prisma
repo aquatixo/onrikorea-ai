@@ -42,6 +42,9 @@ model Brand {
   country       String?
   sku           String?
   foundedYear   Int?
+  contactPoint  String?     // raw 'Contact point' column from the sheet
+  coldEmail     Boolean     @default(false)
+  reply         Boolean     @default(false)
   status        BrandStatus @default(NEW)
   notes         String?     @db.Text
 
