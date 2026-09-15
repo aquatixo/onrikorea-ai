@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
-import { RunSourcingButton } from "@/components/run-sourcing-button";
+// TODO: needs ANTHROPIC_API_KEY set in Vercel before this can go live -- re-enable then.
+// import { RunSourcingButton } from "@/components/run-sourcing-button";
 import { SourcingCandidateActions } from "@/components/sourcing-candidate-actions";
 import { WebsiteLink } from "@/components/website-link";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +39,8 @@ export default async function BrandSourcingPage() {
         <p className="text-sm text-muted-foreground">{t.sourcing.subtitle}</p>
       </div>
 
-      <RunSourcingButton locale={locale} />
+      {/* TODO: needs ANTHROPIC_API_KEY set in Vercel before this can go live -- swap back to <RunSourcingButton locale={locale} /> then. */}
+      <Button disabled>{t.sourcing.runButton}</Button>
 
       {!latestRun || latestRun.candidates.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t.sourcing.noRunsYet}</p>
