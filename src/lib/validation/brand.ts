@@ -1,14 +1,16 @@
 import { z } from "zod";
 import { BrandStatus } from "@prisma/client";
+import { isSafeText, UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
 
 const optionalText = z
   .string()
   .trim()
   .optional()
-  .transform((v) => (v && v.length > 0 ? v : undefined));
+  .transform((v) => (v && v.length > 0 ? v : undefined))
+  .refine((v) => v === undefined || isSafeText(v), UNSAFE_INPUT_MESSAGE);
 
 export const brandFormSchema = z.object({
-  name: z.string().trim().min(1, "Name is required"),
+  name: z.string().trim().min(1, "Name is required").refine(isSafeText, UNSAFE_INPUT_MESSAGE),
   methodology: optionalText,
   channel: optionalText,
   country: optionalText,

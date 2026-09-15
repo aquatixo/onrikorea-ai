@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppSidebar } from "@/components/app-sidebar";
 import { getLocale } from "@/lib/i18n/get-locale";
+import { getUserName } from "@/lib/user/get-user-name";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -22,6 +23,7 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const locale = await getLocale();
+  const userName = await getUserName();
   return (
     <html
       lang={locale}
@@ -30,7 +32,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <AppSidebar locale={locale} />
+          <AppSidebar locale={locale} userName={userName} />
           <div className="min-h-screen sm:pl-64">{children}</div>
         </ThemeProvider>
       </body>

@@ -59,6 +59,75 @@ model Brand {
   @@unique([name, websiteDomain], map: "brand_name_domain_unique")
 }
 
+model SourcingRun {
+  id         String              @id @default(uuid())
+  createdAt  DateTime            @default(now())
+  candidates SourcingCandidate[]
+}
+
+model SourcingCandidate {
+  id           String      @id @default(uuid())
+  runId        String
+  run          SourcingRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  name         String
+  methodology  String?     // which discovery bucket surfaced this candidate (e.g. "Brand Sourcing — Snacks")
+  country      String?
+  sku          String?
+  foundedYear  Int?
+  website      String?
+
+  verdict      String      // "pass" | "flag" | "reject" — same union as EvaluationResult, kept as a plain string for consistency with evaluate.ts
+  reason       String      @db.Text
+  evidence     String[]    // citation URLs gathered during LLM verification
+
+  createdAt    DateTime    @default(now())
+
+  @@index([runId])
+}
+
+enum WorkStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+model WorkItem {
+  id           String        @id @default(uuid())
+  title        String
+  content      String?       @db.Text
+  status       WorkStatus    @default(TODO)
+  assigneeName String        // no auth yet -- just a plain name, not a user relation
+
+  comments     WorkComment[]
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([assigneeName])
+  @@index([title])
+}
+
+model WorkComment {
+  id         String        @id @default(uuid())
+  workItemId String
+  workItem   WorkItem      @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+
+  // One level of replies, same shape as a Slack thread -- a reply's parent is always
+  // a root comment, never another reply.
+  parentId   String?
+  parent     WorkComment?  @relation("WorkCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    WorkComment[] @relation("WorkCommentReplies")
+
+  authorName String
+  body       String        @db.Text
+
+  createdAt  DateTime      @default(now())
+
+  @@index([workItemId])
+  @@index([parentId])
+}
+
 model Contact {
   id          String   @id @default(uuid())
   brandId     String

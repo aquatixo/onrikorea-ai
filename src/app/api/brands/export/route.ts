@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
-import * as XLSX from "xlsx";
 import { db } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
+import { buildBrandsWorkbook } from "@/lib/brand-export/build-workbook";
 import type { Prisma } from "@prisma/client";
 
 const PAGE_SIZE = 20;
@@ -30,24 +30,7 @@ export async function GET(request: NextRequest) {
     ...(scope === "page" ? { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE } : {}),
   });
 
-  const rows = brands.map((b) => [
-    b.sourceNo ?? "",
-    b.methodology ?? "",
-    b.name,
-    b.country ?? "",
-    b.sku ?? "",
-    b.foundedYear ?? "",
-    b.website ?? "",
-    b.contactPoint ?? "",
-    b.coldEmail ? "O" : "",
-    b.reply ? "O" : "",
-  ]);
-
-  const sheet = XLSX.utils.aoa_to_sheet([[...t.exportHeaders], ...rows]);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, "Brands");
-  const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
-
+  const buffer = buildBrandsWorkbook(brands, t.exportHeaders);
   const filename = scope === "page" ? `brands-page-${page}.xlsx` : "brands-all.xlsx";
 
   return new Response(buffer, {

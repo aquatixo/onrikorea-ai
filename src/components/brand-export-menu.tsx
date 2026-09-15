@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { FileSpreadsheet } from "lucide-react";
+import { ExcelIcon } from "@/components/icons/excel-icon";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -32,7 +32,7 @@ export function BrandExportMenu({
       <DropdownMenuTrigger
         render={
           <Button variant="outline" size="icon" aria-label={ariaLabel}>
-            <FileSpreadsheet className="size-4" />
+            <ExcelIcon className="size-4" />
           </Button>
         }
       />

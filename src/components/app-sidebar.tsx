@@ -9,6 +9,7 @@ import {
   Search,
   CalendarClock,
   ClipboardList,
+  ListTodo,
   Settings,
   Menu,
   X,
@@ -16,6 +17,7 @@ import {
 import { cn } from "cn";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageToggle } from "@/components/language-toggle";
+import { UserNameControl } from "@/components/user-name-control";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 type NavItem = {
@@ -30,7 +32,7 @@ type NavGroup = {
   items: NavItem[];
 };
 
-export function AppSidebar({ locale }: { locale: Locale }) {
+export function AppSidebar({ locale, userName }: { locale: Locale; userName: string }) {
   const t = getDictionary(locale);
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
@@ -44,12 +46,13 @@ export function AppSidebar({ locale }: { locale: Locale }) {
       label: t.nav.sourcing,
       items: [
         { href: "/brands", label: t.nav.brands, icon: Building2 },
-        { href: "/brands/sourcing", label: t.nav.brandSourcing, icon: Search, soon: true },
+        { href: "/brands/sourcing", label: t.nav.brandSourcing, icon: Search },
       ],
     },
     {
       label: t.nav.planning,
       items: [
+        { href: "/work", label: t.nav.work, icon: ListTodo },
         { href: "/schedules", label: t.nav.schedules, icon: CalendarClock, soon: true },
         { href: "/reports", label: t.nav.weeklyReport, icon: ClipboardList, soon: true },
       ],
@@ -159,6 +162,10 @@ export function AppSidebar({ locale }: { locale: Locale }) {
           <div className="flex items-center justify-between">
             <span className="text-xs text-sidebar-foreground/50">{t.nav.language}</span>
             <LanguageToggle locale={locale} />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-sidebar-foreground/50">{t.nav.yourName}</span>
+            <UserNameControl name={userName} placeholder={t.nav.yourNamePlaceholder} />
           </div>
         </div>
       </aside>

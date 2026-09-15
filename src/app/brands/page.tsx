@@ -21,25 +21,21 @@ import {
 import { BrandRow } from "@/components/brand-row";
 import { BrandSearch } from "@/components/brand-search";
 import { BrandExportMenu } from "@/components/brand-export-menu";
+import { ImportBrandsDialog } from "@/components/import-brands-dialog";
+import { SyncSharePointDialog } from "@/components/sync-sharepoint-dialog";
+import { PageSizeControl } from "@/components/page-size-control";
 import { db } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
+import { getPageWindow, parsePageSize } from "@/lib/pagination";
 import type { Prisma } from "@prisma/client";
 
-const PAGE_SIZE = 20;
-
-function pageHref(page: number, q: string) {
+function pageHref(page: number, q: string, pageSize: number) {
   const params = new URLSearchParams();
   params.set("page", String(page));
   if (q) params.set("q", q);
+  params.set("pageSize", String(pageSize));
   return `/brands?${params.toString()}`;
-}
-
-function getPageWindow(currentPage: number, totalPages: number, maxLinks: number): number[] {
-  let start = Math.max(1, currentPage - Math.floor(maxLinks / 2));
-  const end = Math.min(totalPages, start + maxLinks - 1);
-  start = Math.max(1, end - maxLinks + 1);
-  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
 }
 
 export default async function BrandsPage(props: PageProps<"/brands">) {
@@ -53,6 +49,9 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
 
   const rawQ = Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q;
   const q = (rawQ ?? "").trim();
+
+  const rawPageSize = Array.isArray(searchParams.pageSize) ? searchParams.pageSize[0] : searchParams.pageSize;
+  const pageSize = parsePageSize(rawPageSize);
 
   const where: Prisma.BrandWhereInput = q
     ? {
@@ -69,12 +68,12 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
     db.brand.findMany({
       where,
       orderBy: { sourceNo: "asc" },
-      skip: (currentPage - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
+      skip: (currentPage - 1) * pageSize,
+      take: pageSize,
     }),
   ]);
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasPrevious = currentPage > 1;
   const hasNext = currentPage < totalPages;
   const mobilePageWindow = getPageWindow(currentPage, totalPages, 3);
@@ -89,8 +88,11 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
             {q ? t.brands.countMatching(total) : t.brands.countTracked(total)}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <PageSizeControl value={pageSize} label={t.brands.rowsPerPage} />
           <BrandSearch defaultValue={q} placeholder={t.brands.searchPlaceholder} />
+          <ImportBrandsDialog locale={locale} />
+          <SyncSharePointDialog locale={locale} />
           <Button
             nativeButton={false}
             render={
@@ -165,7 +167,7 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
           <PaginationContent>
             <PaginationItem>
               {hasPrevious ? (
-                <PaginationLink href={pageHref(1, q)} aria-label={t.brands.goFirst}>
+                <PaginationLink href={pageHref(1, q, pageSize)} aria-label={t.brands.goFirst}>
                   <ChevronsLeft className="size-4" />
                 </PaginationLink>
               ) : (
@@ -182,7 +184,7 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
             <PaginationItem>
               {hasPrevious ? (
                 <PaginationPrevious
-                  href={pageHref(currentPage - 1, q)}
+                  href={pageHref(currentPage - 1, q, pageSize)}
                   text=""
                   aria-label={t.brands.goPrevious}
                 />
@@ -198,14 +200,14 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
             </PaginationItem>
             {mobilePageWindow.map((page) => (
               <PaginationItem key={`m-${page}`} className="sm:hidden">
-                <PaginationLink href={pageHref(page, q)} isActive={page === currentPage}>
+                <PaginationLink href={pageHref(page, q, pageSize)} isActive={page === currentPage}>
                   {page}
                 </PaginationLink>
               </PaginationItem>
             ))}
             {desktopPageWindow.map((page) => (
               <PaginationItem key={`d-${page}`} className="hidden sm:block">
-                <PaginationLink href={pageHref(page, q)} isActive={page === currentPage}>
+                <PaginationLink href={pageHref(page, q, pageSize)} isActive={page === currentPage}>
                   {page}
                 </PaginationLink>
               </PaginationItem>
@@ -213,7 +215,7 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
             <PaginationItem>
               {hasNext ? (
                 <PaginationNext
-                  href={pageHref(currentPage + 1, q)}
+                  href={pageHref(currentPage + 1, q, pageSize)}
                   text=""
                   aria-label={t.brands.goNext}
                 />
@@ -229,7 +231,7 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
             </PaginationItem>
             <PaginationItem>
               {hasNext ? (
-                <PaginationLink href={pageHref(totalPages, q)} aria-label={t.brands.goLast}>
+                <PaginationLink href={pageHref(totalPages, q, pageSize)} aria-label={t.brands.goLast}>
                   <ChevronsRight className="size-4" />
                 </PaginationLink>
               ) : (

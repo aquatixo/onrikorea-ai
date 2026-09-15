@@ -11,6 +11,7 @@ export function ThemeToggle() {
 
   // Avoid rendering theme-dependent UI until mounted, to prevent hydration mismatch
   // (the server has no way to know the user's stored/system preference).
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional mount flag, see comment above
   React.useEffect(() => setMounted(true), []);
 
   if (!mounted) {

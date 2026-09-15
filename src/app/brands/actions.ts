@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { extractDomain } from "@/lib/extract-domain";
 import { brandFormSchema } from "@/lib/validation/brand";
+import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 
@@ -17,8 +18,15 @@ function localizeValidationErrors(
   t: ReturnType<typeof getDictionary>["form"]
 ): Partial<Record<string, string[]>> {
   const localized: Partial<Record<string, string[]>> = {};
-  if (fieldErrors.name) localized.name = [t.nameRequired];
-  if (fieldErrors.foundedYear) localized.foundedYear = [t.yearInvalid];
+  for (const [field, messages] of Object.entries(fieldErrors)) {
+    if (!messages || messages.length === 0) continue;
+    if (messages.includes(UNSAFE_INPUT_MESSAGE)) {
+      localized[field] = [t.unsafeContent];
+      continue;
+    }
+    if (field === "name") localized[field] = [t.nameRequired];
+    if (field === "foundedYear") localized[field] = [t.yearInvalid];
+  }
   return localized;
 }
 
