@@ -47,8 +47,7 @@ export function AppSidebar({ locale, userName }: { locale: Locale; userName: str
       label: t.nav.sourcing,
       items: [
         { href: "/brands", label: t.nav.brands, icon: Building2 },
-        // TODO: needs ANTHROPIC_API_KEY set in Vercel before this can go live -- re-enable then.
-        { href: "/brands/sourcing", label: t.nav.brandSourcing, icon: Search, soon: true },
+        { href: "/brands/sourcing", label: t.nav.brandSourcing, icon: Search },
       ],
     },
     {
