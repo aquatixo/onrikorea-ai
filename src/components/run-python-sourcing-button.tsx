@@ -1,38 +1,50 @@
 "use client";
 
 import * as React from "react";
-import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { runPythonBrandSourcing } from "@/app/brands/sourcing/python-actions";
+import { SourcingProgressPanel, type SourcingProgress } from "@/components/sourcing-progress-panel";
+import { startPythonBrandSourcing } from "@/app/brands/sourcing/python-actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
-export function RunPythonSourcingButton({ locale }: { locale: Locale }) {
-  const t = getDictionary(locale);
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = React.useState<string | null>(null);
-  const [output, setOutput] = React.useState<string | null>(null);
+type LatestRunInfo = { id: string; status: string; progress: SourcingProgress | null } | null;
 
-  function handleRun() {
+export function RunPythonSourcingButton({ locale, latestRun }: { locale: Locale; latestRun: LatestRunInfo }) {
+  const t = getDictionary(locale);
+  const [activeRunId, setActiveRunId] = React.useState<string | null>(
+    latestRun && latestRun.status === "running" ? latestRun.id : null
+  );
+  const [isStarting, setIsStarting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function handleStart() {
     setError(null);
-    setOutput(null);
-    startTransition(async () => {
-      const result = await runPythonBrandSourcing();
-      if (result.error) setError(result.error);
-      if (result.output) setOutput(result.output);
-    });
+    setIsStarting(true);
+    const result = await startPythonBrandSourcing();
+    setIsStarting(false);
+    if ("error" in result) {
+      setError(result.error);
+      return;
+    }
+    setActiveRunId(result.runId);
+  }
+
+  if (activeRunId) {
+    return (
+      <SourcingProgressPanel
+        runId={activeRunId}
+        initialStatus="running"
+        initialProgress={latestRun?.id === activeRunId ? latestRun.progress : null}
+        locale={locale}
+      />
+    );
   }
 
   return (
     <div className="space-y-2">
-      <Button variant="outline" onClick={handleRun} disabled={isPending}>
-        {isPending ? t.sourcing.runningPython : t.sourcing.runPythonButton}
+      <Button variant="outline" onClick={handleStart} disabled={isStarting}>
+        {isStarting ? t.sourcing.runningPython : t.sourcing.runPythonButton}
       </Button>
-      {error && <p className="whitespace-pre-wrap text-sm text-destructive">{error}</p>}
-      {output && (
-        <pre className="max-h-48 overflow-y-auto rounded-lg border border-border bg-muted/50 p-3 text-xs whitespace-pre-wrap">
-          {output}
-        </pre>
-      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }

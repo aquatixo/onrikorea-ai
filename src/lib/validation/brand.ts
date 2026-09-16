@@ -23,7 +23,13 @@ export const brandFormSchema = z.object({
     .refine((v) => v === undefined || Number.isFinite(v), "Founded year must be a number"),
   website: optionalText,
   contactPoint: optionalText,
-  coldEmail: z.coerce.boolean().optional().default(false),
+  // Tri-state: no answer yet (null) until someone explicitly picks yes/no -- unlike
+  // `reply`, which only ever becomes true after a real event (a reply arriving), so
+  // "not yet" and "no" are the same thing for it and it stays a plain boolean.
+  coldEmail: z
+    .string()
+    .optional()
+    .transform((v) => (v === "true" ? true : v === "false" ? false : null)),
   reply: z.coerce.boolean().optional().default(false),
   status: z.nativeEnum(BrandStatus),
   notes: optionalText,

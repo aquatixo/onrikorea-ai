@@ -63,7 +63,12 @@ export async function createWork(prevState: WorkFormState, formData: FormData): 
   redirect(`/work/${work.id}`);
 }
 
-export async function updateWork(id: string, prevState: WorkFormState, formData: FormData): Promise<WorkFormState> {
+export async function updateWork(
+  id: string,
+  returnTo: string | undefined,
+  prevState: WorkFormState,
+  formData: FormData
+): Promise<WorkFormState> {
   const t = getDictionary(await getLocale()).work.form;
 
   const parsed = workEditSchema.safeParse(Object.fromEntries(formData));
@@ -107,7 +112,9 @@ export async function updateWork(id: string, prevState: WorkFormState, formData:
     },
   });
 
-  redirect(`/work/${id}`);
+  // Carry the list page/filters/search the user came from through to the detail page,
+  // so its own "back" link lands back where they were, not on a reset page 1.
+  redirect(returnTo ? `/work/${id}?returnTo=${encodeURIComponent(returnTo)}` : `/work/${id}`);
 }
 
 export async function updateWorkStatus(id: string, status: WorkStatus): Promise<{ error?: string }> {

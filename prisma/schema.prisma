@@ -43,7 +43,7 @@ model Brand {
   sku           String?
   foundedYear   Int?
   contactPoint  String?     // raw 'Contact point' column from the sheet
-  coldEmail     Boolean     @default(false)
+  coldEmail     Boolean?    // null = not decided yet, true/false once someone answers
   reply         Boolean     @default(false)
   status        BrandStatus @default(NEW)
   notes         String?     @db.Text
@@ -62,6 +62,9 @@ model Brand {
 model SourcingRun {
   id         String              @id @default(uuid())
   createdAt  DateTime            @default(now())
+  status     String              @default("running") // "running" | "done" | "stopped" | "error"
+  pid        Int?                // OS process id of the running python-sourcing/main.py, so it can be killed on Stop
+  progress   Json?               // { stage, stageProgress: {discovery,dedup,website,koreaCheck,scoring}, counts: {...}, errors }
   candidates SourcingCandidate[]
 }
 

@@ -86,16 +86,22 @@ export function BrandForm({ mode, brand, locale, action }: Props) {
         </div>
       </div>
 
-      <div className="flex items-center gap-6">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+      <div className="flex flex-wrap items-end gap-6">
+        <div className="space-y-1.5">
+          <label htmlFor="coldEmail" className="text-sm font-medium">
+            {t.form.coldEmailSent}
+          </label>
+          <select
+            id="coldEmail"
             name="coldEmail"
-            defaultChecked={brand?.coldEmail}
-            className="size-4 rounded border-border"
-          />
-          {t.form.coldEmailSent}
-        </label>
+            defaultValue={brand?.coldEmail === true ? "true" : brand?.coldEmail === false ? "false" : ""}
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
+          >
+            <option value="">{t.form.notDecided}</option>
+            <option value="true">{t.form.yesOption}</option>
+            <option value="false">{t.form.noOption}</option>
+          </select>
+        </div>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"

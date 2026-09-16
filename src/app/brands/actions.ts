@@ -65,6 +65,7 @@ export async function createBrand(
 
 export async function updateBrand(
   id: string,
+  returnTo: string | undefined,
   prevState: BrandFormState,
   formData: FormData
 ): Promise<BrandFormState> {
@@ -94,10 +95,13 @@ export async function updateBrand(
     data: { ...data, websiteDomain: extractDomain(data.website) },
   });
 
-  redirect(`/brands/${id}`);
+  // Carry the list page/search/pageSize the user came from through to the detail page,
+  // so its own "back" link (and a subsequent delete) still lands back where they were,
+  // not on a reset page 1.
+  redirect(returnTo ? `/brands/${id}?returnTo=${encodeURIComponent(returnTo)}` : `/brands/${id}`);
 }
 
-export async function deleteBrand(id: string) {
+export async function deleteBrand(id: string, returnTo: string | undefined) {
   await db.brand.delete({ where: { id } });
-  redirect("/brands");
+  redirect(returnTo && returnTo.startsWith("/brands") ? returnTo : "/brands");
 }

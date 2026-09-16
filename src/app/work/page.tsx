@@ -182,7 +182,7 @@ export default async function WorkPage(props: {
               {items.map((item) => (
                 <Link
                   key={item.id}
-                  href={`/work/${item.id}`}
+                  href={`/work/${item.id}?returnTo=${encodeURIComponent(pageHref(currentPage, assignee, category, q, pageSize))}`}
                   style={{ borderLeftColor: item.color || "transparent" }}
                   className="flex items-center gap-3 border-l-4 px-4 py-3 transition-colors hover:bg-muted/50"
                 >

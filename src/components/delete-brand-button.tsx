@@ -8,12 +8,14 @@ export function DeleteBrandButton({
   brandId,
   label,
   confirmText,
+  returnTo,
 }: {
   brandId: string;
   label: string;
   confirmText: string;
+  returnTo?: string;
 }) {
-  const deleteAction = deleteBrand.bind(null, brandId);
+  const deleteAction = deleteBrand.bind(null, brandId, returnTo);
 
   return (
     <form

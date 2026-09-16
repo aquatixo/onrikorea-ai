@@ -1,4 +1,6 @@
 import { isKnownCountryName } from "@/lib/brand-sourcing/countries";
+import { toKoreanCountryName } from "@/lib/brand-sourcing/country-names-ko";
+import { toKoreanSku } from "@/lib/brand-sourcing/sku-translations-ko";
 
 export type NormalizedCandidate = {
   country: string | null;
@@ -33,6 +35,9 @@ export function normalizeCandidateFields(input: {
       notes.push(`Location could not be split into a single country automatically — needs manual review: ${country}`);
     }
   }
+  // Every existing Brand row uses a Korean country name -- translate before storing so
+  // sourced candidates match that convention instead of showing "United Kingdom".
+  if (country) country = toKoreanCountryName(country);
 
   let foundedYear: number | null = null;
   if (input.foundedYear !== undefined && input.foundedYear !== null && input.foundedYear !== "") {
@@ -47,6 +52,8 @@ export function normalizeCandidateFields(input: {
       notes.push(`SKU detail: ${parenMatch[1]}`);
       sku = sku.replace(/\s*\([^)]+\)\s*/g, " ").trim();
     }
+    // Same convention as country: every existing Brand row uses a Korean SKU label.
+    sku = toKoreanSku(sku);
   }
 
   return { country, foundedYear, sku, notes };

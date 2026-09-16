@@ -39,6 +39,7 @@ export default async function BrandDetailPage(
   if (!brand) notFound();
 
   const yesNo = (v: boolean) => (v ? t.detail.yes : t.detail.no);
+  const triState = (v: boolean | null) => (v === null ? t.detail.dash : yesNo(v));
 
   const fields: { label: string; value: React.ReactNode }[] = [
     { label: t.detail.sourceNo, value: brand.sourceNo ?? t.detail.dash },
@@ -49,7 +50,7 @@ export default async function BrandDetailPage(
     { label: t.detail.founded, value: brand.foundedYear ?? t.detail.dash },
     { label: t.detail.websiteDomain, value: brand.websiteDomain ?? t.detail.dash },
     { label: t.detail.contactPoint, value: brand.contactPoint ?? t.detail.dash },
-    { label: t.detail.coldEmailSent, value: yesNo(brand.coldEmail) },
+    { label: t.detail.coldEmailSent, value: triState(brand.coldEmail) },
     { label: t.detail.replyReceived, value: yesNo(brand.reply) },
     { label: t.detail.notes, value: brand.notes ?? t.detail.dash },
     { label: t.detail.created, value: formatDate(brand.createdAt) },
@@ -70,12 +71,17 @@ export default async function BrandDetailPage(
             variant="outline"
             nativeButton={false}
             render={
-              <Link href={`/brands/${brand.id}/edit`}>
+              <Link href={`/brands/${brand.id}/edit?returnTo=${encodeURIComponent(backHref)}`}>
                 <Pencil className="size-4" /> {t.detail.edit}
               </Link>
             }
           />
-          <DeleteBrandButton brandId={brand.id} label={t.detail.delete} confirmText={t.detail.confirmDelete} />
+          <DeleteBrandButton
+            brandId={brand.id}
+            label={t.detail.delete}
+            confirmText={t.detail.confirmDelete}
+            returnTo={backHref}
+          />
         </div>
       </div>
 

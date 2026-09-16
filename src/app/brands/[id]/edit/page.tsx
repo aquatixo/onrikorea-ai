@@ -9,19 +9,26 @@ import { getDictionary } from "@/lib/i18n/dictionary";
 
 export const dynamic = "force-dynamic";
 
-export default async function EditBrandPage(props: PageProps<"/brands/[id]/edit">) {
+export default async function EditBrandPage(
+  props: PageProps<"/brands/[id]/edit"> & { searchParams: Promise<{ returnTo?: string }> }
+) {
   const locale = await getLocale();
   const t = getDictionary(locale);
   const { id } = await props.params;
+  const { returnTo } = await props.searchParams;
+  // Only ever navigate back within /brands -- never follow an arbitrary URL from the query string.
+  const safeReturnTo = returnTo && returnTo.startsWith("/brands") ? returnTo : undefined;
+  const detailHref = safeReturnTo ? `/brands/${id}?returnTo=${encodeURIComponent(safeReturnTo)}` : `/brands/${id}`;
+
   const brand = await db.brand.findUnique({ where: { id } });
   if (!brand) notFound();
 
-  const updateBrandWithId = updateBrand.bind(null, id);
+  const updateBrandWithId = updateBrand.bind(null, id, safeReturnTo);
 
   return (
     <main className="mx-auto w-full max-w-2xl space-y-5 px-4 py-8 sm:px-6 sm:py-10">
       <Link
-        href={`/brands/${id}`}
+        href={detailHref}
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-4" /> {t.form.back}

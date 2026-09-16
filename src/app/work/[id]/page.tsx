@@ -19,8 +19,14 @@ function formatDate(d: Date | null, locale: string) {
     : null;
 }
 
-export default async function WorkDetailPage(props: { params: Promise<{ id: string }> }) {
+export default async function WorkDetailPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ returnTo?: string }>;
+}) {
   const { id } = await props.params;
+  const { returnTo } = await props.searchParams;
+  // Only ever navigate back within /work -- never follow an arbitrary URL from the query string.
+  const backHref = returnTo && returnTo.startsWith("/work") ? returnTo : "/work";
   const locale = await getLocale();
   const t = getDictionary(locale);
   const authorName = await getUserName();
@@ -48,7 +54,7 @@ export default async function WorkDetailPage(props: { params: Promise<{ id: stri
     <main className="mx-auto w-full max-w-3xl space-y-5 px-4 py-8 sm:px-6 sm:py-10">
       <div className="flex items-center justify-between">
         <Link
-          href="/work"
+          href={backHref}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-foreground"
         >
           <ArrowLeft className="size-4" /> {t.work.detail.back}
@@ -58,7 +64,7 @@ export default async function WorkDetailPage(props: { params: Promise<{ id: stri
           size="sm"
           nativeButton={false}
           render={
-            <Link href={`/work/${item.id}/edit`}>
+            <Link href={`/work/${item.id}/edit?returnTo=${encodeURIComponent(backHref)}`}>
               <Pencil className="size-4" /> {t.work.detail.edit}
             </Link>
           }

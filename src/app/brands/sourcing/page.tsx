@@ -4,11 +4,15 @@ import { getDictionary } from "@/lib/i18n/dictionary";
 // TODO: needs ANTHROPIC_API_KEY set in Vercel before this can go live -- re-enable then.
 // import { RunSourcingButton } from "@/components/run-sourcing-button";
 import { RunPythonSourcingButton } from "@/components/run-python-sourcing-button";
+import type { SourcingProgress } from "@/components/sourcing-progress-panel";
 import { SourcingCandidateActions } from "@/components/sourcing-candidate-actions";
+import { DeleteSourcingCandidateButton } from "@/components/delete-sourcing-candidate-button";
+import { ExpandableName } from "@/components/expandable-name";
 import { WebsiteLink } from "@/components/website-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Download, Search, ListChecks } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -35,19 +39,34 @@ export default async function BrandSourcingPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl space-y-6 px-6 py-10 sm:px-8 sm:py-12">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">{t.sourcing.title}</h1>
-        <p className="text-sm text-muted-foreground">{t.sourcing.subtitle}</p>
+      <div className="flex items-center gap-3">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10">
+          <Search className="size-5 text-primary" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{t.sourcing.title}</h1>
+          <p className="text-sm text-muted-foreground">{t.sourcing.subtitle}</p>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
         {/* TODO: needs ANTHROPIC_API_KEY set in Vercel before this can go live -- swap back to <RunSourcingButton locale={locale} /> then. */}
         <Button disabled>{t.sourcing.runButton}</Button>
-        <RunPythonSourcingButton locale={locale} />
+        <RunPythonSourcingButton
+          locale={locale}
+          latestRun={
+            latestRun
+              ? { id: latestRun.id, status: latestRun.status, progress: latestRun.progress as SourcingProgress | null }
+              : null
+          }
+        />
       </div>
 
       {!latestRun || latestRun.candidates.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t.sourcing.noRunsYet}</p>
+        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border py-16 text-center">
+          <ListChecks className="size-6 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">{t.sourcing.noRunsYet}</p>
+        </div>
       ) : (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -69,43 +88,79 @@ export default async function BrandSourcingPage() {
             />
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">{t.sourcing.colName}</th>
-                  <th className="px-3 py-2 font-medium">{t.sourcing.colSource}</th>
-                  <th className="px-3 py-2 font-medium">{t.sourcing.colCountry}</th>
-                  <th className="px-3 py-2 font-medium">{t.sourcing.colSku}</th>
-                  <th className="px-3 py-2 font-medium">{t.sourcing.colYear}</th>
-                  <th className="px-3 py-2 font-medium">{t.sourcing.colWebsite}</th>
-                  <th className="px-3 py-2 font-medium">{t.sourcing.colVerdict}</th>
-                  <th className="px-3 py-2 font-medium">{t.sourcing.colReason}</th>
-                  <th className="px-3 py-2 font-medium">{t.sourcing.colAction}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {latestRun.candidates.map((c) => (
-                  <tr key={c.id} className="align-top">
-                    <td className="px-3 py-2 font-medium">{c.name}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{c.methodology ?? "—"}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{c.country ?? "—"}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{c.sku ?? "—"}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{c.foundedYear ?? "—"}</td>
-                    <td className="px-3 py-2">
-                      {c.website ? <WebsiteLink website={c.website} /> : <span className="text-muted-foreground">—</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <Badge className={VERDICT_STYLE[c.verdict]}>{verdictLabel[c.verdict] ?? c.verdict}</Badge>
-                    </td>
-                    <td className="max-w-xs px-3 py-2 text-xs text-muted-foreground">{c.reason}</td>
-                    <td className="px-3 py-2">
-                      <SourcingCandidateActions candidateId={c.id} verdict={c.verdict} locale={locale} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+            {/* Action + Name are frozen (sticky) on the left so you always know which
+                candidate a row is, and can act on it, no matter how far right you scroll
+                through the rest of the columns. Header row is sticky on vertical scroll too. */}
+            <div className="max-h-[70vh] overflow-auto">
+              <Table className="table-fixed">
+                <TableHeader className="sticky top-0 z-20 bg-card">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="sticky left-0 z-30 w-[130px] bg-card">{t.sourcing.colAction}</TableHead>
+                    <TableHead className="sticky left-[130px] z-30 w-[60px] bg-card">{t.sourcing.colDelete}</TableHead>
+                    <TableHead className="sticky left-[190px] z-30 w-[190px] border-r border-border bg-card">
+                      {t.sourcing.colName}
+                    </TableHead>
+                    <TableHead className="w-[50px]">{t.sourcing.colNo}</TableHead>
+                    <TableHead className="w-[150px]">{t.brands.colMethodology}</TableHead>
+                    <TableHead className="w-[90px]">{t.sourcing.colCountry}</TableHead>
+                    <TableHead className="w-[120px]">{t.sourcing.colSku}</TableHead>
+                    <TableHead className="w-[70px]">{t.sourcing.colYear}</TableHead>
+                    <TableHead className="w-[170px]">{t.sourcing.colWebsite}</TableHead>
+                    <TableHead className="w-[130px]">{t.sourcing.colContactPoint}</TableHead>
+                    <TableHead className="w-[100px]">{t.sourcing.colColdEmail}</TableHead>
+                    <TableHead className="w-[90px]">{t.sourcing.colReply}</TableHead>
+                    <TableHead className="w-[80px]">{t.sourcing.colVerdict}</TableHead>
+                    <TableHead className="w-[240px]">{t.sourcing.colReason}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {latestRun.candidates.map((c, i) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="sticky left-0 z-10 bg-card align-top">
+                        <SourcingCandidateActions candidateId={c.id} verdict={c.verdict} locale={locale} />
+                      </TableCell>
+                      <TableCell className="sticky left-[130px] z-10 bg-card align-top">
+                        <DeleteSourcingCandidateButton candidateId={c.id} locale={locale} />
+                      </TableCell>
+                      <TableCell className="sticky left-[190px] z-10 border-r border-border bg-card align-top font-medium">
+                        <ExpandableName name={c.name} />
+                      </TableCell>
+                      <TableCell className="align-top text-muted-foreground">{i + 1}</TableCell>
+                      <TableCell
+                        className="truncate align-top text-xs text-muted-foreground"
+                        title={c.methodology ?? undefined}
+                      >
+                        {c.methodology ?? "—"}
+                      </TableCell>
+                      <TableCell className="truncate align-top text-muted-foreground">{c.country ?? "—"}</TableCell>
+                      <TableCell className="truncate align-top text-muted-foreground" title={c.sku ?? undefined}>
+                        {c.sku ?? "—"}
+                      </TableCell>
+                      <TableCell className="align-top text-muted-foreground">{c.foundedYear ?? "—"}</TableCell>
+                      <TableCell className="truncate align-top">
+                        {c.website ? (
+                          <div className="truncate">
+                            <WebsiteLink website={c.website} />
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="align-top text-muted-foreground">—</TableCell>
+                      <TableCell className="align-top text-muted-foreground">—</TableCell>
+                      <TableCell className="align-top text-muted-foreground">—</TableCell>
+                      <TableCell className="align-top">
+                        <Badge className={VERDICT_STYLE[c.verdict]}>{verdictLabel[c.verdict] ?? c.verdict}</Badge>
+                      </TableCell>
+                      <TableCell className="truncate align-top text-xs text-muted-foreground" title={c.reason}>
+                        {c.reason}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </div>
       )}

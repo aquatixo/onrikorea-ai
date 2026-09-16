@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 # spawns this with cwd set to the project root, so this finds the same .env Next.js uses).
 load_dotenv()
 
-BRAVE_SEARCH_API_KEY = os.environ.get("BRAVE_SEARCH_API_KEY", "")
+TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:3000")
 

@@ -63,9 +63,9 @@ export async function runBrandSourcing(): Promise<{ error?: string }> {
         const reasonParts = [candidate.webReason];
         if (evaluation.categoryExcluded.excluded) reasonParts.push(evaluation.categoryExcluded.reason!);
         if (evaluation.duplicates.length > 0) {
-          reasonParts.push(
-            `Possible duplicate of existing brand: ${evaluation.duplicates[0].name} (${evaluation.duplicates[0].reason})`
-          );
+          const d = evaluation.duplicates[0];
+          const label = d.source === "brand" ? "existing brand" : "a previously found sourcing candidate";
+          reasonParts.push(`Possible duplicate of ${label}: ${d.name} (${d.reason})`);
         }
 
         return {
@@ -96,8 +96,14 @@ export async function addSourcingCandidateToBrands(candidateId: string): Promise
   const status: BrandStatus = candidate.verdict === "pass" ? "APPROVED" : "SCREENING";
 
   try {
+    // sourceNo is the running "No" column everyone actually reads down the Brands list --
+    // a brand added from sourcing needs the next number in that same sequence, not a blank.
+    const { _max } = await db.brand.aggregate({ _max: { sourceNo: true } });
+    const sourceNo = (_max.sourceNo ?? 0) + 1;
+
     const brand = await db.brand.create({
       data: {
+        sourceNo,
         name: candidate.name,
         methodology: candidate.methodology ?? undefined,
         country: candidate.country ?? undefined,
@@ -113,5 +119,18 @@ export async function addSourcingCandidateToBrands(candidateId: string): Promise
     return { id: brand.id };
   } catch {
     return { error: "Failed to save — a brand with this name may already exist." };
+  }
+}
+
+/** Removes a candidate from the sourcing results -- for junk the name filter let
+ * through (listicles, FAQ pages, etc.) that a human doesn't want cluttering the review
+ * list. Doesn't touch Brands; this only ever deletes a SourcingCandidate row. */
+export async function deleteSourcingCandidate(candidateId: string): Promise<{ ok: true } | { error: string }> {
+  try {
+    await db.sourcingCandidate.delete({ where: { id: candidateId } });
+    revalidatePath("/brands/sourcing");
+    return { ok: true };
+  } catch {
+    return { error: "Failed to delete candidate." };
   }
 }
