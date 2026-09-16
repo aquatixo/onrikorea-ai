@@ -2,13 +2,19 @@
 
 import * as React from "react";
 import { WorkCommentForm } from "@/components/work-comment-form";
+import { UserAvatar } from "@/components/user-avatar";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { WorkComment } from "@prisma/client";
 
 type CommentWithReplies = WorkComment & { replies: WorkComment[] };
 
 function formatTimestamp(date: Date, locale: Locale) {
-  return date.toLocaleString(locale === "ko" ? "ko-KR" : "en-US");
+  return date.toLocaleString(locale === "ko" ? "ko-KR" : "en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function WorkCommentItem({
@@ -26,47 +32,54 @@ export function WorkCommentItem({
   const [isReplying, setIsReplying] = React.useState(false);
 
   return (
-    <div className="space-y-3 rounded-lg border border-border p-3">
-      <div className="space-y-1">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="font-medium">{comment.authorName}</span>
-          <span className="text-xs text-muted-foreground">{formatTimestamp(comment.createdAt, locale)}</span>
+    <div className="flex gap-3">
+      <UserAvatar name={comment.authorName} />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="rounded-2xl rounded-tl-sm bg-muted/60 px-3.5 py-2.5">
+          <div className="mb-0.5 flex items-baseline gap-2">
+            <span className="text-sm font-semibold">{comment.authorName}</span>
+            <span className="text-[11px] text-muted-foreground">{formatTimestamp(comment.createdAt, locale)}</span>
+          </div>
+          <p className="text-sm whitespace-pre-wrap text-foreground/90">{comment.body}</p>
         </div>
-        <p className="text-sm whitespace-pre-wrap">{comment.body}</p>
-      </div>
 
-      {comment.replies.length > 0 && (
-        <div className="ml-4 space-y-2 border-l border-border pl-3">
-          {comment.replies.map((reply) => (
-            <div key={reply.id} className="space-y-1">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-medium">{reply.authorName}</span>
-                <span className="text-xs text-muted-foreground">{formatTimestamp(reply.createdAt, locale)}</span>
-              </div>
-              <p className="text-sm whitespace-pre-wrap">{reply.body}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {isReplying ? (
-        <div className="ml-4">
-          <WorkCommentForm
-            workItemId={workItemId}
-            parentId={comment.id}
-            authorName={authorName}
-            locale={locale}
-            onPosted={() => setIsReplying(false)}
-          />
-        </div>
-      ) : (
         <button
-          onClick={() => setIsReplying(true)}
-          className="ml-4 text-xs font-medium text-muted-foreground hover:text-foreground"
+          onClick={() => setIsReplying((v) => !v)}
+          className="ml-1 text-xs font-medium text-muted-foreground transition hover:text-foreground"
         >
           {t.reply}
         </button>
-      )}
+
+        {comment.replies.length > 0 && (
+          <div className="space-y-2.5 border-l-2 border-border/70 pl-3">
+            {comment.replies.map((reply) => (
+              <div key={reply.id} className="flex gap-2.5">
+                <UserAvatar name={reply.authorName} size="sm" />
+                <div className="min-w-0 flex-1 rounded-2xl rounded-tl-sm bg-muted/40 px-3 py-2">
+                  <div className="mb-0.5 flex items-baseline gap-2">
+                    <span className="text-xs font-semibold">{reply.authorName}</span>
+                    <span className="text-[10px] text-muted-foreground">{formatTimestamp(reply.createdAt, locale)}</span>
+                  </div>
+                  <p className="text-sm whitespace-pre-wrap text-foreground/90">{reply.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {isReplying && (
+          <div className="pt-1">
+            <WorkCommentForm
+              workItemId={workItemId}
+              parentId={comment.id}
+              authorName={authorName}
+              locale={locale}
+              onPosted={() => setIsReplying(false)}
+              compact
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Building2, Mail, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
+import { STATUS_STYLE } from "@/lib/brand-status";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 
@@ -52,12 +54,14 @@ export default async function HomePage() {
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label={t.home.brandsTracked} value={brandCount} icon={Building2} />
         <StatCard label={t.home.contacted} value={contactedCount} icon={Mail} />
-        <Card className="border-dashed opacity-60">
+        <Card className="border-dashed opacity-60 shadow-none">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               {t.home.draftsInOutlook}
             </CardTitle>
-            <Mail className="size-4 text-muted-foreground" />
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
+              <Mail className="size-4 text-muted-foreground" />
+            </span>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">—</div>
@@ -76,22 +80,33 @@ export default async function HomePage() {
             {t.home.viewAll} <ArrowUpRight className="size-3.5" />
           </Link>
         </div>
-        <div className="overflow-hidden rounded-xl border border-border">
+        <div className="overflow-hidden rounded-xl bg-card shadow-sm ring-1 ring-foreground/10">
           {recentBrands.length === 0 ? (
             <p className="p-6 text-center text-sm text-muted-foreground">{t.home.noBrandsYet}</p>
           ) : (
             <ul className="divide-y divide-border">
               {recentBrands.map((brand) => (
-                <li key={brand.id} className="flex items-center justify-between gap-4 px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{brand.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {brand.country ?? "—"} · {brand.sku ?? "—"}
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                    {t.status[brand.status]}
-                  </span>
+                <li key={brand.id}>
+                  <Link
+                    href={`/brands/${brand.id}`}
+                    className="flex items-center justify-between gap-4 px-4 py-3.5 transition-colors hover:bg-muted/50"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span
+                        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
+                        aria-hidden
+                      >
+                        <Building2 className="size-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{brand.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {brand.country ?? "—"} · {brand.sku ?? "—"}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge className={`${STATUS_STYLE[brand.status]} shrink-0`}>{t.status[brand.status]}</Badge>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -115,7 +130,9 @@ function StatCard({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-        <Icon className="size-4 text-muted-foreground" />
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+          <Icon className="size-4 text-primary" />
+        </span>
       </CardHeader>
       <CardContent>
         <div className="text-3xl font-bold">{value}</div>

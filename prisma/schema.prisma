@@ -93,6 +93,16 @@ enum WorkStatus {
   DONE           // 완료
 }
 
+// A real roster, independent of whether someone currently has any work items -- lets
+// "add a person" be its own action instead of only happening as a side effect of
+// creating their first task. No auth yet, so no role gate on who can add one (see
+// AddPersonForm) -- that's meant to become admin-only once login exists.
+model Person {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
 model WorkItem {
   id           String        @id @default(uuid())
   title        String

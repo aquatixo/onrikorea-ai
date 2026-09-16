@@ -26,6 +26,7 @@ function localizeValidationErrors(
     }
     if (field === "name") localized[field] = [t.nameRequired];
     if (field === "foundedYear") localized[field] = [t.yearInvalid];
+    if (field === "status") localized[field] = [t.statusRequired];
   }
   return localized;
 }

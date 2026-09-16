@@ -15,9 +15,10 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "cn";
+import { BrandMark } from "@/components/brand-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageToggle } from "@/components/language-toggle";
-import { UserNameControl } from "@/components/user-name-control";
+import { UserAvatar } from "@/components/user-avatar";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 type NavItem = {
@@ -68,9 +69,7 @@ export function AppSidebar({ locale, userName }: { locale: Locale; userName: str
     <>
       <div className="flex h-14 items-center justify-between border-b border-border px-4 sm:hidden">
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-            O
-          </div>
+          <BrandMark size={20} />
           <span className="text-sm font-bold tracking-tight">onrikorea.ai</span>
         </Link>
         <button
@@ -94,9 +93,7 @@ export function AppSidebar({ locale, userName }: { locale: Locale; userName: str
       >
         <div className="flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sm font-bold text-sidebar-primary-foreground">
-              O
-            </div>
+            <BrandMark size={24} />
             <span className="text-base font-bold tracking-tight">
               onrikorea<span className="text-sidebar-foreground/50">.ai</span>
             </span>
@@ -155,18 +152,23 @@ export function AppSidebar({ locale, userName }: { locale: Locale; userName: str
           ))}
         </nav>
 
-        <div className="space-y-1 border-t border-sidebar-border px-4 py-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-sidebar-foreground/50">{t.nav.theme}</span>
-            <ThemeToggle />
+        <div className="border-t border-sidebar-border p-3">
+          <div className="mb-2 flex items-center gap-2.5 rounded-lg bg-sidebar-accent/60 px-2.5 py-2">
+            <UserAvatar name={userName} size="sm" />
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold text-sidebar-foreground">{userName}</p>
+              <p className="text-[10px] text-sidebar-foreground/50">{t.nav.yourName}</p>
+            </div>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-sidebar-foreground/50">{t.nav.language}</span>
-            <LanguageToggle locale={locale} />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-sidebar-foreground/50">{t.nav.yourName}</span>
-            <UserNameControl name={userName} placeholder={t.nav.yourNamePlaceholder} />
+          <div className="space-y-1 px-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-sidebar-foreground/50">{t.nav.theme}</span>
+              <ThemeToggle />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-sidebar-foreground/50">{t.nav.language}</span>
+              <LanguageToggle locale={locale} />
+            </div>
           </div>
         </div>
       </aside>

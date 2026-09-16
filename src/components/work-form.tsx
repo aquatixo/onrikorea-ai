@@ -67,8 +67,7 @@ export function WorkForm({
         options={assigneeOptions}
         defaultValue={defaultAssignee ?? defaultValues?.assigneeName ?? undefined}
         error={state.errors?.assigneeName}
-        addNewLabel={t.addNewAssignee}
-        backLabel={t.backToList}
+        chooseLabel={t.choosePlaceholder}
       />
       <Field label={t.categoryLabel} name="category" defaultValue={defaultValues?.category ?? ""} />
       <WorkColorField label={t.colorLabel} noneLabel={t.noColor} defaultValue={defaultValues?.color} />

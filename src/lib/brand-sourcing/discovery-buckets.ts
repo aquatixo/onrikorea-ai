@@ -7,16 +7,36 @@ export type DiscoveryBucket = {
 
 /**
  * Deterministic category fan-out, derived from the user's stated sourcing focus
- * (snacks, nutritional supplements, baby cereal/porridge, chocolate — not beverages)
- * plus the heritage-brand criteria from the original cowork sourcing prompt. Kept as
- * four broad category buckets rather than category×region combos, to keep the run to
- * four parallel discovery calls + one verification pass.
+ * plus the heritage-brand criteria from the original cowork sourcing prompt. Each
+ * bucket is its own parallel discovery call -- more buckets means broader category
+ * coverage but scales discovery-stage cost roughly linearly (each is a separate
+ * Sonnet 5 + web search call).
  */
 export const DISCOVERY_BUCKETS: DiscoveryBucket[] = [
   {
     label: "Brand Sourcing — Snacks",
     brief:
-      "Heritage savory or sweet snack brands (crackers, chips, biscuits, cookies, nuts, dried fruit snacks) — a complete packaged consumer product, not a raw commodity.",
+      "Heritage savory snack brands (chips, crackers, nuts, dried fruit snacks) — a complete packaged consumer product, not a raw commodity.",
+  },
+  {
+    label: "Brand Sourcing — Biscuits & Shortcakes",
+    brief:
+      "Heritage biscuit, cookie, shortbread, or shortcake brands — complete packaged consumer products.",
+  },
+  {
+    label: "Brand Sourcing — Confectionery & Candy",
+    brief:
+      "Heritage confectionery/candy brands (hard candy, boiled sweets, toffees, lollipops) — not chocolate or jellies, which have their own buckets.",
+  },
+  {
+    label: "Brand Sourcing — Jellies & Gummies",
+    brief:
+      "Heritage fruit jelly or gummy candy brands — complete packaged consumer products.",
+  },
+  {
+    label: "Brand Sourcing — Chocolate",
+    brief:
+      "Heritage solid chocolate or confectionery brands — bars, pralines, truffles. Explicitly NOT drinking chocolate or any beverage.",
   },
   {
     label: "Brand Sourcing — Nutritional Supplements",
@@ -27,10 +47,5 @@ export const DISCOVERY_BUCKETS: DiscoveryBucket[] = [
     label: "Brand Sourcing — Baby Cereal & Porridge",
     brief:
       "Heritage baby cereal, infant porridge, or weaning-food brands — complete packaged consumer products for infants/toddlers.",
-  },
-  {
-    label: "Brand Sourcing — Chocolate",
-    brief:
-      "Heritage solid chocolate or confectionery brands — bars, pralines, truffles. Explicitly NOT drinking chocolate or any beverage.",
   },
 ];

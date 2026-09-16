@@ -25,7 +25,9 @@ import { ImportBrandsDialog } from "@/components/import-brands-dialog";
 // TODO: needs AZURE_TENANT_ID/AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/SHAREPOINT_SYNC_FILE_URL set in Vercel before this can go live -- re-enable then.
 // import { SyncSharePointDialog } from "@/components/sync-sharepoint-dialog";
 import { PageSizeControl } from "@/components/page-size-control";
+import { Badge } from "@/components/ui/badge";
 import { db } from "@/lib/db";
+import { STATUS_STYLE } from "@/lib/brand-status";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { getPageWindow, parsePageSize } from "@/lib/pagination";
@@ -110,7 +112,7 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border">
+      <div className="overflow-hidden rounded-2xl bg-card shadow-sm ring-1 ring-foreground/10">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -122,18 +124,22 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
                 <TableHead>{t.brands.colSku}</TableHead>
                 <TableHead>{t.brands.colYear}</TableHead>
                 <TableHead>{t.brands.colWebsite}</TableHead>
+                <TableHead>{t.brands.colStatus}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {brands.length === 0 && (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
                     {t.brands.noFound}
                   </TableCell>
                 </TableRow>
               )}
               {brands.map((brand) => (
-                <BrandRow key={brand.id} href={`/brands/${brand.id}`}>
+                <BrandRow
+                  key={brand.id}
+                  href={`/brands/${brand.id}?returnTo=${encodeURIComponent(pageHref(currentPage, q, pageSize))}`}
+                >
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {brand.sourceNo ?? "—"}
                   </TableCell>
@@ -152,6 +158,9 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge className={STATUS_STYLE[brand.status]}>{t.status[brand.status]}</Badge>
                   </TableCell>
                 </BrandRow>
               ))}

@@ -69,15 +69,20 @@ export function BrandForm({ mode, brand, locale, action }: Props) {
           <select
             id="status"
             name="status"
-            defaultValue={brand?.status ?? "NEW"}
+            required
+            defaultValue={brand?.status ?? ""}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           >
+            <option value="" disabled>
+              {t.form.choosePlaceholder}
+            </option>
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>
                 {t.status[s]}
               </option>
             ))}
           </select>
+          {state.errors?.status && <p className="text-xs text-destructive">{state.errors.status[0]}</p>}
         </div>
       </div>
 

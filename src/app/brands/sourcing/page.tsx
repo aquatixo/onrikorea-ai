@@ -3,6 +3,7 @@ import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 // TODO: needs ANTHROPIC_API_KEY set in Vercel before this can go live -- re-enable then.
 // import { RunSourcingButton } from "@/components/run-sourcing-button";
+import { RunPythonSourcingButton } from "@/components/run-python-sourcing-button";
 import { SourcingCandidateActions } from "@/components/sourcing-candidate-actions";
 import { WebsiteLink } from "@/components/website-link";
 import { Badge } from "@/components/ui/badge";
@@ -39,8 +40,11 @@ export default async function BrandSourcingPage() {
         <p className="text-sm text-muted-foreground">{t.sourcing.subtitle}</p>
       </div>
 
-      {/* TODO: needs ANTHROPIC_API_KEY set in Vercel before this can go live -- swap back to <RunSourcingButton locale={locale} /> then. */}
-      <Button disabled>{t.sourcing.runButton}</Button>
+      <div className="flex flex-wrap items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+        {/* TODO: needs ANTHROPIC_API_KEY set in Vercel before this can go live -- swap back to <RunSourcingButton locale={locale} /> then. */}
+        <Button disabled>{t.sourcing.runButton}</Button>
+        <RunPythonSourcingButton locale={locale} />
+      </div>
 
       {!latestRun || latestRun.candidates.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t.sourcing.noRunsYet}</p>
@@ -65,11 +69,12 @@ export default async function BrandSourcingPage() {
             />
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-border">
+          <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 font-medium">{t.sourcing.colName}</th>
+                  <th className="px-3 py-2 font-medium">{t.sourcing.colSource}</th>
                   <th className="px-3 py-2 font-medium">{t.sourcing.colCountry}</th>
                   <th className="px-3 py-2 font-medium">{t.sourcing.colSku}</th>
                   <th className="px-3 py-2 font-medium">{t.sourcing.colYear}</th>
@@ -83,6 +88,7 @@ export default async function BrandSourcingPage() {
                 {latestRun.candidates.map((c) => (
                   <tr key={c.id} className="align-top">
                     <td className="px-3 py-2 font-medium">{c.name}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{c.methodology ?? "—"}</td>
                     <td className="px-3 py-2 text-muted-foreground">{c.country ?? "—"}</td>
                     <td className="px-3 py-2 text-muted-foreground">{c.sku ?? "—"}</td>
                     <td className="px-3 py-2 text-muted-foreground">{c.foundedYear ?? "—"}</td>
