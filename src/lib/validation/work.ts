@@ -32,7 +32,9 @@ export const workFormSchema = z
   .object({
     title: z.string().trim().min(1, "Title is required").refine(isSafeText, UNSAFE_INPUT_MESSAGE),
     assigneeName: z.string().trim().min(1, "Assignee is required").refine(isSafeText, UNSAFE_INPUT_MESSAGE),
-    category: optionalSafeText,
+    // Required so every item lands under a category node in the sidebar -- an empty
+    // category used to mean the item just silently had no drill-down entry to find it by.
+    category: z.string().trim().min(1, "Category is required").refine(isSafeText, UNSAFE_INPUT_MESSAGE),
     content: optionalSafeText,
     color: optionalColor,
     startDate: optionalDate,
@@ -47,7 +49,7 @@ export const workEditSchema = z
   .object({
     title: z.string().trim().min(1, "Title is required").refine(isSafeText, UNSAFE_INPUT_MESSAGE),
     assigneeName: z.string().trim().min(1, "Assignee is required").refine(isSafeText, UNSAFE_INPUT_MESSAGE),
-    category: optionalSafeText,
+    category: z.string().trim().min(1, "Category is required").refine(isSafeText, UNSAFE_INPUT_MESSAGE),
     content: optionalSafeText,
     color: optionalColor,
     startDate: optionalDate,

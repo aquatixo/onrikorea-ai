@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { deleteStoreVisitItem } from "@/app/field/store-visits/actions";
+import { deleteStoreVisitItem } from "@/app/(dashboard)/field/store-visits/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 export function DeleteItemButton({

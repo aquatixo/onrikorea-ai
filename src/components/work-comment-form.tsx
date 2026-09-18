@@ -5,7 +5,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user-avatar";
-import { addWorkComment } from "@/app/work/actions";
+import { addWorkComment } from "@/app/(dashboard)/work/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 export function WorkCommentForm({

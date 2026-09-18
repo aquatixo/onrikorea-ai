@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { setStoreActive } from "@/app/field/stores/actions";
+import { setStoreActive } from "@/app/(dashboard)/field/stores/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 export function ToggleStoreActiveButton({

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Square } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import { stopPythonBrandSourcing } from "@/app/brands/sourcing/python-actions";
+import { stopPythonBrandSourcing } from "@/app/(dashboard)/brands/sourcing/python-actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 export type SourcingProgress = {

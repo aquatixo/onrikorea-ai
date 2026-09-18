@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { STORE_TYPE_VALUES } from "@/lib/field-status";
 import { compressImage } from "@/lib/compress-image";
-import type { StoreFormState } from "@/app/field/stores/actions";
+import type { StoreFormState } from "@/app/(dashboard)/field/stores/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { Store } from "@prisma/client";
 

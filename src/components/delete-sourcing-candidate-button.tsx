@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { deleteSourcingCandidate } from "@/app/brands/sourcing/actions";
+import { deleteSourcingCandidate } from "@/app/(dashboard)/brands/sourcing/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 export function DeleteSourcingCandidateButton({ candidateId, locale }: { candidateId: string; locale: Locale }) {

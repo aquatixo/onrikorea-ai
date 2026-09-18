@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { runBrandSourcing } from "@/app/brands/sourcing/actions";
+import { runBrandSourcing } from "@/app/(dashboard)/brands/sourcing/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 export function RunSourcingButton({ locale }: { locale: Locale }) {

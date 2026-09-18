@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { SourcingProgressPanel, type SourcingProgress } from "@/components/sourcing-progress-panel";
-import { startPythonBrandSourcing } from "@/app/brands/sourcing/python-actions";
+import { startPythonBrandSourcing } from "@/app/(dashboard)/brands/sourcing/python-actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 type LatestRunInfo = { id: string; status: string; progress: SourcingProgress | null } | null;

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useTransition } from "react";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { uploadStoreVisitPhoto } from "@/app/field/store-visits/actions";
+import { uploadStoreVisitPhoto } from "@/app/(dashboard)/field/store-visits/actions";
 import { PHOTO_TYPE_VALUES } from "@/lib/field-status";
 import { compressImages } from "@/lib/compress-image";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";

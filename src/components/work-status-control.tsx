@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { cn } from "cn";
-import { updateWorkStatus } from "@/app/work/actions";
+import { updateWorkStatus } from "@/app/(dashboard)/work/actions";
 import { WORK_STATUS_STYLE, WORK_STATUS_VALUES } from "@/lib/work-status";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { WorkStatus } from "@prisma/client";

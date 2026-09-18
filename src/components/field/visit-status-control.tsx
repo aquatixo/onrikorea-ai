@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { setStoreVisitStatus } from "@/app/field/store-visits/actions";
+import { setStoreVisitStatus } from "@/app/(dashboard)/field/store-visits/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { StoreVisitStatus } from "@prisma/client";
 

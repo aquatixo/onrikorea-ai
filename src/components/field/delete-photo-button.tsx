@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { Trash2 } from "lucide-react";
-import { deleteStoreVisitPhoto } from "@/app/field/store-visits/actions";
+import { deleteStoreVisitPhoto } from "@/app/(dashboard)/field/store-visits/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 export function DeletePhotoButton({

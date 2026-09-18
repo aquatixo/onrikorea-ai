@@ -14,7 +14,7 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { importBrandsFromExcel } from "@/app/brands/import-actions";
+import { importBrandsFromExcel } from "@/app/(dashboard)/brands/import-actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 export function ImportBrandsDialog({ locale }: { locale: Locale }) {

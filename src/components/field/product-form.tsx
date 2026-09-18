@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PRODUCT_CATEGORY_VALUES } from "@/lib/field-status";
-import type { ProductFormState } from "@/app/field/products/actions";
+import type { ProductFormState } from "@/app/(dashboard)/field/products/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { Product } from "@prisma/client";
 

@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import type { StoreVisitFormState } from "@/app/field/store-visits/actions";
+import type { StoreVisitFormState } from "@/app/(dashboard)/field/store-visits/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { Store, StoreVisit } from "@prisma/client";
 

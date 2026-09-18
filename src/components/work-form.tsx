@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { AssigneeField } from "@/components/assignee-field";
 import { WorkColorField } from "@/components/work-color-field";
-import type { WorkFormState } from "@/app/work/actions";
+import type { WorkFormState } from "@/app/(dashboard)/work/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 type Props = {
@@ -69,7 +69,13 @@ export function WorkForm({
         error={state.errors?.assigneeName}
         chooseLabel={t.choosePlaceholder}
       />
-      <Field label={t.categoryLabel} name="category" defaultValue={defaultValues?.category ?? ""} />
+      <Field
+        label={t.categoryLabel}
+        name="category"
+        required
+        defaultValue={defaultValues?.category ?? ""}
+        error={state.errors?.category}
+      />
       <WorkColorField label={t.colorLabel} noneLabel={t.noColor} defaultValue={defaultValues?.color} />
 
       <div className="space-y-1.5">

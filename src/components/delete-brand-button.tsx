@@ -2,7 +2,7 @@
 
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { deleteBrand } from "@/app/brands/actions";
+import { deleteBrand } from "@/app/(dashboard)/brands/actions";
 
 export function DeleteBrandButton({
   brandId,

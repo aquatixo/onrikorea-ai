@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import type { Brand, BrandStatus } from "@prisma/client";
-import type { BrandFormState } from "@/app/brands/actions";
+import type { BrandFormState } from "@/app/(dashboard)/brands/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 const STATUS_OPTIONS: BrandStatus[] = [
