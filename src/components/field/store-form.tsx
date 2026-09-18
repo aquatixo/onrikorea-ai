@@ -1,9 +1,11 @@
 "use client";
 
+import * as React from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { STORE_TYPE_VALUES } from "@/lib/field-status";
+import { compressImage } from "@/lib/compress-image";
 import type { StoreFormState } from "@/app/field/stores/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { Store } from "@prisma/client";
@@ -24,9 +26,30 @@ export function StoreForm({
   const t = getDictionary(locale).field;
   const [state, formAction, isPending] = useActionState(action, initialState);
   const router = useRouter();
+  const [isCompressing, setIsCompressing] = React.useState(false);
+
+  // The image comes off the native file input, gets compressed client-side, then gets
+  // handed to the Server Action manually -- useActionState's formAction is a plain
+  // function, so it's fine to call it with a rebuilt FormData instead of a native submit.
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fileInput = form.elements.namedItem("image") as HTMLInputElement | null;
+    const rawFile = fileInput?.files?.[0];
+
+    const formData = new FormData(form);
+    if (rawFile) {
+      setIsCompressing(true);
+      const compressed = await compressImage(rawFile);
+      setIsCompressing(false);
+      formData.set("image", compressed);
+    }
+
+    formAction(formData);
+  }
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5">
       {state.message && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {state.message}
@@ -58,9 +81,33 @@ export function StoreForm({
         <Field label={t.stores.cityLabel} name="city" defaultValue={store?.city ?? ""} />
       </div>
 
+      <div className="space-y-1.5">
+        <label htmlFor="image" className="text-sm font-medium">
+          {t.stores.imageLabel}
+        </label>
+        {store?.imageUrl && (
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-2">
+            {/* eslint-disable-next-line @next/next/no-img-element -- external Vercel Blob URL, no remotePatterns configured */}
+            <img src={store.imageUrl} alt={store.name} className="size-16 rounded-md object-cover" />
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <input type="checkbox" name="removeImage" value="true" className="size-3.5 rounded border-border" />
+              {t.stores.removeImage}
+            </label>
+          </div>
+        )}
+        <input
+          id="image"
+          name="image"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-accent"
+        />
+      </div>
+
       <div className="flex gap-3 pt-2">
-        <Button type="submit" disabled={isPending}>
-          {isPending ? t.saving : mode === "create" ? t.stores.createButton : t.saveChanges}
+        <Button type="submit" disabled={isPending || isCompressing}>
+          {isPending || isCompressing ? t.saving : mode === "create" ? t.stores.createButton : t.saveChanges}
         </Button>
         <Button type="button" variant="outline" onClick={() => router.back()}>
           {t.cancel}

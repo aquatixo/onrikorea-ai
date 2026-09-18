@@ -236,6 +236,8 @@ model Store {
   address   String?
   city      String?
   isActive  Boolean     @default(true) // soft-delete -- a store with visit history is deactivated, never hard-deleted
+  imageUrl  String?     // representative photo of the store itself (exterior/entrance) -- not tied to any one visit
+  imageName String?
 
   visits    StoreVisit[]
 

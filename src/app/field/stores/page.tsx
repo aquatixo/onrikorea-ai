@@ -63,7 +63,19 @@ export default async function StoresPage() {
               )}
               {stores.map((store) => (
                 <ClickableRow key={store.id} href={`/field/stores/${store.id}/edit`}>
-                  <TableCell className="font-medium">{store.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2.5">
+                      {store.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- external Vercel Blob URL, no remotePatterns configured
+                        <img src={store.imageUrl} alt={store.name} className="size-8 shrink-0 rounded-full object-cover" />
+                      ) : (
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                          <StoreIcon className="size-4" />
+                        </span>
+                      )}
+                      {store.name}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{store.chain ?? "—"}</TableCell>
                   <TableCell className="text-muted-foreground">{t.storeType[store.storeType]}</TableCell>
                   <TableCell className="text-muted-foreground">{store.city ?? "—"}</TableCell>
