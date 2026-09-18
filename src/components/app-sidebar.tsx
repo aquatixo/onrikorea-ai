@@ -13,6 +13,9 @@ import {
   Settings,
   Menu,
   X,
+  MapPin,
+  Store,
+  Package,
 } from "lucide-react";
 import { cn } from "cn";
 import { BrandMark } from "@/components/brand-mark";
@@ -56,6 +59,14 @@ export function AppSidebar({ locale, userName }: { locale: Locale; userName: str
         { href: "/work", label: t.nav.work, icon: ListTodo },
         { href: "/schedules", label: t.nav.schedules, icon: CalendarClock, soon: true },
         { href: "/reports", label: t.nav.weeklyReport, icon: ClipboardList, soon: true },
+      ],
+    },
+    {
+      label: t.nav.field,
+      items: [
+        { href: "/field/stores", label: t.nav.stores, icon: Store },
+        { href: "/field/store-visits", label: t.nav.storeVisits, icon: MapPin },
+        { href: "/field/products", label: t.nav.products, icon: Package },
       ],
     },
     {

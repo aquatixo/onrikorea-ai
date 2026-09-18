@@ -186,3 +186,150 @@ model OutreachLog {
   @@index([brandId])
   @@index([contactId])
 }
+
+// ===== Field / Store Visit =====================================================
+// Completely independent of Brand/Sourcing/Work -- its own Product master, its own
+// visit records. Nothing here reads or writes those models.
+
+enum StoreType {
+  DEPARTMENT_STORE
+  HYPERMARKET
+  CONVENIENCE_STORE
+  WAREHOUSE
+  DRUGSTORE
+  OTHER
+}
+
+enum StoreVisitStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum StoreVisitProductCategory {
+  SNACK
+  CHOCOLATE
+  BISCUIT
+  COOKIE
+  CANDY
+  JELLY
+  NUTS
+  FOOD
+  BEVERAGE
+  OTHER
+}
+
+enum StoreVisitPhotoType {
+  PRODUCT
+  PRICE_TAG
+  DISPLAY
+  PROMOTION
+  STORE
+  OTHER
+}
+
+model Store {
+  id        String      @id @default(uuid())
+  name      String
+  chain     String?     // free-form, not a master table, e.g. "이마트", "CU"
+  storeType StoreType   @default(OTHER)
+  address   String?
+  city      String?
+  isActive  Boolean     @default(true) // soft-delete -- a store with visit history is deactivated, never hard-deleted
+
+  visits    StoreVisit[]
+
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([name])
+  @@index([chain])
+}
+
+// Store Visit's own product master -- deliberately not the Brand/Sourcing Product data.
+model Product {
+  id              String                     @id @default(uuid())
+  brandName       String
+  productName     String
+  category        StoreVisitProductCategory  @default(OTHER)
+  subcategory     String?
+  barcode         String?
+  countryOfOrigin String?
+  manufacturer    String?
+  packageSize     String?
+  imageUrl        String?
+
+  items           StoreVisitItem[]
+
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  @@index([productName])
+  @@index([brandName])
+  @@index([barcode])
+}
+
+model StoreVisit {
+  id        String            @id @default(uuid())
+  storeId   String
+  store     Store             @relation(fields: [storeId], references: [id], onDelete: Restrict)
+
+  visitDate DateTime
+  visitor   String            // no auth yet -- just a plain name, same as WorkItem.assigneeName
+  status    StoreVisitStatus  @default(IN_PROGRESS)
+  memo      String?           @db.Text
+
+  items     StoreVisitItem[]
+  photos    StoreVisitPhoto[] // store-level photos (storeVisitItemId null on these)
+
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([storeId])
+  @@index([visitDate])
+}
+
+// What was actually observed for one product during one visit -- price/promo/stock/
+// display live here, never on Product itself, since the same product is reused across visits.
+model StoreVisitItem {
+  id              String            @id @default(uuid())
+  storeVisitId    String
+  storeVisit      StoreVisit        @relation(fields: [storeVisitId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  price           Int?              // KRW, whole-won -- no fractional currency in practice, kept simple (no Decimal precedent in this project)
+  currency        String            @default("KRW")
+  promotion       String?
+  stockStatus     String?
+  displayLocation String?
+  facingCount     Int?
+  memo            String?           @db.Text
+
+  photos          StoreVisitPhoto[]
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([storeVisitId, productId])
+  @@index([storeVisitId])
+  @@index([productId])
+}
+
+model StoreVisitPhoto {
+  id               String           @id @default(uuid())
+  storeVisitId     String
+  storeVisit       StoreVisit       @relation(fields: [storeVisitId], references: [id], onDelete: Cascade)
+  storeVisitItemId String?          // null = store-level photo (whole store/entrance/aisle), set = item-level photo
+  storeVisitItem   StoreVisitItem?  @relation(fields: [storeVisitItemId], references: [id], onDelete: Cascade)
+
+  photoType        StoreVisitPhotoType @default(OTHER)
+  fileUrl          String           // Vercel Blob URL, same convention as WorkItem.fileUrl
+  fileName         String?
+  caption          String?
+
+  createdAt        DateTime         @default(now())
+
+  @@index([storeVisitId])
+  @@index([storeVisitItemId])
+}
