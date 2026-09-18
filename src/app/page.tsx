@@ -9,6 +9,9 @@ import {
   Search,
   CalendarClock,
   ClipboardList,
+  MapPin,
+  Store,
+  Package,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +43,9 @@ export default async function HomePage() {
     { href: "/brands", label: t.nav.brands, icon: Building2, soon: false },
     { href: "/brands/sourcing", label: t.nav.brandSourcing, icon: Search, soon: false },
     { href: "/work", label: t.nav.work, icon: ListTodo, soon: false },
+    { href: "/field/stores", label: t.nav.stores, icon: Store, soon: false },
+    { href: "/field/store-visits", label: t.nav.storeVisits, icon: MapPin, soon: false },
+    { href: "/field/products", label: t.nav.products, icon: Package, soon: false },
     { href: "/schedules", label: t.nav.schedules, icon: CalendarClock, soon: true },
     { href: "/reports", label: t.nav.weeklyReport, icon: ClipboardList, soon: true },
   ];
@@ -93,7 +99,7 @@ export default async function HomePage() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground">{t.home.quickAccess}</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
           {modules.map((m) => {
             const Icon = m.icon;
             const content = (
