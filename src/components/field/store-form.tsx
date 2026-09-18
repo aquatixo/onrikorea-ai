@@ -45,7 +45,9 @@ export function StoreForm({
       formData.set("image", compressed);
     }
 
-    formAction(formData);
+    React.startTransition(() => {
+      formAction(formData);
+    });
   }
 
   return (

@@ -48,7 +48,9 @@ export function StoreVisitItemForm({
     formData.delete("photos");
     for (const file of compressed) formData.append("photos", file);
 
-    formAction(formData);
+    React.startTransition(() => {
+      formAction(formData);
+    });
   }
 
   return (
