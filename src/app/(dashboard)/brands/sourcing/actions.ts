@@ -134,3 +134,28 @@ export async function deleteSourcingCandidate(candidateId: string): Promise<{ ok
     return { error: "Failed to delete candidate." };
   }
 }
+
+/** Bulk version of addSourcingCandidateToBrands for the "전체 추가" toolbar action --
+ * runs sequentially (not Promise.all) so each candidate's sourceNo aggregate sees the
+ * previous insert, same as adding them one at a time from the UI. */
+export async function addSourcingCandidatesToBrands(
+  candidateIds: string[]
+): Promise<{ addedIds: Record<string, string>; errors: Record<string, string> }> {
+  const addedIds: Record<string, string> = {};
+  const errors: Record<string, string> = {};
+
+  for (const id of candidateIds) {
+    const result = await addSourcingCandidateToBrands(id);
+    if ("error" in result) errors[id] = result.error;
+    else addedIds[id] = result.id;
+  }
+
+  return { addedIds, errors };
+}
+
+/** Bulk version of deleteSourcingCandidate for the "전체 삭제" toolbar action. */
+export async function deleteSourcingCandidates(candidateIds: string[]): Promise<{ deleted: number }> {
+  const { count } = await db.sourcingCandidate.deleteMany({ where: { id: { in: candidateIds } } });
+  revalidatePath("/brands/sourcing");
+  return { deleted: count };
+}
