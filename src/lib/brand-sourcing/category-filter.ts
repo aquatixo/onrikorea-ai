@@ -3,29 +3,36 @@ export type CategoryVerdict = {
   reason?: string;
 };
 
+// Every alternative is wrapped inside the single \b(...)\b group -- a bare
+// `\balcohol|beer|wine\b` chain only binds \b to its immediate neighbor, so
+// everything in the middle (beer, wine, liquor, spirits, vodka) would match as an
+// unguarded substring anywhere. Currently dormant in practice (this only ever runs
+// against our own fixed SKU labels, none of which happen to contain these
+// substrings), but a real bug in shared evaluation logic that a future free-text
+// SKU (e.g. a re-enabled LLM pipeline) would hit for real.
 const HARD_EXCLUDE_RULES: { pattern: RegExp; reason: string }[] = [
   {
-    pattern: /\balcohol|beer|wine|whisk[ey]y|liquor|spirits?|vodka|rum\b|\bgin\b/i,
+    pattern: /\b(alcohol|beer|wine|whisky|whiskey|liquor|spirits?|vodka|rum|gin)\b/i,
     reason: "Alcohol category is hard-excluded",
   },
   {
-    pattern: /\bdairy\b|\bmilk\b|\bcheese\b|\byogurt\b|plant[- ]based milk|oat milk|almond milk/i,
+    pattern: /\b(dairy|milk|cheese|yogurt|plant[- ]based milk|oat milk|almond milk)\b/i,
     reason: "Dairy / plant-based milk is hard-excluded",
   },
   {
-    pattern: /\bsauce\b|\bspread\b|\bjam\b|marmalade|mustard/i,
+    pattern: /\b(sauce|spread|jam|marmalade|mustard)\b/i,
     reason: "Sauces / spreads / jam / mustard are hard-excluded",
   },
   {
-    pattern: /seafood|canned fish|\btuna\b|\bsalmon\b|sardine/i,
+    pattern: /\b(seafood|canned fish|tuna|salmon|sardine)\b/i,
     reason: "Seafood / canned fish is hard-excluded",
   },
   {
-    pattern: /fresh produce|fresh meat|charcuterie|fresh fruit|fresh vegetable/i,
+    pattern: /\b(fresh produce|fresh meat|charcuterie|fresh fruit|fresh vegetable)\b/i,
     reason: "Fresh produce / fresh meat / charcuterie is hard-excluded",
   },
   {
-    pattern: /\bOEM\b|\bODM\b|private label only|b2b[- ]only/i,
+    pattern: /\b(OEM|ODM|private label only|b2b[- ]only)\b/i,
     reason: "OEM/ODM-only (B2B only) brands are hard-excluded",
   },
 ];

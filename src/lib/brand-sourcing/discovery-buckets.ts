@@ -48,4 +48,24 @@ export const DISCOVERY_BUCKETS: DiscoveryBucket[] = [
     brief:
       "Heritage baby cereal, infant porridge, or weaning-food brands — complete packaged consumer products for infants/toddlers.",
   },
+  {
+    label: "Brand Sourcing — Baking (Panettone, Viennoiserie)",
+    brief:
+      "Heritage baked finished goods — panettone, pandoro, viennoiserie, or biscuit brands (especially Italian/French) — complete packaged consumer products, not a bakery-only fresh-goods business.",
+  },
+  {
+    label: "Brand Sourcing — Japan (Wagashi & Traditional Confectionery)",
+    brief:
+      "Heritage Japanese confectionery brands (wagashi, senbei, and similar traditional sweets) — complete packaged consumer products from a long-established, family-owned maker.",
+  },
+  {
+    label: "Brand Sourcing — Coffee & Tea",
+    brief:
+      "Heritage tea or coffee roaster brands — complete packaged consumer products (leaf tea, tea bags, roasted/ground coffee), not a café-only business.",
+  },
+  {
+    label: "Brand Sourcing — Honey",
+    brief:
+      "Heritage honey brands — complete packaged consumer products from a long-established, family-owned producer.",
+  },
 ];

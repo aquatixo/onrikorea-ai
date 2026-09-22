@@ -15,6 +15,9 @@ const SKU_PHRASE_KO: Record<string, string> = {
   "chocolate": "초콜릿",
   "nutritional supplements": "건강기능식품",
   "baby cereal & porridge": "이유식/시리얼",
+  "baking": "베이킹",
+  "coffee & tea": "커피/차",
+  "honey": "꿀",
 };
 
 const SKU_WORD_KO: Record<string, string> = {
@@ -28,6 +31,7 @@ const SKU_WORD_KO: Record<string, string> = {
   cereal: "시리얼", porridge: "이유식", baby: "유아용",
   coffee: "커피", tea: "차", beverage: "음료", beverages: "음료", drink: "음료", drinks: "음료",
   honey: "꿀", nuts: "견과류", "dried fruit": "건과일",
+  baking: "베이킹", panettone: "파네토네", pandoro: "판도로", viennoiserie: "비엔누아즈리",
 };
 
 function translateWord(word: string): string {

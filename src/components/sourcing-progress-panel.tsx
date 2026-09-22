@@ -115,6 +115,7 @@ export function SourcingProgressPanel({
         <StatChip label={t.countLabel.koreaChecked} value={counts.koreaChecked ?? 0} />
         <StatChip label={t.countLabel.rejected} value={counts.rejected ?? 0} />
         <StatChip label={t.countLabel.flagged} value={counts.flagged ?? 0} />
+        <StatChip label={t.countLabel.skippedCrawl} value={counts.skippedCrawl ?? 0} />
         <StatChip label={t.countLabel.errors} value={errors} warnIfPositive />
       </div>
     </div>

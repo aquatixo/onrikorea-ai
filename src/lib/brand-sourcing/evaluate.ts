@@ -33,6 +33,7 @@ export async function evaluateCandidate(candidate: CandidateInput): Promise<Eval
     name: candidate.name,
     country: normalized.country,
     sku: normalized.sku,
+    website: candidate.website,
   });
 
   let verdict: EvaluationResult["verdict"] = "pass";

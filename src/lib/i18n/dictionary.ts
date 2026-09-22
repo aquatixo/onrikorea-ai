@@ -216,6 +216,7 @@ export const dictionaries = {
         rejected: "Hard rejected",
         flagged: "Flagged for review",
         errors: "Errors",
+        skippedCrawl: "Skipped crawl (rejected free)",
       },
     },
     status: {
@@ -748,6 +749,7 @@ export const dictionaries = {
         rejected: "하드 제외",
         flagged: "검토 필요",
         errors: "오류",
+        skippedCrawl: "조기 제외 (크롤링 생략)",
       },
     },
     status: {

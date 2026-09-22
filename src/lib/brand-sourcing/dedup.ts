@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { similarityRatio } from "@/lib/brand-sourcing/similarity";
+import { extractDomain } from "@/lib/extract-domain";
 
 const FUZZY_CUTOFF = 0.84;
 const MIN_PARTIAL_LENGTH = 5;
@@ -14,7 +15,7 @@ export type DuplicateMatch = {
   country: string | null;
   sku: string | null;
   sourceNo: number | null;
-  matchType: "exact" | "partial" | "fuzzy";
+  matchType: "exact" | "domain" | "partial" | "fuzzy";
   score: number;
   confidence: "high" | "low";
   reason: string;
@@ -27,12 +28,14 @@ type ExistingRecord = {
   country: string | null;
   sku: string | null;
   sourceNo: number | null;
+  domain: string | null;
 };
 
 export type DedupCandidate = {
   name: string;
   country?: string | null;
   sku?: string | null;
+  website?: string | null;
 };
 
 function normalizeName(name: string): string {
@@ -109,15 +112,34 @@ function toMatch(
  */
 export async function findDuplicates(candidate: DedupCandidate): Promise<DuplicateMatch[]> {
   const candidateName = normalizeName(candidate.name);
+  const candidateDomain = extractDomain(candidate.website) ?? null;
 
   const [existingBrands, existingCandidates] = await Promise.all([
-    db.brand.findMany({ select: { id: true, name: true, country: true, sku: true, sourceNo: true } }),
-    db.sourcingCandidate.findMany({ select: { id: true, name: true, country: true, sku: true } }),
+    db.brand.findMany({
+      select: { id: true, name: true, country: true, sku: true, sourceNo: true, websiteDomain: true },
+    }),
+    db.sourcingCandidate.findMany({ select: { id: true, name: true, country: true, sku: true, website: true } }),
   ]);
 
   const existingRecords: ExistingRecord[] = [
-    ...existingBrands.map((b) => ({ source: "brand" as const, ...b })),
-    ...existingCandidates.map((c) => ({ source: "candidate" as const, ...c, sourceNo: null })),
+    ...existingBrands.map((b) => ({
+      source: "brand" as const,
+      id: b.id,
+      name: b.name,
+      country: b.country,
+      sku: b.sku,
+      sourceNo: b.sourceNo,
+      domain: b.websiteDomain,
+    })),
+    ...existingCandidates.map((c) => ({
+      source: "candidate" as const,
+      id: c.id,
+      name: c.name,
+      country: c.country,
+      sku: c.sku,
+      sourceNo: null,
+      domain: extractDomain(c.website) ?? null,
+    })),
   ];
 
   const matches: DuplicateMatch[] = [];
@@ -133,6 +155,24 @@ export async function findDuplicates(candidate: DedupCandidate): Promise<Duplica
           1,
           "high",
           existing.source === "brand" ? "Exact name match" : "Exact name match against a previously found sourcing candidate"
+        )
+      );
+      continue;
+    }
+
+    // Same website domain = same company even under a different display name (e.g. a
+    // rebrand, or one side using a legal suffix/subsidiary name) -- a strong enough
+    // signal to auto-exclude on its own, same as an exact name match.
+    if (candidateDomain && existing.domain && candidateDomain === existing.domain) {
+      matches.push(
+        toMatch(
+          existing,
+          "domain",
+          1,
+          "high",
+          existing.source === "brand"
+            ? "Same website domain as an existing brand"
+            : "Same website domain as a previously found sourcing candidate"
         )
       );
       continue;
