@@ -1,10 +1,14 @@
 import { db } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
-import { RunSourcingButton } from "@/components/run-sourcing-button";
+// TODO: on hold -- Anthropic Console has no payment method on file (just $5 free
+// credit, per user check), and a full run's web-search-tool + Opus token cost could
+// plausibly exceed that and fail mid-run. Re-enable once real credit is added.
+// import { RunSourcingButton } from "@/components/run-sourcing-button";
 import { RunPythonSourcingButton } from "@/components/run-python-sourcing-button";
 import type { SourcingProgress } from "@/components/sourcing-progress-panel";
 import { SourcingResultsTable } from "@/components/sourcing-results-table";
+import { Button } from "@/components/ui/button";
 import { Search, ListChecks } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +41,7 @@ export default async function BrandSourcingPage() {
       </div>
 
       <div className="flex flex-wrap items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-        <RunSourcingButton locale={locale} />
+        <Button disabled>{t.sourcing.runButton}</Button>
         <RunPythonSourcingButton
           locale={locale}
           latestRun={
