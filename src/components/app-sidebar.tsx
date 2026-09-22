@@ -22,6 +22,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageToggle } from "@/components/language-toggle";
 import { UserAvatar } from "@/components/user-avatar";
+import { SignOutButton } from "@/components/sign-out-button";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 type NavItem = {
@@ -165,10 +166,10 @@ export function AppSidebar({ locale, userName }: { locale: Locale; userName: str
         <div className="border-t border-sidebar-border p-3">
           <div className="mb-2 flex items-center gap-2.5 rounded-lg bg-sidebar-accent/60 px-2.5 py-2">
             <UserAvatar name={userName} size="sm" />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-semibold text-sidebar-foreground">{userName}</p>
-              <p className="text-[10px] text-sidebar-foreground/50">{t.nav.yourName}</p>
             </div>
+            <SignOutButton label={t.nav.signOut} />
           </div>
           <div className="space-y-1 px-1">
             <div className="flex items-center justify-between">

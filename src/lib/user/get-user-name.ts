@@ -1,10 +1,9 @@
-/**
- * Stand-in for a real logged-in identity until auth is wired up. There's no login or
- * roles system yet (explicitly deferred until after brand sourcing), so every comment
- * and edit is attributed to "Admin" -- not a per-browser customizable name, since that
- * would contradict there being no real identity yet. Once real auth exists, this should
- * read the actual signed-in user instead.
- */
+import { auth } from "@/auth";
+
+// Middleware already guarantees a session exists on every route this can be called
+// from (see src/middleware.ts) -- the fallback string only matters for the rare case
+// of this running somewhere middleware doesn't cover.
 export async function getUserName(): Promise<string> {
-  return "Admin";
+  const session = await auth();
+  return session?.user?.name ?? "Unknown";
 }

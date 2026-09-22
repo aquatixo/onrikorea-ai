@@ -106,6 +106,18 @@ model Person {
   createdAt DateTime @default(now())
 }
 
+// Real login accounts (Credentials provider, see src/auth.ts). Deliberately separate
+// from Person (the assignee roster) -- not every logged-in account needs to be an
+// assignee, and not every assignee needs a login yet. `username` rather than `email`
+// because one seeded account ("admin") isn't a real email address.
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
 model WorkItem {
   id           String        @id @default(uuid())
   title        String

@@ -1,12 +1,10 @@
 import { db } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
-// TODO: needs ANTHROPIC_API_KEY set in Vercel before this can go live -- re-enable then.
-// import { RunSourcingButton } from "@/components/run-sourcing-button";
+import { RunSourcingButton } from "@/components/run-sourcing-button";
 import { RunPythonSourcingButton } from "@/components/run-python-sourcing-button";
 import type { SourcingProgress } from "@/components/sourcing-progress-panel";
 import { SourcingResultsTable } from "@/components/sourcing-results-table";
-import { Button } from "@/components/ui/button";
 import { Search, ListChecks } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -39,8 +37,7 @@ export default async function BrandSourcingPage() {
       </div>
 
       <div className="flex flex-wrap items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-        {/* TODO: needs ANTHROPIC_API_KEY set in Vercel before this can go live -- swap back to <RunSourcingButton locale={locale} /> then. */}
-        <Button disabled>{t.sourcing.runButton}</Button>
+        <RunSourcingButton locale={locale} />
         <RunPythonSourcingButton
           locale={locale}
           latestRun={

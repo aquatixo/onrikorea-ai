@@ -5,9 +5,14 @@ import { LoginForm } from "@/components/login-form";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string }>;
+}) {
   const locale = await getLocale();
   const t = getDictionary(locale).login;
+  const { callbackUrl } = await searchParams;
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
@@ -38,7 +43,7 @@ export default async function LoginPage() {
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-7">
-          <LoginForm locale={locale} />
+          <LoginForm locale={locale} callbackUrl={callbackUrl ?? "/"} />
         </div>
 
         <p className="text-center text-xs text-muted-foreground">{t.footer}</p>
