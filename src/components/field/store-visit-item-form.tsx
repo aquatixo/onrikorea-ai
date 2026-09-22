@@ -109,7 +109,7 @@ export function StoreVisitItemForm({
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
                 />
               </div>
-              <div className="space-y-1.5 sm:col-span-2">
+              <div className="space-y-1.5">
                 <label className="text-sm font-medium">{t.addItem.newProductCategory}</label>
                 <select
                   name="newProductCategory"
@@ -123,6 +123,11 @@ export function StoreVisitItemForm({
                   ))}
                 </select>
               </div>
+              <Field label={t.products.subcategoryLabel} name="newProductSubcategory" />
+              <Field label={t.products.barcodeLabel} name="newProductBarcode" />
+              <Field label={t.products.countryOfOriginLabel} name="newProductCountryOfOrigin" />
+              <Field label={t.products.manufacturerLabel} name="newProductManufacturer" />
+              <Field label={t.products.packageSizeLabel} name="newProductPackageSize" />
             </div>
           )}
         </>

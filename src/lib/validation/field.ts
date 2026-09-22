@@ -57,6 +57,11 @@ export const storeVisitItemFormSchema = z.object({
   newProductBrandName: optionalSafeText, // set when creating a new product inline
   newProductName: optionalSafeText,
   newProductCategory: z.nativeEnum(StoreVisitProductCategory).optional(),
+  newProductSubcategory: optionalSafeText,
+  newProductBarcode: optionalSafeText,
+  newProductCountryOfOrigin: optionalSafeText,
+  newProductManufacturer: optionalSafeText,
+  newProductPackageSize: optionalSafeText,
   price: optionalNonNegativeInt,
   promotion: optionalSafeText,
   stockStatus: optionalSafeText,

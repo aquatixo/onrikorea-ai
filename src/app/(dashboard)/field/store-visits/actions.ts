@@ -108,6 +108,11 @@ export async function addStoreVisitItem(
         brandName: data.newProductBrandName,
         productName: data.newProductName,
         category: data.newProductCategory ?? "OTHER",
+        subcategory: data.newProductSubcategory,
+        barcode: data.newProductBarcode,
+        countryOfOrigin: data.newProductCountryOfOrigin,
+        manufacturer: data.newProductManufacturer,
+        packageSize: data.newProductPackageSize,
       },
     });
     productId = product.id;
