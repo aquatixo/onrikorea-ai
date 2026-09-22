@@ -22,8 +22,7 @@ import { BrandRow } from "@/components/brand-row";
 import { BrandSearch } from "@/components/brand-search";
 import { BrandExportMenu } from "@/components/brand-export-menu";
 import { ImportBrandsDialog } from "@/components/import-brands-dialog";
-// TODO: needs AZURE_TENANT_ID/AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/SHAREPOINT_SYNC_FILE_URL set in Vercel before this can go live -- re-enable then.
-// import { SyncSharePointDialog } from "@/components/sync-sharepoint-dialog";
+import { SyncSharePointDialog } from "@/components/sync-sharepoint-dialog";
 import { PageSizeControl } from "@/components/page-size-control";
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/lib/db";
@@ -95,7 +94,7 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
           <PageSizeControl value={pageSize} label={t.brands.rowsPerPage} />
           <BrandSearch defaultValue={q} placeholder={t.brands.searchPlaceholder} />
           <ImportBrandsDialog locale={locale} />
-          {/* TODO: needs Azure Graph credentials set in Vercel before this can go live -- swap back to <SyncSharePointDialog locale={locale} /> then. */}
+          <SyncSharePointDialog locale={locale} />
           <Button
             nativeButton={false}
             render={
