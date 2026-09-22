@@ -77,7 +77,7 @@ export function StoreVisitItemForm({
               <option value="">{t.choosePlaceholder}</option>
               {(products ?? []).map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.brandName} ??{p.productName}
+                  {p.brandName} · {p.productName}
                 </option>
               ))}
             </select>
@@ -88,7 +88,7 @@ export function StoreVisitItemForm({
             onClick={() => setCreatingNew((v) => !v)}
             className="text-xs font-medium text-primary hover:underline"
           >
-            {creatingNew ? `??${t.addItem.pickExisting}` : `+ ${t.addItem.orCreateNew}`}
+            {creatingNew ? `← ${t.addItem.pickExisting}` : `+ ${t.addItem.orCreateNew}`}
           </button>
 
           {creatingNew && (
@@ -131,7 +131,7 @@ export function StoreVisitItemForm({
           <div className="rounded-xl bg-muted/40 p-3.5">
             <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{t.itemDetail.brandLabel}</p>
             <p className="text-sm font-medium">
-              {item.product.brandName} ??{item.product.productName}
+              {item.product.brandName} · {item.product.productName}
             </p>
           </div>
         )
