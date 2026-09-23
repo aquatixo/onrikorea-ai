@@ -14,10 +14,7 @@ export default async function EditStoreVisitItemPage(props: { params: Promise<{ 
   const locale = await getLocale();
   const t = getDictionary(locale).field;
 
-  const item = await db.storeVisitItem.findUnique({
-    where: { id: itemId },
-    include: { product: true },
-  });
+  const item = await db.product.findUnique({ where: { id: itemId } });
 
   // Ownership check -- this item must actually belong to the visit the URL says it does.
   if (!item || item.storeVisitId !== id) notFound();
@@ -32,12 +29,7 @@ export default async function EditStoreVisitItemPage(props: { params: Promise<{ 
       </Link>
       <h1 className="text-2xl font-bold tracking-tight">{t.addItem.editTitle}</h1>
       <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-        <StoreVisitItemForm
-          mode="update"
-          item={item}
-          locale={locale}
-          action={updateStoreVisitItem.bind(null, id, itemId)}
-        />
+        <StoreVisitItemForm item={item} locale={locale} action={updateStoreVisitItem.bind(null, id, itemId)} />
       </div>
     </main>
   );

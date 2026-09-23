@@ -23,18 +23,24 @@ function localizeErrors(
       localized[field] = [t.unsafeContent];
       continue;
     }
-    if (field === "brandName" || field === "productName") localized[field] = [t.products.nameRequired];
+    if (field === "productName") localized[field] = [t.products.nameRequired];
   }
   return localized;
 }
 
 export async function createProduct(prevState: ProductFormState, formData: FormData): Promise<ProductFormState> {
   const t = getDictionary(await getLocale()).field;
+  const storeVisitId = formData.get("storeVisitId");
+  if (typeof storeVisitId !== "string" || !storeVisitId) {
+    return { message: t.products.visitRequired };
+  }
+
   const parsed = productFormSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { errors: localizeErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
   }
-  await db.product.create({ data: parsed.data });
+
+  await db.product.create({ data: { storeVisitId, ...parsed.data } });
   redirect("/field/products");
 }
 
@@ -48,14 +54,12 @@ export async function updateProduct(
   if (!parsed.success) {
     return { errors: localizeErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
   }
+
   await db.product.update({ where: { id }, data: parsed.data });
   redirect("/field/products");
 }
 
-export async function deleteProduct(id: string): Promise<{ error?: string }> {
-  const t = getDictionary(await getLocale()).field;
-  const inUse = await db.storeVisitItem.findFirst({ where: { productId: id } });
-  if (inUse) return { error: t.products.deleteBlocked };
-  await db.product.delete({ where: { id } });
+export async function deleteProduct(id: string): Promise<void> {
+  await db.product.delete({ where: { id } }); // cascades photos
   redirect("/field/products");
 }

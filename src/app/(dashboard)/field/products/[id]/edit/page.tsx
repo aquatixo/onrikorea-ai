@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { ProductForm } from "@/components/field/product-form";
+import { StoreVisitItemForm } from "@/components/field/store-visit-item-form";
 import { updateProduct } from "@/app/(dashboard)/field/products/actions";
 import { db } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/get-locale";
@@ -23,7 +23,7 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
       </Link>
       <h1 className="text-2xl font-bold tracking-tight">{t.products.editTitle}</h1>
       <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-        <ProductForm mode="update" product={product} locale={locale} action={updateProduct.bind(null, id)} />
+        <StoreVisitItemForm item={product} locale={locale} action={updateProduct.bind(null, id)} />
       </div>
     </main>
   );

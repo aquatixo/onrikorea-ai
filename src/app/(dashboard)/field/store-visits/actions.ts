@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { storeVisitFormSchema, storeVisitItemFormSchema } from "@/lib/validation/field";
+import { storeVisitFormSchema, productFormSchema } from "@/lib/validation/field";
 import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
 import { uploadFieldPhoto, deleteFieldPhoto } from "@/lib/blob";
 import { getLocale } from "@/lib/i18n/get-locale";
@@ -61,7 +61,7 @@ export async function updateStoreVisit(
 }
 
 export async function deleteStoreVisit(id: string): Promise<void> {
-  // Cascades to StoreVisitItem and StoreVisitPhoto at the DB level.
+  // Cascades to Product and StoreVisitPhoto at the DB level.
   await db.storeVisit.delete({ where: { id } });
   redirect("/field/store-visits");
 }
@@ -80,62 +80,53 @@ function getPhotoFiles(formData: FormData): File[] {
   return formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
 }
 
+function localizeItemErrors(
+  fieldErrors: Partial<Record<string, string[]>>,
+  t: ReturnType<typeof getDictionary>["field"]
+): Partial<Record<string, string[]>> {
+  const localized: Partial<Record<string, string[]>> = {};
+  for (const [field, messages] of Object.entries(fieldErrors)) {
+    if (!messages || messages.length === 0) continue;
+    if (messages.includes(UNSAFE_INPUT_MESSAGE)) {
+      localized[field] = [t.unsafeContent];
+      continue;
+    }
+    localized[field] = field === "productName" ? [t.products.nameRequired] : [t.addItem.negativeValue];
+  }
+  return localized;
+}
+
 export async function addStoreVisitItem(
   storeVisitId: string,
   prevState: ItemFormState,
   formData: FormData
 ): Promise<ItemFormState> {
   const t = getDictionary(await getLocale()).field;
-  const parsed = storeVisitItemFormSchema.safeParse(Object.fromEntries(formData));
+  const parsed = productFormSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
-    const fieldErrors = parsed.error.flatten().fieldErrors;
-    const localized: Partial<Record<string, string[]>> = {};
-    for (const [field, messages] of Object.entries(fieldErrors)) {
-      if (!messages || messages.length === 0) continue;
-      localized[field] = messages.includes(UNSAFE_INPUT_MESSAGE) ? [t.unsafeContent] : [t.addItem.negativeValue];
-    }
-    return { errors: localized, message: t.fixErrors };
+    return { errors: localizeItemErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
   }
   const data = parsed.data;
 
-  let productId = data.productId;
-  if (!productId) {
-    if (!data.newProductBrandName || !data.newProductName) {
-      return { message: t.addItem.productRequired };
-    }
-    const product = await db.product.create({
-      data: {
-        brandName: data.newProductBrandName,
-        productName: data.newProductName,
-        category: data.newProductCategory ?? "OTHER",
-        subcategory: data.newProductSubcategory,
-        barcode: data.newProductBarcode,
-        countryOfOrigin: data.newProductCountryOfOrigin,
-        manufacturer: data.newProductManufacturer,
-        packageSize: data.newProductPackageSize,
-      },
-    });
-    productId = product.id;
-  }
-
-  let itemId: string;
-  try {
-    const item = await db.storeVisitItem.create({
-      data: {
-        storeVisitId,
-        productId,
-        price: data.price,
-        promotion: data.promotion,
-        stockStatus: data.stockStatus,
-        displayLocation: data.displayLocation,
-        facingCount: data.facingCount,
-        memo: data.memo,
-      },
-    });
-    itemId = item.id;
-  } catch {
-    return { message: t.addItem.duplicateProduct };
-  }
+  const item = await db.product.create({
+    data: {
+      storeVisitId,
+      brandName: data.brandName,
+      productName: data.productName,
+      category: data.category,
+      subcategory: data.subcategory,
+      barcode: data.barcode,
+      countryOfOrigin: data.countryOfOrigin,
+      manufacturer: data.manufacturer,
+      packageSize: data.packageSize,
+      price: data.price,
+      promotion: data.promotion,
+      stockStatus: data.stockStatus,
+      displayLocation: data.displayLocation,
+      facingCount: data.facingCount,
+      memo: data.memo,
+    },
+  });
 
   const files = getPhotoFiles(formData);
   if (files.length > 0) {
@@ -144,7 +135,7 @@ export async function addStoreVisitItem(
     await db.storeVisitPhoto.createMany({
       data: uploaded.map((u) => ({
         storeVisitId,
-        storeVisitItemId: itemId,
+        storeVisitItemId: item.id,
         photoType: photoType as StoreVisitPhotoType,
         fileUrl: u.url,
         fileName: u.fileName,
@@ -162,27 +153,29 @@ export async function updateStoreVisitItem(
   formData: FormData
 ): Promise<ItemFormState> {
   const t = getDictionary(await getLocale()).field;
-  const parsed = storeVisitItemFormSchema.safeParse(Object.fromEntries(formData));
+  const parsed = productFormSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
-    const fieldErrors = parsed.error.flatten().fieldErrors;
-    const localized: Partial<Record<string, string[]>> = {};
-    for (const [field, messages] of Object.entries(fieldErrors)) {
-      if (!messages || messages.length === 0) continue;
-      localized[field] = messages.includes(UNSAFE_INPUT_MESSAGE) ? [t.unsafeContent] : [t.addItem.negativeValue];
-    }
-    return { errors: localized, message: t.fixErrors };
+    return { errors: localizeItemErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
   }
   const data = parsed.data;
 
   // Ownership check -- this item must actually belong to the visit the URL says it does.
-  const existing = await db.storeVisitItem.findUnique({ where: { id: itemId } });
+  const existing = await db.product.findUnique({ where: { id: itemId } });
   if (!existing || existing.storeVisitId !== storeVisitId) {
     return { message: t.fixErrors };
   }
 
-  await db.storeVisitItem.update({
+  await db.product.update({
     where: { id: itemId },
     data: {
+      brandName: data.brandName,
+      productName: data.productName,
+      category: data.category,
+      subcategory: data.subcategory,
+      barcode: data.barcode,
+      countryOfOrigin: data.countryOfOrigin,
+      manufacturer: data.manufacturer,
+      packageSize: data.packageSize,
       price: data.price,
       promotion: data.promotion,
       stockStatus: data.stockStatus,
@@ -211,9 +204,9 @@ export async function updateStoreVisitItem(
 }
 
 export async function deleteStoreVisitItem(storeVisitId: string, itemId: string): Promise<void> {
-  const item = await db.storeVisitItem.findUnique({ where: { id: itemId } });
+  const item = await db.product.findUnique({ where: { id: itemId } });
   if (!item || item.storeVisitId !== storeVisitId) return; // ownership check
-  await db.storeVisitItem.delete({ where: { id: itemId } }); // cascades photos
+  await db.product.delete({ where: { id: itemId } }); // cascades photos
   redirect(`/field/store-visits/${storeVisitId}`);
 }
 

@@ -260,29 +260,6 @@ model Store {
   @@index([chain])
 }
 
-// Store Visit's own product master -- deliberately not the Brand/Sourcing Product data.
-model Product {
-  id              String                     @id @default(uuid())
-  brandName       String
-  productName     String
-  category        StoreVisitProductCategory  @default(OTHER)
-  subcategory     String?
-  barcode         String?
-  countryOfOrigin String?
-  manufacturer    String?
-  packageSize     String?
-  imageUrl        String?
-
-  items           StoreVisitItem[]
-
-  createdAt       DateTime                   @default(now())
-  updatedAt       DateTime                   @updatedAt
-
-  @@index([productName])
-  @@index([brandName])
-  @@index([barcode])
-}
-
 model StoreVisit {
   id        String            @id @default(uuid())
   storeId   String
@@ -293,7 +270,7 @@ model StoreVisit {
   status    StoreVisitStatus  @default(IN_PROGRESS)
   memo      String?           @db.Text
 
-  items     StoreVisitItem[]
+  items     Product[]
   photos    StoreVisitPhoto[] // store-level photos (storeVisitItemId null on these)
 
   createdAt DateTime          @default(now())
@@ -303,14 +280,24 @@ model StoreVisit {
   @@index([visitDate])
 }
 
-// What was actually observed for one product during one visit -- price/promo/stock/
-// display live here, never on Product itself, since the same product is reused across visits.
-model StoreVisitItem {
+// A product as seen during one specific visit -- brand/category/barcode AND
+// price/promo/stock/display all live on the same record. Deliberately not shared or
+// reused across visits: the same physical product seen again on a later visit gets its
+// own separate row, since a visit's product entry is a snapshot of that one visit.
+// Photos (including a shot of the product itself) live on StoreVisitPhoto, not here.
+model Product {
   id              String            @id @default(uuid())
   storeVisitId    String
   storeVisit      StoreVisit        @relation(fields: [storeVisitId], references: [id], onDelete: Cascade)
-  productId       String
-  product         Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  brandName       String?
+  productName     String
+  category        StoreVisitProductCategory @default(OTHER)
+  subcategory     String?
+  barcode         String?
+  countryOfOrigin String?
+  manufacturer    String?
+  packageSize     String?
 
   price           Int?              // KRW, whole-won -- no fractional currency in practice, kept simple (no Decimal precedent in this project)
   currency        String            @default("KRW")
@@ -325,17 +312,18 @@ model StoreVisitItem {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  @@unique([storeVisitId, productId])
   @@index([storeVisitId])
-  @@index([productId])
+  @@index([productName])
+  @@index([brandName])
+  @@index([barcode])
 }
 
 model StoreVisitPhoto {
   id               String           @id @default(uuid())
   storeVisitId     String
   storeVisit       StoreVisit       @relation(fields: [storeVisitId], references: [id], onDelete: Cascade)
-  storeVisitItemId String?          // null = store-level photo (whole store/entrance/aisle), set = item-level photo
-  storeVisitItem   StoreVisitItem?  @relation(fields: [storeVisitItemId], references: [id], onDelete: Cascade)
+  storeVisitItemId String?          // null = store-level photo (whole store/entrance/aisle), set = product-level photo
+  storeVisitItem   Product?         @relation(fields: [storeVisitItemId], references: [id], onDelete: Cascade)
 
   photoType        StoreVisitPhotoType @default(OTHER)
   fileUrl          String           // Vercel Blob URL, same convention as WorkItem.fileUrl

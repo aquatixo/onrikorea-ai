@@ -19,10 +19,9 @@ export default async function StoreVisitItemDetailPage(props: { params: Promise<
   const locale = await getLocale();
   const t = getDictionary(locale).field;
 
-  const item = await db.storeVisitItem.findUnique({
+  const item = await db.product.findUnique({
     where: { id: itemId },
     include: {
-      product: true,
       storeVisit: { include: { store: true } },
       photos: { orderBy: { createdAt: "asc" } },
     },
@@ -67,9 +66,9 @@ export default async function StoreVisitItemDetailPage(props: { params: Promise<
       </div>
 
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{item.product.productName}</h1>
+        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{item.productName}</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          {t.itemDetail.brandLabel}: {item.product.brandName} · {t.itemDetail.categoryLabel}: {t.category[item.product.category]}
+          {t.itemDetail.brandLabel}: {item.brandName ?? "—"} · {t.itemDetail.categoryLabel}: {t.category[item.category]}
         </p>
       </section>
 

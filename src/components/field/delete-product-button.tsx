@@ -16,12 +16,10 @@ export function DeleteProductButton({ productId, locale }: { productId: string; 
       size="icon-sm"
       disabled={isPending}
       aria-label={t.deleteButton}
-      onClick={() => {
+      onClick={(e) => {
+        e.stopPropagation();
         if (!confirm(t.confirmDelete)) return;
-        startTransition(async () => {
-          const result = await deleteProduct(productId);
-          if (result?.error) alert(result.error);
-        });
+        startTransition(() => deleteProduct(productId));
       }}
     >
       <Trash2 className="size-4 text-destructive" />

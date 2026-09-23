@@ -56,7 +56,6 @@ export function UploadStorePhotoForm({ storeVisitId, locale }: { storeVisitId: s
         type="file"
         name="photos"
         accept="image/*"
-        capture="environment"
         multiple
         required
         className="block text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-accent"

@@ -4,31 +4,30 @@ import * as React from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { PRODUCT_CATEGORY_VALUES, PHOTO_TYPE_VALUES } from "@/lib/field-status";
+import { PRODUCT_CATEGORY_VALUES } from "@/lib/field-status";
 import { compressImages } from "@/lib/compress-image";
 import type { ItemFormState } from "@/app/(dashboard)/field/store-visits/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
-import type { Product, StoreVisitItem } from "@prisma/client";
+import type { Product, StoreVisit, Store } from "@prisma/client";
 
 const initialState: ItemFormState = {};
 
 export function StoreVisitItemForm({
-  mode,
-  products,
   item,
+  visits,
   locale,
   action,
 }: {
-  mode: "create" | "update";
-  products?: Product[];
-  item?: StoreVisitItem & { product?: Product };
+  item?: Product;
+  // Only passed when creating from the global Products page, where the visit isn't
+  // already implied by the URL -- renders a required visit picker at the top of the form.
+  visits?: (StoreVisit & { store: Store })[];
   locale: Locale;
   action: (prevState: ItemFormState, formData: FormData) => Promise<ItemFormState>;
 }) {
   const t = getDictionary(locale).field;
   const [state, formAction, isPending] = useActionState(action, initialState);
   const router = useRouter();
-  const [creatingNew, setCreatingNew] = React.useState(false);
   const [isCompressing, setIsCompressing] = React.useState(false);
 
   // Photos come off the native file input, get compressed client-side, then get handed to
@@ -61,86 +60,70 @@ export function StoreVisitItemForm({
         </p>
       )}
 
-      {mode === "create" ? (
-        <>
-          <div className="space-y-1.5">
-            <label htmlFor="productId" className="text-sm font-medium">
-              {t.addItem.pickExisting}
-            </label>
-            <select
-              id="productId"
-              name="productId"
-              disabled={creatingNew}
-              defaultValue=""
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50 disabled:opacity-50"
-            >
-              <option value="">{t.choosePlaceholder}</option>
-              {(products ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.brandName} · {p.productName}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setCreatingNew((v) => !v)}
-            className="text-xs font-medium text-primary hover:underline"
+      {visits && (
+        <div className="space-y-1.5">
+          <label htmlFor="storeVisitId" className="text-sm font-medium">
+            {t.products.visitLabel}
+            <span className="text-destructive"> *</span>
+          </label>
+          <select
+            id="storeVisitId"
+            name="storeVisitId"
+            required
+            defaultValue=""
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           >
-            {creatingNew ? `← ${t.addItem.pickExisting}` : `+ ${t.addItem.orCreateNew}`}
-          </button>
-
-          {creatingNew && (
-            <div className="grid grid-cols-1 gap-4 rounded-xl bg-muted/40 p-3.5 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">{t.addItem.newProductBrand}</label>
-                <input
-                  name="newProductBrandName"
-                  type="text"
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">{t.addItem.newProductName}</label>
-                <input
-                  name="newProductName"
-                  type="text"
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">{t.addItem.newProductCategory}</label>
-                <select
-                  name="newProductCategory"
-                  defaultValue="OTHER"
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
-                >
-                  {PRODUCT_CATEGORY_VALUES.map((v) => (
-                    <option key={v} value={v}>
-                      {t.category[v]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <Field label={t.products.subcategoryLabel} name="newProductSubcategory" />
-              <Field label={t.products.barcodeLabel} name="newProductBarcode" />
-              <Field label={t.products.countryOfOriginLabel} name="newProductCountryOfOrigin" />
-              <Field label={t.products.manufacturerLabel} name="newProductManufacturer" />
-              <Field label={t.products.packageSizeLabel} name="newProductPackageSize" />
-            </div>
-          )}
-        </>
-      ) : (
-        item?.product && (
-          <div className="rounded-xl bg-muted/40 p-3.5">
-            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{t.itemDetail.brandLabel}</p>
-            <p className="text-sm font-medium">
-              {item.product.brandName} · {item.product.productName}
-            </p>
-          </div>
-        )
+            <option value="">{t.choosePlaceholder}</option>
+            {visits.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.store.name} · {new Date(v.visitDate).toLocaleDateString(locale === "ko" ? "ko-KR" : "en-US")}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field
+          label={t.products.brandNameLabel}
+          name="brandName"
+          defaultValue={item?.brandName ?? ""}
+          error={state.errors?.brandName}
+        />
+        <Field
+          label={t.products.productNameLabel}
+          name="productName"
+          required
+          defaultValue={item?.productName ?? ""}
+          error={state.errors?.productName}
+        />
+        <div className="space-y-1.5">
+          <label htmlFor="category" className="text-sm font-medium">
+            {t.products.categoryLabel}
+          </label>
+          <select
+            id="category"
+            name="category"
+            defaultValue={item?.category ?? "OTHER"}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
+          >
+            {PRODUCT_CATEGORY_VALUES.map((v) => (
+              <option key={v} value={v}>
+                {t.category[v]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Field label={t.products.subcategoryLabel} name="subcategory" defaultValue={item?.subcategory ?? ""} />
+        <Field label={t.products.barcodeLabel} name="barcode" defaultValue={item?.barcode ?? ""} />
+        <Field
+          label={t.products.countryOfOriginLabel}
+          name="countryOfOrigin"
+          defaultValue={item?.countryOfOrigin ?? ""}
+        />
+        <Field label={t.products.manufacturerLabel} name="manufacturer" defaultValue={item?.manufacturer ?? ""} />
+        <Field label={t.products.packageSizeLabel} name="packageSize" defaultValue={item?.packageSize ?? ""} />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field
@@ -178,27 +161,13 @@ export function StoreVisitItemForm({
 
       <div className="space-y-1.5">
         <label className="text-sm font-medium">{t.addItem.photosLabel}</label>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            name="photoType"
-            defaultValue="PRODUCT"
-            className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring/50"
-          >
-            {PHOTO_TYPE_VALUES.map((v) => (
-              <option key={v} value={v}>
-                {t.photoType[v]}
-              </option>
-            ))}
-          </select>
-          <input
-            type="file"
-            name="photos"
-            accept="image/*"
-            capture="environment"
-            multiple
-            className="block text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-accent"
-          />
-        </div>
+        <input
+          type="file"
+          name="photos"
+          accept="image/*"
+          multiple
+          className="block text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-accent"
+        />
       </div>
 
       <div className="flex gap-3 pt-2">
@@ -219,17 +188,20 @@ function Field({
   defaultValue,
   error,
   type = "text",
+  required,
 }: {
   label: string;
   name: string;
   defaultValue?: string;
   error?: string[];
   type?: string;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-1.5">
       <label htmlFor={name} className="text-sm font-medium">
         {label}
+        {required && <span className="text-destructive"> *</span>}
       </label>
       <input
         id={name}

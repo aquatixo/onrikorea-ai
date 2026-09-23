@@ -14,10 +14,7 @@ export default async function AddStoreVisitItemPage(props: { params: Promise<{ i
   const locale = await getLocale();
   const t = getDictionary(locale).field;
 
-  const [visit, products] = await Promise.all([
-    db.storeVisit.findUnique({ where: { id } }),
-    db.product.findMany({ orderBy: { productName: "asc" } }),
-  ]);
+  const visit = await db.storeVisit.findUnique({ where: { id } });
   if (!visit) notFound();
 
   return (
@@ -30,7 +27,7 @@ export default async function AddStoreVisitItemPage(props: { params: Promise<{ i
       </Link>
       <h1 className="text-2xl font-bold tracking-tight">{t.addItem.title}</h1>
       <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-        <StoreVisitItemForm mode="create" products={products} locale={locale} action={addStoreVisitItem.bind(null, id)} />
+        <StoreVisitItemForm locale={locale} action={addStoreVisitItem.bind(null, id)} />
       </div>
     </main>
   );

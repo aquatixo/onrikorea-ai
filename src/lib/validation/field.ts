@@ -18,18 +18,6 @@ export const storeFormSchema = z.object({
 });
 export type StoreFormValues = z.infer<typeof storeFormSchema>;
 
-export const productFormSchema = z.object({
-  brandName: z.string().trim().min(1, "Brand name is required").refine(isSafeText, UNSAFE_INPUT_MESSAGE),
-  productName: z.string().trim().min(1, "Product name is required").refine(isSafeText, UNSAFE_INPUT_MESSAGE),
-  category: z.nativeEnum(StoreVisitProductCategory),
-  subcategory: optionalSafeText,
-  barcode: optionalSafeText,
-  countryOfOrigin: optionalSafeText,
-  manufacturer: optionalSafeText,
-  packageSize: optionalSafeText,
-});
-export type ProductFormValues = z.infer<typeof productFormSchema>;
-
 const requiredDate = z
   .string()
   .trim()
@@ -52,16 +40,17 @@ const optionalNonNegativeInt = z
   .transform((v) => (v && v.length > 0 ? Number.parseInt(v, 10) : undefined))
   .refine((v) => v === undefined || (Number.isFinite(v) && v >= 0), "Must not be negative");
 
-export const storeVisitItemFormSchema = z.object({
-  productId: optionalSafeText, // set when picking an existing product
-  newProductBrandName: optionalSafeText, // set when creating a new product inline
-  newProductName: optionalSafeText,
-  newProductCategory: z.nativeEnum(StoreVisitProductCategory).optional(),
-  newProductSubcategory: optionalSafeText,
-  newProductBarcode: optionalSafeText,
-  newProductCountryOfOrigin: optionalSafeText,
-  newProductManufacturer: optionalSafeText,
-  newProductPackageSize: optionalSafeText,
+// A product entry belongs to exactly one visit -- brand/category/barcode/image and
+// price/promo/stock/display are all filled in together, in one form, at once.
+export const productFormSchema = z.object({
+  brandName: optionalSafeText,
+  productName: z.string().trim().min(1, "Product name is required").refine(isSafeText, UNSAFE_INPUT_MESSAGE),
+  category: z.nativeEnum(StoreVisitProductCategory),
+  subcategory: optionalSafeText,
+  barcode: optionalSafeText,
+  countryOfOrigin: optionalSafeText,
+  manufacturer: optionalSafeText,
+  packageSize: optionalSafeText,
   price: optionalNonNegativeInt,
   promotion: optionalSafeText,
   stockStatus: optionalSafeText,
@@ -69,4 +58,4 @@ export const storeVisitItemFormSchema = z.object({
   facingCount: optionalNonNegativeInt,
   memo: optionalSafeText,
 });
-export type StoreVisitItemFormValues = z.infer<typeof storeVisitItemFormSchema>;
+export type ProductFormValues = z.infer<typeof productFormSchema>;
