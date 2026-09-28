@@ -5,13 +5,13 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { storeFormSchema } from "@/lib/validation/field";
 import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
-import { uploadFieldPhoto, deleteFieldPhoto } from "@/lib/blob";
+import { uploadFieldPhoto, deleteFieldPhoto, isAllowedImageType } from "@/lib/blob";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 
 function realImageFile(formData: FormData): File | null {
   const value = formData.get("image");
-  return value instanceof File && value.size > 0 ? value : null;
+  return value instanceof File && value.size > 0 && isAllowedImageType(value) ? value : null;
 }
 
 export type StoreFormState = {

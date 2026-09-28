@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { workFormSchema, workEditSchema, workCommentSchema } from "@/lib/validation/work";
 import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
-import { uploadWorkAttachment, deleteWorkAttachment } from "@/lib/blob";
+import { uploadWorkAttachment, deleteWorkAttachment, isAllowedAttachmentType } from "@/lib/blob";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { getUserName } from "@/lib/user/get-user-name";
@@ -36,7 +36,7 @@ function localizeFieldErrors(
 
 function realFile(formData: FormData, key: string): File | null {
   const value = formData.get(key);
-  return value instanceof File && value.size > 0 ? value : null;
+  return value instanceof File && value.size > 0 && isAllowedAttachmentType(value) ? value : null;
 }
 
 export async function createWork(prevState: WorkFormState, formData: FormData): Promise<WorkFormState> {

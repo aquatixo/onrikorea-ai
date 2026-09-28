@@ -1,3 +1,4 @@
+import type { NextRequest } from "next/server";
 import { ResponseType } from "@microsoft/microsoft-graph-client";
 import { db } from "@/lib/db";
 import { getGraphClient } from "@/lib/graph/client";
@@ -5,6 +6,7 @@ import { resolveSharedFile } from "@/lib/graph/resolve-share";
 import { parseBrandImportSheet } from "@/lib/brand-import/parse";
 import { buildBrandsWorkbook } from "@/lib/brand-export/build-workbook";
 import { diffBrandsAgainstSheet, toBrandCreateInput } from "@/lib/brand-sync/diff";
+import { isTrustedRequestOrigin } from "@/lib/security/same-origin";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 
@@ -16,7 +18,11 @@ import { getDictionary } from "@/lib/i18n/dictionary";
  * what this does NOT do (field-level conflict resolution for brands already on both
  * sides). Callers must download a backup first -- see SyncBrandsDialog.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  if (!isTrustedRequestOrigin(request)) {
+    return Response.json({ error: "Invalid request origin." }, { status: 403 });
+  }
+
   const shareUrl = process.env.SHAREPOINT_SYNC_FILE_URL;
   if (!shareUrl) {
     return Response.json({ error: "SHAREPOINT_SYNC_FILE_URL is not configured." }, { status: 500 });

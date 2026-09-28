@@ -1,28 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { evaluateCandidate, type CandidateInput } from "@/lib/brand-sourcing/evaluate";
+import { evaluateCandidate } from "@/lib/brand-sourcing/evaluate";
+import { candidateEvaluationSchema } from "@/lib/validation/brand";
+import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
 
 export async function POST(request: NextRequest) {
-  let body: Partial<CandidateInput>;
+  let rawBody: unknown;
   try {
-    body = (await request.json()) as Partial<CandidateInput>;
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (!body.name || typeof body.name !== "string" || body.name.trim().length === 0) {
-    return NextResponse.json({ error: "'name' is required" }, { status: 400 });
+  const parsed = candidateEvaluationSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+    const hasUnsafe = Object.values(fieldErrors).some((msgs) => msgs?.includes(UNSAFE_INPUT_MESSAGE));
+    return NextResponse.json(
+      { error: hasUnsafe ? "Input contains unsafe content" : "Invalid input", details: fieldErrors },
+      { status: 400 }
+    );
   }
 
-  const result = await evaluateCandidate({
-    name: body.name,
-    country: body.country ?? null,
-    sku: body.sku ?? null,
-    foundedYear: body.foundedYear ?? null,
-    website: body.website ?? null,
-    methodology: body.methodology ?? null,
-    channel: body.channel ?? null,
-    contactPoint: body.contactPoint ?? null,
-  });
-
+  const result = await evaluateCandidate(parsed.data);
   return NextResponse.json(result);
 }
