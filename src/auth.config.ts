@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import type { UserRole } from "@/lib/access-control";
 
 // Edge-safe half of the config -- no Credentials provider, no Prisma import. This is
 // the part middleware.ts uses directly: checking whether an already-issued JWT cookie
@@ -11,16 +12,26 @@ export const authConfig = {
   session: { strategy: "jwt" },
   providers: [],
   callbacks: {
-    authorized({ request, auth }) {
-      if (request.nextUrl.pathname.startsWith("/login")) return true;
-      return !!auth?.user;
-    },
+    // No `authorized` callback here -- proxy.ts wraps `auth` with its own handler
+    // (rather than exporting `auth` directly as middleware), so it makes every
+    // sign-in/permission redirect decision itself instead of deferring to this.
     jwt({ token, user }) {
-      if (user) token.id = user.id;
+      // Only set when `user` is present (sign-in time) -- role/allowedPages changes
+      // made later via the admin's user-management page take effect on next sign-in,
+      // not live, since JWT sessions have no server-side store to push an update through.
+      if (user) {
+        token.id = user.id;
+        token.role = user.role;
+        token.allowedPages = user.allowedPages;
+      }
       return token;
     },
     session({ session, token }) {
-      if (session.user) session.user.id = token.id as string;
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.role = (token.role as UserRole | undefined) ?? "USER";
+        session.user.allowedPages = (token.allowedPages as string[] | undefined) ?? [];
+      }
       return session;
     },
   },

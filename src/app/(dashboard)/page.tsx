@@ -18,17 +18,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user-avatar";
 import { db } from "@/lib/db";
+import { auth } from "@/auth";
 import { STATUS_STYLE } from "@/lib/brand-status";
 import { WORK_STATUS_STYLE } from "@/lib/work-status";
+import { hasSectionAccess, type PageSection } from "@/lib/access-control";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { cn } from "cn";
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
+export default async function HomePage(props: { searchParams: Promise<{ denied?: string }> }) {
   const locale = await getLocale();
   const t = getDictionary(locale);
+  const { denied } = await props.searchParams;
+  const session = await auth();
+  const role = session?.user?.role ?? "USER";
+  const allowedPages = session?.user?.allowedPages ?? [];
 
   const [brandCount, contactedCount, openWorkCount, inProgressCount, recentBrands, recentWork] = await Promise.all([
     db.brand.count(),
@@ -39,19 +45,25 @@ export default async function HomePage() {
     db.workItem.findMany({ orderBy: { updatedAt: "desc" }, take: 5 }),
   ]);
 
-  const modules = [
-    { href: "/brands", label: t.nav.brands, icon: Building2, soon: false },
-    { href: "/brands/sourcing", label: t.nav.brandSourcing, icon: Search, soon: false },
-    { href: "/work", label: t.nav.work, icon: ListTodo, soon: false },
-    { href: "/field/stores", label: t.nav.stores, icon: Store, soon: false },
-    { href: "/field/store-visits", label: t.nav.storeVisits, icon: MapPin, soon: false },
-    { href: "/field/products", label: t.nav.products, icon: Package, soon: false },
+  const allModules: { href: string; label: string; icon: typeof Building2; soon: boolean; section?: PageSection }[] = [
+    { href: "/brands", label: t.nav.brands, icon: Building2, soon: false, section: "brands" },
+    { href: "/brands/sourcing", label: t.nav.brandSourcing, icon: Search, soon: false, section: "brandSourcing" },
+    { href: "/work", label: t.nav.work, icon: ListTodo, soon: false, section: "work" },
+    { href: "/field/stores", label: t.nav.stores, icon: Store, soon: false, section: "stores" },
+    { href: "/field/store-visits", label: t.nav.storeVisits, icon: MapPin, soon: false, section: "storeVisits" },
+    { href: "/field/products", label: t.nav.products, icon: Package, soon: false, section: "products" },
     { href: "/schedules", label: t.nav.schedules, icon: CalendarClock, soon: true },
     { href: "/reports", label: t.nav.weeklyReport, icon: ClipboardList, soon: true },
   ];
+  const modules = allModules.filter((m) => !m.section || hasSectionAccess(role, allowedPages, m.section));
 
   return (
     <main className="mx-auto w-full max-w-6xl space-y-10 px-6 py-10 sm:px-8 sm:py-12">
+      {denied && (
+        <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {t.settings.deniedNotice}
+        </p>
+      )}
       <section className="relative overflow-hidden rounded-3xl border border-border bg-card p-8 sm:p-12">
         <div
           aria-hidden

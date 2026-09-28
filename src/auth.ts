@@ -25,7 +25,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user) return null;
         const valid = await verifyPassword(password, user.passwordHash);
         if (!valid) return null;
-        return { id: user.id, name: user.name };
+        return { id: user.id, name: user.name, role: user.role, allowedPages: user.allowedPages };
       },
     }),
   ],

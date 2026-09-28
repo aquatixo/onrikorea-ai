@@ -24,12 +24,14 @@ import { LanguageToggle } from "@/components/language-toggle";
 import { UserAvatar } from "@/components/user-avatar";
 import { SignOutButton } from "@/components/sign-out-button";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
+import { hasSectionAccess, type PageSection, type UserRole } from "@/lib/access-control";
 
 type NavItem = {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   soon?: boolean;
+  section?: PageSection;
 };
 
 type NavGroup = {
@@ -37,12 +39,22 @@ type NavGroup = {
   items: NavItem[];
 };
 
-export function AppSidebar({ locale, userName }: { locale: Locale; userName: string }) {
+export function AppSidebar({
+  locale,
+  userName,
+  role,
+  allowedPages,
+}: {
+  locale: Locale;
+  userName: string;
+  role: UserRole;
+  allowedPages: string[];
+}) {
   const t = getDictionary(locale);
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
 
-  const navGroups: NavGroup[] = [
+  const rawNavGroups: NavGroup[] = [
     {
       label: t.nav.overview,
       items: [{ href: "/", label: t.nav.dashboard, icon: LayoutDashboard }],
@@ -50,14 +62,14 @@ export function AppSidebar({ locale, userName }: { locale: Locale; userName: str
     {
       label: t.nav.sourcing,
       items: [
-        { href: "/brands", label: t.nav.brands, icon: Building2 },
-        { href: "/brands/sourcing", label: t.nav.brandSourcing, icon: Search },
+        { href: "/brands", label: t.nav.brands, icon: Building2, section: "brands" },
+        { href: "/brands/sourcing", label: t.nav.brandSourcing, icon: Search, section: "brandSourcing" },
       ],
     },
     {
       label: t.nav.planning,
       items: [
-        { href: "/work", label: t.nav.work, icon: ListTodo },
+        { href: "/work", label: t.nav.work, icon: ListTodo, section: "work" },
         { href: "/schedules", label: t.nav.schedules, icon: CalendarClock, soon: true },
         { href: "/reports", label: t.nav.weeklyReport, icon: ClipboardList, soon: true },
       ],
@@ -65,16 +77,23 @@ export function AppSidebar({ locale, userName }: { locale: Locale; userName: str
     {
       label: t.nav.field,
       items: [
-        { href: "/field/stores", label: t.nav.stores, icon: Store },
-        { href: "/field/store-visits", label: t.nav.storeVisits, icon: MapPin },
-        { href: "/field/products", label: t.nav.products, icon: Package },
+        { href: "/field/stores", label: t.nav.stores, icon: Store, section: "stores" },
+        { href: "/field/store-visits", label: t.nav.storeVisits, icon: MapPin, section: "storeVisits" },
+        { href: "/field/products", label: t.nav.products, icon: Package, section: "products" },
       ],
     },
     {
       label: t.nav.admin,
-      items: [{ href: "/settings", label: t.nav.settings, icon: Settings, soon: true }],
+      items: [{ href: "/settings", label: t.nav.settings, icon: Settings }],
     },
   ];
+
+  const navGroups = rawNavGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.section || hasSectionAccess(role, allowedPages, item.section)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <>

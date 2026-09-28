@@ -106,6 +106,11 @@ model Person {
   createdAt DateTime @default(now())
 }
 
+enum UserRole {
+  ADMIN
+  USER
+}
+
 // Real login accounts (Credentials provider, see src/auth.ts). Deliberately separate
 // from Person (the assignee roster) -- not every logged-in account needs to be an
 // assignee, and not every assignee needs a login yet. `username` rather than `email`
@@ -115,6 +120,12 @@ model User {
   username     String   @unique
   name         String
   passwordHash String
+  role         UserRole @default(USER)
+  // Section keys from src/lib/access-control.ts (e.g. "brands", "stores") -- ignored
+  // entirely for ADMIN, who always has full access. Permission changes only take
+  // effect on that user's next sign-in, since sessions are JWT-based (no server-side
+  // session store to push a live update through).
+  allowedPages String[] @default([])
   createdAt    DateTime @default(now())
 }
 
