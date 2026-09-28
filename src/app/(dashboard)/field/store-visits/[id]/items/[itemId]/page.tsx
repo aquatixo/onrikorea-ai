@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { db } from "@/lib/db";
+import { auth } from "@/auth";
+import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { Button } from "@/components/ui/button";
@@ -27,8 +29,12 @@ export default async function StoreVisitItemDetailPage(props: { params: Promise<
     },
   });
 
-  // Ownership check -- this item must actually belong to the visit the URL says it does.
+  // Referential check -- this item must actually belong to the visit the URL says it does.
   if (!item || item.storeVisitId !== id) notFound();
+
+  const session = await auth();
+  const currentUser = session?.user ? { id: session.user.id, role: session.user.role } : null;
+  const canModify = isOwnerOrAdmin(currentUser, item.createdById);
 
   const fields: { label: string; value: React.ReactNode }[] = [
     { label: t.itemDetail.storeLabel, value: item.storeVisit.store.name },
@@ -50,19 +56,21 @@ export default async function StoreVisitItemDetailPage(props: { params: Promise<
         >
           <ArrowLeft className="size-4" /> {t.itemDetail.back}
         </Link>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={
-              <Link href={`/field/store-visits/${id}/items/${itemId}/edit`}>
-                <Pencil className="size-4" /> {t.itemDetail.edit}
-              </Link>
-            }
-          />
-          <DeleteItemButton storeVisitId={id} itemId={itemId} locale={locale} size="sm" />
-        </div>
+        {canModify && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={
+                <Link href={`/field/store-visits/${id}/items/${itemId}/edit`}>
+                  <Pencil className="size-4" /> {t.itemDetail.edit}
+                </Link>
+              }
+            />
+            <DeleteItemButton storeVisitId={id} itemId={itemId} locale={locale} size="sm" />
+          </div>
+        )}
       </div>
 
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
@@ -88,7 +96,7 @@ export default async function StoreVisitItemDetailPage(props: { params: Promise<
 
       <section className="space-y-3 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
         <h2 className="text-sm font-semibold">{t.itemDetail.photosHeading}</h2>
-        <PhotoLightbox photos={item.photos} storeVisitId={id} locale={locale} />
+        <PhotoLightbox photos={item.photos} storeVisitId={id} currentUser={currentUser} locale={locale} />
       </section>
     </main>
   );

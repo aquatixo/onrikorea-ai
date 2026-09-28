@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { StoreVisitItemForm } from "@/components/field/store-visit-item-form";
 import { updateStoreVisitItem } from "@/app/(dashboard)/field/store-visits/actions";
+import { auth } from "@/auth";
+import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { db } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
@@ -16,8 +18,11 @@ export default async function EditStoreVisitItemPage(props: { params: Promise<{ 
 
   const item = await db.product.findUnique({ where: { id: itemId } });
 
-  // Ownership check -- this item must actually belong to the visit the URL says it does.
+  // Referential check -- this item must actually belong to the visit the URL says it does.
   if (!item || item.storeVisitId !== id) notFound();
+
+  const session = await auth();
+  if (!isOwnerOrAdmin(session?.user, item.createdById)) redirect(`/field/store-visits/${id}/items/${itemId}`);
 
   return (
     <main className="mx-auto w-full max-w-2xl space-y-5 px-4 py-8 sm:px-6 sm:py-10">

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ChevronsLeft, ChevronsRight, Package, Pencil } from "lucide-react";
 import { db } from "@/lib/db";
+import { auth } from "@/auth";
+import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { Button } from "@/components/ui/button";
@@ -68,6 +70,8 @@ export default async function FieldProductsPage(props: {
     }),
   ]);
 
+  const session = await auth();
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasPrevious = currentPage > 1;
   const hasNext = currentPage < totalPages;
@@ -134,17 +138,19 @@ export default async function FieldProductsPage(props: {
                   <TableCell className="text-muted-foreground">{t.category[p.category]}</TableCell>
                   <TableCell className="text-muted-foreground">{p.barcode ?? "—"}</TableCell>
                   <TableCell>
-                    <StopPropagation>
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          nativeButton={false}
-                          render={<Link href={`/field/products/${p.id}/edit`}><Pencil className="size-4" /></Link>}
-                        />
-                        <DeleteProductButton productId={p.id} locale={locale} />
-                      </div>
-                    </StopPropagation>
+                    {isOwnerOrAdmin(session?.user, p.createdById) && (
+                      <StopPropagation>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            nativeButton={false}
+                            render={<Link href={`/field/products/${p.id}/edit`}><Pencil className="size-4" /></Link>}
+                          />
+                          <DeleteProductButton productId={p.id} locale={locale} />
+                        </div>
+                      </StopPropagation>
+                    )}
                   </TableCell>
                 </ClickableRow>
               ))}

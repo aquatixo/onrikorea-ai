@@ -25,7 +25,10 @@ export function DeletePhotoButton({
       onClick={(e) => {
         e.stopPropagation();
         if (!confirm(t.confirmDeletePhoto)) return;
-        startTransition(() => deleteStoreVisitPhoto(photoId, storeVisitId));
+        startTransition(async () => {
+          const result = await deleteStoreVisitPhoto(photoId, storeVisitId);
+          if (result?.error) alert(result.error);
+        });
       }}
       className="flex size-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
     >

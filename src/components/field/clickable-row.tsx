@@ -5,7 +5,9 @@ import { TableRow } from "@/components/ui/table";
 
 /** Same pattern as BrandRow -- whole row navigates on click, not just one cell's text.
  * Any button/link inside the row (edit, delete, toggle) must stopPropagation in its own
- * onClick, or it'll also trigger this row-level navigation. */
+ * onClick, or it'll also trigger this row-level navigation. A row the viewer can't
+ * navigate (e.g. no edit permission) isn't this component's concern -- the caller
+ * renders a plain TableRow instead of wrapping it in ClickableRow at all. */
 export function ClickableRow({ href, children }: { href: string; children: React.ReactNode }) {
   const router = useRouter();
   return (

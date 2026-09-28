@@ -1,5 +1,6 @@
 "use client";
 
+import { useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { deleteBrand } from "@/app/(dashboard)/brands/actions";
@@ -15,20 +16,22 @@ export function DeleteBrandButton({
   confirmText: string;
   returnTo?: string;
 }) {
-  const deleteAction = deleteBrand.bind(null, brandId, returnTo);
+  const [isPending, startTransition] = useTransition();
 
   return (
-    <form
-      action={deleteAction}
-      onSubmit={(e) => {
-        if (!confirm(confirmText)) {
-          e.preventDefault();
-        }
+    <Button
+      type="button"
+      variant="destructive"
+      disabled={isPending}
+      onClick={() => {
+        if (!confirm(confirmText)) return;
+        startTransition(async () => {
+          const result = await deleteBrand(brandId, returnTo);
+          if (result?.error) alert(result.error);
+        });
       }}
     >
-      <Button type="submit" variant="destructive">
-        <Trash2 className="size-4" /> {label}
-      </Button>
-    </form>
+      <Trash2 className="size-4" /> {label}
+    </Button>
   );
 }

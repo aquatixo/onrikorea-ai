@@ -19,7 +19,10 @@ export function DeleteProductButton({ productId, locale }: { productId: string; 
       onClick={(e) => {
         e.stopPropagation();
         if (!confirm(t.confirmDelete)) return;
-        startTransition(() => deleteProduct(productId));
+        startTransition(async () => {
+          const result = await deleteProduct(productId);
+          if (result?.error) alert(result.error);
+        });
       }}
     >
       <Trash2 className="size-4 text-destructive" />

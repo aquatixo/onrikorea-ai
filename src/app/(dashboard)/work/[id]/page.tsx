@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Pencil, Paperclip, CalendarRange, MessageSquare } from "lucide-react";
 import { db } from "@/lib/db";
+import { auth } from "@/auth";
+import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { getUserName } from "@/lib/user/get-user-name";
@@ -45,6 +47,10 @@ export default async function WorkDetailPage(props: {
 
   if (!item) notFound();
 
+  const session = await auth();
+  const currentUser = session?.user ? { id: session.user.id, role: session.user.role } : null;
+  const canModify = isOwnerOrAdmin(currentUser, item.createdById);
+
   const dateRange = [formatDate(item.startDate, locale), formatDate(item.endDate, locale)]
     .filter(Boolean)
     .join(" — ");
@@ -60,19 +66,21 @@ export default async function WorkDetailPage(props: {
         >
           <ArrowLeft className="size-4" /> {t.work.detail.back}
         </Link>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={
-              <Link href={`/work/${item.id}/edit?returnTo=${encodeURIComponent(backHref)}`}>
-                <Pencil className="size-4" /> {t.work.detail.edit}
-              </Link>
-            }
-          />
-          <DeleteWorkButton workItemId={item.id} returnTo={backHref} locale={locale} />
-        </div>
+        {canModify && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={
+                <Link href={`/work/${item.id}/edit?returnTo=${encodeURIComponent(backHref)}`}>
+                  <Pencil className="size-4" /> {t.work.detail.edit}
+                </Link>
+              }
+            />
+            <DeleteWorkButton workItemId={item.id} returnTo={backHref} locale={locale} />
+          </div>
+        )}
       </div>
 
       <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
@@ -100,7 +108,7 @@ export default async function WorkDetailPage(props: {
             </div>
             <div className="flex flex-col items-end gap-1.5">
               <p className="text-[11px] font-medium text-muted-foreground">{t.work.detail.status}</p>
-              <WorkStatusControl workItemId={item.id} status={item.status} locale={locale} />
+              <WorkStatusControl workItemId={item.id} status={item.status} locale={locale} canModify={canModify} />
             </div>
           </div>
 
@@ -145,6 +153,7 @@ export default async function WorkDetailPage(props: {
                 comment={comment}
                 workItemId={item.id}
                 authorName={authorName}
+                currentUser={currentUser}
                 locale={locale}
               />
             ))}

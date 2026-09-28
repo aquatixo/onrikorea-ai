@@ -1,9 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { productFormSchema } from "@/lib/validation/field";
 import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
+import { canModifyContent } from "@/lib/auth/ownership-server";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 
@@ -40,7 +42,8 @@ export async function createProduct(prevState: ProductFormState, formData: FormD
     return { errors: localizeErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
   }
 
-  await db.product.create({ data: { storeVisitId, ...parsed.data } });
+  const session = await auth();
+  await db.product.create({ data: { storeVisitId, ...parsed.data, createdById: session?.user?.id } });
   redirect("/field/products");
 }
 
@@ -49,7 +52,15 @@ export async function updateProduct(
   prevState: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
-  const t = getDictionary(await getLocale()).field;
+  const dict = getDictionary(await getLocale());
+  const t = dict.field;
+
+  const target = await db.product.findUnique({ where: { id }, select: { createdById: true } });
+  if (!target) return { message: t.fixErrors };
+  if (!(await canModifyContent(target.createdById))) {
+    return { message: dict.common.forbidden };
+  }
+
   const parsed = productFormSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { errors: localizeErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
@@ -59,7 +70,13 @@ export async function updateProduct(
   redirect("/field/products");
 }
 
-export async function deleteProduct(id: string): Promise<void> {
+export async function deleteProduct(id: string): Promise<{ error?: string }> {
+  const target = await db.product.findUnique({ where: { id }, select: { createdById: true } });
+  if (!target) return {};
+  if (!(await canModifyContent(target.createdById))) {
+    return { error: getDictionary(await getLocale()).common.forbidden };
+  }
+
   await db.product.delete({ where: { id } }); // cascades photos
   redirect("/field/products");
 }

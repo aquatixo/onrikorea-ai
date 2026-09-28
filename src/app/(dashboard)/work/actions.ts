@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { workFormSchema, workEditSchema, workCommentSchema } from "@/lib/validation/work";
 import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
 import { uploadWorkAttachment, deleteWorkAttachment, isAllowedAttachmentType } from "@/lib/blob";
+import { canModifyContent } from "@/lib/auth/ownership-server";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { getUserName } from "@/lib/user/get-user-name";
@@ -60,7 +62,10 @@ export async function createWork(prevState: WorkFormState, formData: FormData): 
     }
   }
 
-  const work = await db.workItem.create({ data: { ...parsed.data, fileUrl, fileName } });
+  const session = await auth();
+  const work = await db.workItem.create({
+    data: { ...parsed.data, fileUrl, fileName, createdById: session?.user?.id },
+  });
   redirect(`/work/${work.id}`);
 }
 
@@ -70,15 +75,19 @@ export async function updateWork(
   prevState: WorkFormState,
   formData: FormData
 ): Promise<WorkFormState> {
-  const t = getDictionary(await getLocale()).work.form;
+  const dict = getDictionary(await getLocale());
+  const t = dict.work.form;
+
+  const existing = await db.workItem.findUnique({ where: { id }, select: { fileUrl: true, createdById: true } });
+  if (!existing) return { message: t.fixErrors };
+  if (!(await canModifyContent(existing.createdById))) {
+    return { message: dict.common.forbidden };
+  }
 
   const parsed = workEditSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { errors: localizeFieldErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
   }
-
-  const existing = await db.workItem.findUnique({ where: { id }, select: { fileUrl: true } });
-  if (!existing) return { message: t.fixErrors };
 
   const file = realFile(formData, "file");
   let fileUrl: string | null | undefined;
@@ -118,15 +127,26 @@ export async function updateWork(
   redirect(returnTo ? `/work/${id}?returnTo=${encodeURIComponent(returnTo)}` : `/work/${id}`);
 }
 
-export async function deleteWork(id: string, returnTo: string | undefined): Promise<void> {
+export async function deleteWork(id: string, returnTo: string | undefined): Promise<{ error?: string }> {
   // Cascades to WorkComment (and its replies) at the DB level.
-  const existing = await db.workItem.findUnique({ where: { id }, select: { fileUrl: true } });
-  if (existing?.fileUrl) await deleteWorkAttachment(existing.fileUrl);
+  const existing = await db.workItem.findUnique({ where: { id }, select: { fileUrl: true, createdById: true } });
+  if (!existing) return {};
+  if (!(await canModifyContent(existing.createdById))) {
+    return { error: getDictionary(await getLocale()).common.forbidden };
+  }
+
+  if (existing.fileUrl) await deleteWorkAttachment(existing.fileUrl);
   await db.workItem.delete({ where: { id } });
   redirect(returnTo && returnTo.startsWith("/work") ? returnTo : "/work");
 }
 
 export async function updateWorkStatus(id: string, status: WorkStatus): Promise<{ error?: string }> {
+  const existing = await db.workItem.findUnique({ where: { id }, select: { createdById: true } });
+  if (!existing) return { error: "Not found." };
+  if (!(await canModifyContent(existing.createdById))) {
+    return { error: getDictionary(await getLocale()).common.forbidden };
+  }
+
   try {
     await db.workItem.update({ where: { id }, data: { status } });
   } catch {
@@ -157,15 +177,54 @@ export async function addWorkComment(input: {
     return { error: t.bodyRequired };
   }
 
+  const session = await auth();
   await db.workComment.create({
     data: {
       workItemId: input.workItemId,
       authorName: parsed.data.authorName,
       body: parsed.data.body,
       parentId: parsed.data.parentId,
+      createdById: session?.user?.id,
     },
   });
 
   revalidatePath(`/work/${input.workItemId}`);
   return { success: true };
+}
+
+export async function updateWorkComment(
+  commentId: string,
+  workItemId: string,
+  body: string
+): Promise<{ success: true } | { error: string }> {
+  const dict = getDictionary(await getLocale());
+  const t = dict.work.detail;
+
+  // Referential check -- this comment must actually belong to the work item the URL says it does.
+  const existing = await db.workComment.findUnique({ where: { id: commentId }, select: { createdById: true, workItemId: true } });
+  if (!existing || existing.workItemId !== workItemId) return { error: t.bodyRequired };
+  if (!(await canModifyContent(existing.createdById))) {
+    return { error: dict.common.forbidden };
+  }
+
+  const parsed = workCommentSchema.shape.body.safeParse(body);
+  if (!parsed.success) return { error: t.bodyRequired };
+
+  await db.workComment.update({ where: { id: commentId }, data: { body: parsed.data } });
+  revalidatePath(`/work/${workItemId}`);
+  return { success: true };
+}
+
+export async function deleteWorkComment(commentId: string, workItemId: string): Promise<{ error?: string }> {
+  // Referential check -- this comment must actually belong to the work item the URL says it does.
+  const existing = await db.workComment.findUnique({ where: { id: commentId }, select: { createdById: true, workItemId: true } });
+  if (!existing || existing.workItemId !== workItemId) return {};
+  if (!(await canModifyContent(existing.createdById))) {
+    return { error: getDictionary(await getLocale()).common.forbidden };
+  }
+
+  // Cascades to replies at the DB level (see WorkComment.parent's onDelete: Cascade).
+  await db.workComment.delete({ where: { id: commentId } });
+  revalidatePath(`/work/${workItemId}`);
+  return {};
 }

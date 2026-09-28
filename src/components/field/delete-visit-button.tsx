@@ -17,7 +17,10 @@ export function DeleteVisitButton({ visitId, locale }: { visitId: string; locale
       disabled={isPending}
       onClick={() => {
         if (!confirm(t.confirmDelete)) return;
-        startTransition(() => deleteStoreVisit(visitId));
+        startTransition(async () => {
+          const result = await deleteStoreVisit(visitId);
+          if (result?.error) alert(result.error);
+        });
       }}
     >
       <Trash2 className="size-4" /> {t.delete}

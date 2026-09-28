@@ -25,7 +25,10 @@ export function DeleteWorkButton({
       disabled={isPending}
       onClick={() => {
         if (!confirm(t.confirmDelete)) return;
-        startTransition(() => deleteWork(workItemId, returnTo));
+        startTransition(async () => {
+          const result = await deleteWork(workItemId, returnTo);
+          if (result?.error) alert(result.error);
+        });
       }}
     >
       <Trash2 className="size-4" /> {t.delete}

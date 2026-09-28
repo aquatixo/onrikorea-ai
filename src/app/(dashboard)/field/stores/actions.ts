@@ -2,10 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { storeFormSchema } from "@/lib/validation/field";
 import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
 import { uploadFieldPhoto, deleteFieldPhoto, isAllowedImageType } from "@/lib/blob";
+import { canModifyContent } from "@/lib/auth/ownership-server";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 
@@ -51,18 +53,26 @@ export async function createStore(prevState: StoreFormState, formData: FormData)
     imageName = uploaded.fileName;
   }
 
-  await db.store.create({ data: { ...parsed.data, imageUrl, imageName } });
+  const session = await auth();
+  await db.store.create({ data: { ...parsed.data, imageUrl, imageName, createdById: session?.user?.id } });
   redirect("/field/stores");
 }
 
 export async function updateStore(id: string, prevState: StoreFormState, formData: FormData): Promise<StoreFormState> {
-  const t = getDictionary(await getLocale()).field;
+  const dict = getDictionary(await getLocale());
+  const t = dict.field;
+
+  const existing = await db.store.findUnique({ where: { id }, select: { imageUrl: true, createdById: true } });
+  if (!existing) return { message: t.fixErrors };
+  if (!(await canModifyContent(existing.createdById))) {
+    return { message: dict.common.forbidden };
+  }
+
   const parsed = storeFormSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { errors: localizeErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
   }
 
-  const existing = await db.store.findUnique({ where: { id }, select: { imageUrl: true } });
   const image = realImageFile(formData);
   const removeImage = formData.get("removeImage") === "true";
 
@@ -86,18 +96,32 @@ export async function updateStore(id: string, prevState: StoreFormState, formDat
   redirect("/field/stores");
 }
 
-export async function setStoreActive(id: string, isActive: boolean): Promise<void> {
+export async function setStoreActive(id: string, isActive: boolean): Promise<{ error?: string }> {
+  const existing = await db.store.findUnique({ where: { id }, select: { createdById: true } });
+  if (!existing) return {};
+  if (!(await canModifyContent(existing.createdById))) {
+    return { error: getDictionary(await getLocale()).common.forbidden };
+  }
+
   await db.store.update({ where: { id }, data: { isActive } });
   revalidatePath("/field/stores");
+  return {};
 }
 
 export async function deleteStore(id: string): Promise<{ error?: string }> {
-  const t = getDictionary(await getLocale()).field;
+  const dict = getDictionary(await getLocale());
+  const t = dict.field;
+
+  const existing = await db.store.findUnique({ where: { id }, select: { imageUrl: true, createdById: true } });
+  if (!existing) return {};
+  if (!(await canModifyContent(existing.createdById))) {
+    return { error: dict.common.forbidden };
+  }
+
   const inUse = await db.storeVisit.findFirst({ where: { storeId: id } });
   if (inUse) return { error: t.stores.deleteBlocked };
 
-  const existing = await db.store.findUnique({ where: { id }, select: { imageUrl: true } });
-  if (existing?.imageUrl) await deleteFieldPhoto(existing.imageUrl);
+  if (existing.imageUrl) await deleteFieldPhoto(existing.imageUrl);
 
   await db.store.delete({ where: { id } });
   redirect("/field/stores");

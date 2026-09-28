@@ -10,22 +10,31 @@ export function VisitStatusControl({
   visitId,
   status,
   locale,
+  canModify,
 }: {
   visitId: string;
   status: StoreVisitStatus;
   locale: Locale;
+  canModify: boolean;
 }) {
   const t = getDictionary(locale).field.visits;
   const [isPending, startTransition] = useTransition();
 
   const next: StoreVisitStatus = status === "COMPLETED" ? "IN_PROGRESS" : "COMPLETED";
 
+  if (!canModify) return null;
+
   return (
     <Button
       variant="outline"
       size="sm"
       disabled={isPending}
-      onClick={() => startTransition(() => setStoreVisitStatus(visitId, next))}
+      onClick={() =>
+        startTransition(async () => {
+          const result = await setStoreVisitStatus(visitId, next);
+          if (result?.error) alert(result.error);
+        })
+      }
     >
       {status === "COMPLETED" ? t.reopen : t.complete}
     </Button>

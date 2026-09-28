@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
+import { auth } from "@/auth";
+import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { WorkForm } from "@/components/work-form";
 import { updateWork } from "@/app/(dashboard)/work/actions";
 import { getLocale } from "@/lib/i18n/get-locale";
@@ -24,6 +26,9 @@ export default async function EditWorkPage(props: {
     db.person.findMany({ orderBy: { name: "asc" } }),
   ]);
   if (!item) notFound();
+
+  const session = await auth();
+  if (!isOwnerOrAdmin(session?.user, item.createdById)) redirect(detailHref);
 
   return (
     <main className="mx-auto w-full max-w-xl space-y-5 px-4 py-8 sm:px-6 sm:py-10">

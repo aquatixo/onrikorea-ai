@@ -3,17 +3,21 @@
 import * as React from "react";
 import { X } from "lucide-react";
 import { DeletePhotoButton } from "@/components/field/delete-photo-button";
+import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
-type Photo = { id: string; fileUrl: string; fileName: string | null; caption: string | null };
+type Photo = { id: string; fileUrl: string; fileName: string | null; caption: string | null; createdById: string | null };
+type CurrentUser = { id: string; role: "ADMIN" | "USER" } | null;
 
 export function PhotoLightbox({
   photos,
   storeVisitId,
+  currentUser,
   locale,
 }: {
   photos: Photo[];
   storeVisitId: string;
+  currentUser: CurrentUser;
   locale: Locale;
 }) {
   const t = getDictionary(locale);
@@ -33,9 +37,11 @@ export function PhotoLightbox({
               {/* eslint-disable-next-line @next/next/no-img-element -- external Vercel Blob URL, no remotePatterns configured */}
               <img src={photo.fileUrl} alt={photo.caption ?? photo.fileName ?? ""} className="size-full object-cover" />
             </button>
-            <div className="absolute top-1 right-1 opacity-0 transition-opacity group-hover:opacity-100">
-              <DeletePhotoButton photoId={photo.id} storeVisitId={storeVisitId} locale={locale} />
-            </div>
+            {isOwnerOrAdmin(currentUser, photo.createdById) && (
+              <div className="absolute top-1 right-1 opacity-0 transition-opacity group-hover:opacity-100">
+                <DeletePhotoButton photoId={photo.id} storeVisitId={storeVisitId} locale={locale} />
+              </div>
+            )}
           </div>
         ))}
       </div>

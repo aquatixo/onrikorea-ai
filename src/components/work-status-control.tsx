@@ -13,10 +13,12 @@ export function WorkStatusControl({
   workItemId,
   status,
   locale,
+  canModify,
 }: {
   workItemId: string;
   status: WorkStatus;
   locale: Locale;
+  canModify: boolean;
 }) {
   const t = getDictionary(locale);
   const router = useRouter();
@@ -24,9 +26,23 @@ export function WorkStatusControl({
 
   function handleChange(next: WorkStatus) {
     startTransition(async () => {
-      await updateWorkStatus(workItemId, next);
+      const result = await updateWorkStatus(workItemId, next);
+      if (result.error) alert(result.error);
       router.refresh();
     });
+  }
+
+  if (!canModify) {
+    return (
+      <span
+        className={cn(
+          "inline-block rounded-full py-1.5 pr-3.5 pl-3.5 text-xs font-semibold ring-1 ring-black/5 dark:ring-white/10",
+          WORK_STATUS_STYLE[status]
+        )}
+      >
+        {t.work.status[status]}
+      </span>
+    );
   }
 
   return (

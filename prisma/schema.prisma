@@ -51,11 +51,18 @@ model Brand {
   contacts      Contact[]
   outreachLogs  OutreachLog[]
 
+  // Who may edit/delete this record, per src/lib/auth/ownership.ts -- ADMIN or this
+  // user only. Nullable: rows created before this field existed, or whose creator's
+  // account was later deleted, have no owner and are ADMIN-only.
+  createdById   String?
+  createdBy     User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
   @@index([name])
   @@index([websiteDomain])
+  @@index([createdById])
   @@unique([name, websiteDomain], map: "brand_name_domain_unique")
 }
 
@@ -127,6 +134,17 @@ model User {
   // session store to push a live update through).
   allowedPages String[] @default([])
   createdAt    DateTime @default(now())
+
+  // Back-relations for the createdById ownership field on each content model -- see
+  // src/lib/auth/ownership.ts. Never read from these arrays directly; they exist only
+  // because Prisma requires both sides of a relation to be declared.
+  createdBrands           Brand[]
+  createdWorkItems        WorkItem[]
+  createdWorkComments     WorkComment[]
+  createdStores           Store[]
+  createdStoreVisits      StoreVisit[]
+  createdProducts         Product[]
+  createdStoreVisitPhotos StoreVisitPhoto[]
 }
 
 model WorkItem {
@@ -144,12 +162,17 @@ model WorkItem {
 
   comments     WorkComment[]
 
+  // Who may edit/delete this record -- see src/lib/auth/ownership.ts.
+  createdById  String?
+  createdBy    User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
   @@index([assigneeName])
   @@index([title])
   @@index([category])
+  @@index([createdById])
 }
 
 model WorkComment {
@@ -166,10 +189,16 @@ model WorkComment {
   authorName String
   body       String        @db.Text
 
+  // Who may edit/delete this comment -- see src/lib/auth/ownership.ts. authorName above
+  // is display-only (a plain string snapshot); this is the real identity used for auth.
+  createdById String?
+  createdBy   User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
   createdAt  DateTime      @default(now())
 
   @@index([workItemId])
   @@index([parentId])
+  @@index([createdById])
 }
 
 model Contact {
@@ -264,11 +293,16 @@ model Store {
 
   visits    StoreVisit[]
 
+  // Who may edit/delete this record -- see src/lib/auth/ownership.ts.
+  createdById String?
+  createdBy   User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
   @@index([name])
   @@index([chain])
+  @@index([createdById])
 }
 
 model StoreVisit {
@@ -284,11 +318,16 @@ model StoreVisit {
   items     Product[]
   photos    StoreVisitPhoto[] // store-level photos (storeVisitItemId null on these)
 
+  // Who may edit/delete this record -- see src/lib/auth/ownership.ts.
+  createdById String?
+  createdBy   User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
   @@index([storeId])
   @@index([visitDate])
+  @@index([createdById])
 }
 
 // A product as seen during one specific visit -- brand/category/barcode AND
@@ -320,6 +359,10 @@ model Product {
 
   photos          StoreVisitPhoto[]
 
+  // Who may edit/delete this record -- see src/lib/auth/ownership.ts.
+  createdById     String?
+  createdBy       User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
@@ -327,6 +370,7 @@ model Product {
   @@index([productName])
   @@index([brandName])
   @@index([barcode])
+  @@index([createdById])
 }
 
 model StoreVisitPhoto {
@@ -341,8 +385,13 @@ model StoreVisitPhoto {
   fileName         String?
   caption          String?
 
+  // Who may edit/delete this record -- see src/lib/auth/ownership.ts.
+  createdById      String?
+  createdBy        User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
   createdAt        DateTime         @default(now())
 
   @@index([storeVisitId])
   @@index([storeVisitItemId])
+  @@index([createdById])
 }

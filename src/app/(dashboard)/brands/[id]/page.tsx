@@ -4,6 +4,8 @@ import { ArrowLeft, Globe, Mail, MessageCircle, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DeleteBrandButton } from "@/components/delete-brand-button";
+import { auth } from "@/auth";
+import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { db } from "@/lib/db";
 import { STATUS_STYLE } from "@/lib/brand-status";
 import { getLocale } from "@/lib/i18n/get-locale";
@@ -38,6 +40,9 @@ export default async function BrandDetailPage(
 
   if (!brand) notFound();
 
+  const session = await auth();
+  const canModify = isOwnerOrAdmin(session?.user, brand.createdById);
+
   const yesNo = (v: boolean) => (v ? t.detail.yes : t.detail.no);
   const triState = (v: boolean | null) => (v === null ? t.detail.dash : yesNo(v));
 
@@ -66,23 +71,25 @@ export default async function BrandDetailPage(
         >
           <ArrowLeft className="size-4" /> {t.detail.back}
         </Link>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            nativeButton={false}
-            render={
-              <Link href={`/brands/${brand.id}/edit?returnTo=${encodeURIComponent(backHref)}`}>
-                <Pencil className="size-4" /> {t.detail.edit}
-              </Link>
-            }
-          />
-          <DeleteBrandButton
-            brandId={brand.id}
-            label={t.detail.delete}
-            confirmText={t.detail.confirmDelete}
-            returnTo={backHref}
-          />
-        </div>
+        {canModify && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={
+                <Link href={`/brands/${brand.id}/edit?returnTo=${encodeURIComponent(backHref)}`}>
+                  <Pencil className="size-4" /> {t.detail.edit}
+                </Link>
+              }
+            />
+            <DeleteBrandButton
+              brandId={brand.id}
+              label={t.detail.delete}
+              confirmText={t.detail.confirmDelete}
+              returnTo={backHref}
+            />
+          </div>
+        )}
       </div>
 
       <section className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">

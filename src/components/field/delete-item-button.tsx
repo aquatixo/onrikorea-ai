@@ -29,7 +29,10 @@ export function DeleteItemButton({
       onClick={(e) => {
         e.stopPropagation();
         if (!confirm(t.confirmDelete)) return;
-        startTransition(() => deleteStoreVisitItem(storeVisitId, itemId));
+        startTransition(async () => {
+          const result = await deleteStoreVisitItem(storeVisitId, itemId);
+          if (result?.error) alert(result.error);
+        });
       }}
     >
       <Trash2 className={size === "sm" ? "size-4" : "size-4 text-destructive"} /> {size === "sm" ? t.delete : null}

@@ -25,6 +25,9 @@ export const dictionaries = {
       language: "Language",
       signOut: "Sign out",
     },
+    common: {
+      forbidden: "Only the admin or the original author can edit or delete this.",
+    },
     login: {
       title: "Welcome back",
       subtitle: "Sign in to onrikorea.ai",
@@ -303,6 +306,8 @@ export const dictionaries = {
         posting: "Posting...",
         nameRequired: "Set your name in the sidebar first.",
         bodyRequired: "Write something first.",
+        save: "Save",
+        confirmDeleteComment: "Delete this comment? This can't be undone.",
       },
       form: {
         addTitle: "Add work",
@@ -623,6 +628,9 @@ export const dictionaries = {
       language: "언어",
       signOut: "로그아웃",
     },
+    common: {
+      forbidden: "관리자 또는 작성자만 수정/삭제할 수 있습니다.",
+    },
     login: {
       title: "환영합니다",
       subtitle: "onrikorea.ai에 로그인하세요",
@@ -900,6 +908,8 @@ export const dictionaries = {
         posting: "등록 중...",
         nameRequired: "먼저 사이드바에서 이름을 설정하세요.",
         bodyRequired: "내용을 입력하세요.",
+        save: "저장",
+        confirmDeleteComment: "이 댓글을 삭제할까요? 되돌릴 수 없습니다.",
       },
       form: {
         addTitle: "할 일 추가",

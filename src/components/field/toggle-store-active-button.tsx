@@ -24,7 +24,10 @@ export function ToggleStoreActiveButton({
       disabled={isPending}
       onClick={() => {
         if (isActive && !confirm(t.confirmDeactivate)) return;
-        startTransition(() => setStoreActive(storeId, !isActive));
+        startTransition(async () => {
+          const result = await setStoreActive(storeId, !isActive);
+          if (result?.error) alert(result.error);
+        });
       }}
     >
       {isActive ? t.deactivate : t.activate}

@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { BrandForm } from "@/components/brand-form";
 import { updateBrand } from "@/app/(dashboard)/brands/actions";
+import { auth } from "@/auth";
+import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { db } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
@@ -22,6 +24,9 @@ export default async function EditBrandPage(
 
   const brand = await db.brand.findUnique({ where: { id } });
   if (!brand) notFound();
+
+  const session = await auth();
+  if (!isOwnerOrAdmin(session?.user, brand.createdById)) redirect(detailHref);
 
   const updateBrandWithId = updateBrand.bind(null, id, safeReturnTo);
 

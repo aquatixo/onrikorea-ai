@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { StoreVisitItemForm } from "@/components/field/store-visit-item-form";
 import { updateProduct } from "@/app/(dashboard)/field/products/actions";
+import { auth } from "@/auth";
+import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { db } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
@@ -15,6 +17,9 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
   const t = getDictionary(locale).field;
   const product = await db.product.findUnique({ where: { id } });
   if (!product) notFound();
+
+  const session = await auth();
+  if (!isOwnerOrAdmin(session?.user, product.createdById)) redirect("/field/products");
 
   return (
     <main className="mx-auto w-full max-w-2xl space-y-5 px-4 py-8 sm:px-6 sm:py-10">

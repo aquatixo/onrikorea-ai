@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ChevronsLeft, ChevronsRight, Pencil, Plus, Camera } from "lucide-react";
 import { db } from "@/lib/db";
+import { auth } from "@/auth";
+import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { Button } from "@/components/ui/button";
@@ -72,6 +74,10 @@ export default async function StoreVisitDetailPage(props: {
     }),
   ]);
 
+  const session = await auth();
+  const currentUser = session?.user ? { id: session.user.id, role: session.user.role } : null;
+  const canModifyVisit = isOwnerOrAdmin(currentUser, visit.createdById);
+
   const totalPages = Math.max(1, Math.ceil(itemCount / pageSize));
   const hasPrevious = currentPage > 1;
   const hasNext = currentPage < totalPages;
@@ -85,18 +91,22 @@ export default async function StoreVisitDetailPage(props: {
           <ArrowLeft className="size-4" /> {t.visits.back}
         </Link>
         <div className="flex items-center gap-2">
-          <VisitStatusControl visitId={visit.id} status={visit.status} locale={locale} />
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={
-              <Link href={`/field/store-visits/${visit.id}/edit`}>
-                <Pencil className="size-4" /> {t.visits.edit}
-              </Link>
-            }
-          />
-          <DeleteVisitButton visitId={visit.id} locale={locale} />
+          <VisitStatusControl visitId={visit.id} status={visit.status} locale={locale} canModify={canModifyVisit} />
+          {canModifyVisit && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                nativeButton={false}
+                render={
+                  <Link href={`/field/store-visits/${visit.id}/edit`}>
+                    <Pencil className="size-4" /> {t.visits.edit}
+                  </Link>
+                }
+              />
+              <DeleteVisitButton visitId={visit.id} locale={locale} />
+            </>
+          )}
         </div>
       </div>
 
@@ -178,9 +188,11 @@ export default async function StoreVisitDetailPage(props: {
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        <StopPropagation>
-                          <DeleteItemButton storeVisitId={visit.id} itemId={item.id} locale={locale} />
-                        </StopPropagation>
+                        {isOwnerOrAdmin(currentUser, item.createdById) && (
+                          <StopPropagation>
+                            <DeleteItemButton storeVisitId={visit.id} itemId={item.id} locale={locale} />
+                          </StopPropagation>
+                        )}
                       </td>
                     </ClickableTr>
                   ))}
@@ -283,7 +295,7 @@ export default async function StoreVisitDetailPage(props: {
         <h2 className="text-sm font-semibold">{t.visits.storePhotosHeading}</h2>
         <UploadStorePhotoForm storeVisitId={visit.id} locale={locale} />
         {visit.photos.length > 0 ? (
-          <PhotoLightbox photos={visit.photos} storeVisitId={visit.id} locale={locale} />
+          <PhotoLightbox photos={visit.photos} storeVisitId={visit.id} currentUser={currentUser} locale={locale} />
         ) : (
           <p className="text-sm text-muted-foreground">{t.visits.noStorePhotosYet}</p>
         )}
