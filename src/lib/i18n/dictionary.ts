@@ -112,7 +112,7 @@ export const dictionaries = {
       "Reply",
     ],
     detail: {
-      back: "Back to brands",
+      back: "Back",
       edit: "Edit",
       delete: "Delete",
       unknownCountry: "Unknown country",
@@ -740,7 +740,7 @@ export const dictionaries = {
       "회신",
     ],
     detail: {
-      back: "브랜드 목록으로",
+      back: "목록으로",
       edit: "수정",
       delete: "삭제",
       unknownCountry: "국가 미상",
