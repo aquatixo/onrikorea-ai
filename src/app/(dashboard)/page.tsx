@@ -36,14 +36,16 @@ export default async function HomePage(props: { searchParams: Promise<{ denied?:
   const session = await auth();
   const role = session?.user?.role ?? "USER";
   const allowedPages = session?.user?.allowedPages ?? [];
+  const canSeeBrands = hasSectionAccess(role, allowedPages, "brands");
+  const canSeeWork = hasSectionAccess(role, allowedPages, "work");
 
   const [brandCount, contactedCount, openWorkCount, inProgressCount, recentBrands, recentWork] = await Promise.all([
-    db.brand.count(),
-    db.brand.count({ where: { status: { in: ["CONTACTED", "REPLIED"] } } }),
-    db.workItem.count({ where: { status: { not: "DONE" } } }),
-    db.workItem.count({ where: { status: "IN_PROGRESS" } }),
-    db.brand.findMany({ orderBy: { updatedAt: "desc" }, take: 5 }),
-    db.workItem.findMany({ orderBy: { updatedAt: "desc" }, take: 5 }),
+    canSeeBrands ? db.brand.count() : Promise.resolve(0),
+    canSeeBrands ? db.brand.count({ where: { status: { in: ["CONTACTED", "REPLIED"] } } }) : Promise.resolve(0),
+    canSeeWork ? db.workItem.count({ where: { status: { not: "DONE" } } }) : Promise.resolve(0),
+    canSeeWork ? db.workItem.count({ where: { status: "IN_PROGRESS" } }) : Promise.resolve(0),
+    canSeeBrands ? db.brand.findMany({ orderBy: { updatedAt: "desc" }, take: 5 }) : Promise.resolve([]),
+    canSeeWork ? db.workItem.findMany({ orderBy: { updatedAt: "desc" }, take: 5 }) : Promise.resolve([]),
   ]);
 
   const allModules: { href: string; label: string; icon: typeof Building2; soon: boolean; section?: PageSection }[] = [
@@ -104,12 +106,14 @@ export default async function HomePage(props: { searchParams: Promise<{ denied?:
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label={t.home.brandsTracked} value={brandCount} icon={Building2} />
-        <StatCard label={t.home.contacted} value={contactedCount} icon={Mail} />
-        <StatCard label={t.home.openWork} value={openWorkCount} icon={ListTodo} />
-        <StatCard label={t.home.inProgress} value={inProgressCount} icon={Sparkles} />
-      </section>
+      {(canSeeBrands || canSeeWork) && (
+        <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {canSeeBrands && <StatCard label={t.home.brandsTracked} value={brandCount} icon={Building2} />}
+          {canSeeBrands && <StatCard label={t.home.contacted} value={contactedCount} icon={Mail} />}
+          {canSeeWork && <StatCard label={t.home.openWork} value={openWorkCount} icon={ListTodo} />}
+          {canSeeWork && <StatCard label={t.home.inProgress} value={inProgressCount} icon={Sparkles} />}
+        </section>
+      )}
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground">{t.home.quickAccess}</h2>
@@ -146,7 +150,9 @@ export default async function HomePage(props: { searchParams: Promise<{ denied?:
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+      {(canSeeBrands || canSeeWork) && (
+      <section className={cn("grid grid-cols-1 gap-8", canSeeBrands && canSeeWork && "lg:grid-cols-2")}>
+        {canSeeBrands && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-muted-foreground">{t.home.recentlyUpdated}</h2>
@@ -190,7 +196,9 @@ export default async function HomePage(props: { searchParams: Promise<{ denied?:
             )}
           </div>
         </div>
+        )}
 
+        {canSeeWork && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-muted-foreground">{t.home.recentWork}</h2>
@@ -231,7 +239,9 @@ export default async function HomePage(props: { searchParams: Promise<{ denied?:
             )}
           </div>
         </div>
+        )}
       </section>
+      )}
     </main>
   );
 }
