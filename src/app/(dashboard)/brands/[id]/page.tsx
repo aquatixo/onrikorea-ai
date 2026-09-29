@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { DeleteBrandButton } from "@/components/delete-brand-button";
 import { BrandLogForm } from "@/components/brand-log-form";
 import { BrandLogItem } from "@/components/brand-log-item";
+import { LiveRefresh } from "@/components/live-refresh";
 import { auth } from "@/auth";
 import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { db } from "@/lib/db";
@@ -68,6 +69,7 @@ export default async function BrandDetailPage(
 
   return (
     <main className="mx-auto w-full max-w-4xl space-y-5 px-4 py-8 sm:px-6 sm:py-10">
+      <LiveRefresh />
       <div className="flex items-center justify-between">
         <Link
           href={backHref}

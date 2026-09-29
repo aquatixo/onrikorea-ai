@@ -13,6 +13,7 @@ import { WorkStatusControl } from "@/components/work-status-control";
 import { WorkCommentForm } from "@/components/work-comment-form";
 import { WorkCommentItem } from "@/components/work-comment-item";
 import { DeleteWorkButton } from "@/components/work/delete-work-button";
+import { LiveRefresh } from "@/components/live-refresh";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ export default async function WorkDetailPage(props: {
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-5 px-4 py-8 sm:px-6 sm:py-10">
+      <LiveRefresh />
       <div className="flex items-center justify-between">
         <Link
           href={backHref}
