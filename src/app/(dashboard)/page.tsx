@@ -12,6 +12,7 @@ import {
   MapPin,
   Store,
   Package,
+  MessagesSquare,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,7 @@ export default async function HomePage(props: { searchParams: Promise<{ denied?:
   const allModules: { href: string; label: string; icon: typeof Building2; soon: boolean; section?: PageSection }[] = [
     { href: "/brands", label: t.nav.brands, icon: Building2, soon: false, section: "brands" },
     { href: "/brands/sourcing", label: t.nav.brandSourcing, icon: Search, soon: false, section: "brandSourcing" },
+    { href: "/brands/communications", label: t.nav.brandCommunications, icon: MessagesSquare, soon: false, section: "brands" },
     { href: "/work", label: t.nav.work, icon: ListTodo, soon: false, section: "work" },
     { href: "/field/stores", label: t.nav.stores, icon: Store, soon: false, section: "stores" },
     { href: "/field/store-visits", label: t.nav.storeVisits, icon: MapPin, soon: false, section: "storeVisits" },
