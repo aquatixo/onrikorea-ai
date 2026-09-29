@@ -86,8 +86,7 @@ export const dictionaries = {
     },
     communications: {
       title: "Communication status",
-      subtitle: "Brands with an active progress log — not the full brand list.",
-      countTracked: (n: number) => `${n} brand${n === 1 ? "" : "s"}`,
+      countTracked: (n: number) => `${n} brand${n === 1 ? "" : "s"} with a progress log`,
       filterAll: "All",
       filterReplied: "In conversation",
       filterContacted: "Awaiting reply",
@@ -714,8 +713,7 @@ export const dictionaries = {
     },
     communications: {
       title: "소통 현황",
-      subtitle: "진행 기록이 있는 브랜드만 — 전체 브랜드 목록이 아닙니다.",
-      countTracked: (n: number) => `${n}개 브랜드`,
+      countTracked: (n: number) => `진행 기록이 있는 브랜드 ${n}개`,
       filterAll: "전체",
       filterReplied: "소통 중",
       filterContacted: "답변 대기",

@@ -1,4 +1,4 @@
-import { ChevronsLeft, ChevronsRight, MessagesSquare } from "lucide-react";
+import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -83,25 +83,16 @@ export default async function BrandCommunicationsPage(props: {
 
   return (
     <main className="mx-auto w-full max-w-6xl space-y-6 px-6 py-10 sm:px-8 sm:py-12">
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10">
-              <MessagesSquare className="size-5 text-primary" />
-            </span>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">{t.communications.title}</h1>
-              <p className="text-sm text-muted-foreground">{t.communications.subtitle}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <BrandSearch defaultValue={q} placeholder={t.brands.searchPlaceholder} />
-            <CommunicationStatusFilter value={statusFilter} locale={locale} />
-            <PageSizeControl value={pageSize} label={t.brands.rowsPerPage} />
-          </div>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{t.communications.title}</h1>
+          <p className="text-sm text-muted-foreground">{t.communications.countTracked(total)}</p>
         </div>
-
-        <p className="text-sm text-muted-foreground">{t.communications.countTracked(total)}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <PageSizeControl value={pageSize} label={t.brands.rowsPerPage} />
+          <BrandSearch defaultValue={q} placeholder={t.brands.searchPlaceholder} />
+          <CommunicationStatusFilter value={statusFilter} locale={locale} />
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl bg-card shadow-sm ring-1 ring-foreground/10">
