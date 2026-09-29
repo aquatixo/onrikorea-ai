@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 type StatusFilter = "ALL" | "REPLIED" | "CONTACTED";
@@ -8,9 +8,15 @@ type StatusFilter = "ALL" | "REPLIED" | "CONTACTED";
 export function CommunicationStatusFilter({ value, locale }: { value: StatusFilter; locale: Locale }) {
   const t = getDictionary(locale).communications;
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   function handleChange(next: string) {
-    router.push(next === "ALL" ? "/brands/communications" : `/brands/communications?status=${next}`);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "ALL") params.delete("status");
+    else params.set("status", next);
+    params.delete("page");
+    router.push(`${pathname}?${params.toString()}`);
   }
 
   return (
