@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Globe, Mail, MessageCircle, Pencil } from "lucide-react";
+import { ArrowLeft, Globe, Mail, MessageCircle, Pencil, NotebookText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DeleteBrandButton } from "@/components/delete-brand-button";
+import { BrandLogForm } from "@/components/brand-log-form";
+import { BrandLogItem } from "@/components/brand-log-item";
 import { auth } from "@/auth";
 import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { db } from "@/lib/db";
@@ -35,13 +37,15 @@ export default async function BrandDetailPage(
     include: {
       contacts: true,
       outreachLogs: { orderBy: { createdAt: "desc" } },
+      logs: { orderBy: { createdAt: "asc" }, include: { createdBy: { select: { name: true } } } },
     },
   });
 
   if (!brand) notFound();
 
   const session = await auth();
-  const canModify = isOwnerOrAdmin(session?.user, brand.createdById);
+  const currentUser = session?.user ? { id: session.user.id, role: session.user.role } : null;
+  const canModify = isOwnerOrAdmin(currentUser, brand.createdById);
 
   const yesNo = (v: boolean) => (v ? t.detail.yes : t.detail.no);
   const triState = (v: boolean | null) => (v === null ? t.detail.dash : yesNo(v));
@@ -183,6 +187,26 @@ export default async function BrandDetailPage(
           </ul>
         </section>
       )}
+
+      <section className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <NotebookText className="size-4 text-muted-foreground" /> {t.detail.logsHeading}
+        </h2>
+
+        {brand.logs.length === 0 ? (
+          <p className="py-1 text-sm text-muted-foreground">{t.detail.noLogsYet}</p>
+        ) : (
+          <div className="space-y-4">
+            {brand.logs.map((log) => (
+              <BrandLogItem key={log.id} log={log} brandId={brand.id} currentUser={currentUser} locale={locale} />
+            ))}
+          </div>
+        )}
+
+        <div className="border-t border-border pt-4">
+          <BrandLogForm brandId={brand.id} locale={locale} />
+        </div>
+      </section>
     </main>
   );
 }

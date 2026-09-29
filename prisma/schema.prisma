@@ -50,6 +50,7 @@ model Brand {
 
   contacts      Contact[]
   outreachLogs  OutreachLog[]
+  logs          BrandLog[]
 
   // Who may edit/delete this record, per src/lib/auth/ownership.ts -- ADMIN or this
   // user only. Nullable: rows created before this field existed, or whose creator's
@@ -64,6 +65,32 @@ model Brand {
   @@index([websiteDomain])
   @@index([createdById])
   @@unique([name, websiteDomain], map: "brand_name_domain_unique")
+}
+
+// A running, comment-style progress log per brand -- "우리가 지금 이 브랜드랑 어디까지
+// 얘기됐는지" (contact history, sample status, reminders sent). No threading, unlike
+// WorkComment -- this mirrors the flat dated-entry style the team already kept by hand
+// in a spreadsheet column, just moved into the app. A brand having any log entries at
+// all is also what marks it as "actively being worked" for the /brands/communications
+// view, as opposed to the other ~1300 brands that were only ever sourced/imported.
+model BrandLog {
+  id        String   @id @default(uuid())
+  brandId   String
+  brand     Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  body      String   @db.Text
+
+  // Who may edit/delete this entry -- see src/lib/auth/ownership.ts. Also doubles as
+  // "who wrote this note" for display, so unlike other models this one is never left
+  // null on new entries (backfilled historical entries may still be null -- attributed
+  // to whoever did the import, same convention as every other backfilled content type).
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([brandId])
+  @@index([createdById])
 }
 
 model SourcingRun {
@@ -145,6 +172,7 @@ model User {
   createdStoreVisits      StoreVisit[]
   createdProducts         Product[]
   createdStoreVisitPhotos StoreVisitPhoto[]
+  createdBrandLogs        BrandLog[]
 }
 
 model WorkItem {

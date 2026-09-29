@@ -16,6 +16,7 @@ import {
   MapPin,
   Store,
   Package,
+  MessagesSquare,
 } from "lucide-react";
 import { cn } from "cn";
 import { BrandMark } from "@/components/brand-mark";
@@ -64,6 +65,7 @@ export function AppSidebar({
       items: [
         { href: "/brands", label: t.nav.brands, icon: Building2, section: "brands" },
         { href: "/brands/sourcing", label: t.nav.brandSourcing, icon: Search, section: "brandSourcing" },
+        { href: "/brands/communications", label: t.nav.brandCommunications, icon: MessagesSquare, section: "brands" },
       ],
     },
     {

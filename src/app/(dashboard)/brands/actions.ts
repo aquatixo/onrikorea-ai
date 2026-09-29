@@ -1,10 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { extractDomain } from "@/lib/extract-domain";
-import { brandFormSchema } from "@/lib/validation/brand";
+import { brandFormSchema, brandLogSchema } from "@/lib/validation/brand";
 import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
 import { canModifyContent } from "@/lib/auth/ownership-server";
 import { getLocale } from "@/lib/i18n/get-locale";
@@ -120,4 +121,51 @@ export async function deleteBrand(id: string, returnTo: string | undefined): Pro
 
   await db.brand.delete({ where: { id } });
   redirect(returnTo && returnTo.startsWith("/brands") ? returnTo : "/brands");
+}
+
+export async function createBrandLog(brandId: string, body: string): Promise<{ success: true } | { error: string }> {
+  const dict = getDictionary(await getLocale());
+  const t = dict.detail;
+
+  const parsed = brandLogSchema.shape.body.safeParse(body);
+  if (!parsed.success) return { error: t.logBodyRequired };
+
+  const session = await auth();
+  await db.brandLog.create({
+    data: { brandId, body: parsed.data, createdById: session?.user?.id },
+  });
+
+  revalidatePath(`/brands/${brandId}`);
+  return { success: true };
+}
+
+export async function updateBrandLog(logId: string, brandId: string, body: string): Promise<{ success: true } | { error: string }> {
+  const dict = getDictionary(await getLocale());
+  const t = dict.detail;
+
+  // Referential check -- this entry must actually belong to the brand the URL says it does.
+  const existing = await db.brandLog.findUnique({ where: { id: logId }, select: { createdById: true, brandId: true } });
+  if (!existing || existing.brandId !== brandId) return { error: t.logBodyRequired };
+  if (!(await canModifyContent(existing.createdById))) {
+    return { error: dict.common.forbidden };
+  }
+
+  const parsed = brandLogSchema.shape.body.safeParse(body);
+  if (!parsed.success) return { error: t.logBodyRequired };
+
+  await db.brandLog.update({ where: { id: logId }, data: { body: parsed.data } });
+  revalidatePath(`/brands/${brandId}`);
+  return { success: true };
+}
+
+export async function deleteBrandLog(logId: string, brandId: string): Promise<{ error?: string }> {
+  const existing = await db.brandLog.findUnique({ where: { id: logId }, select: { createdById: true, brandId: true } });
+  if (!existing || existing.brandId !== brandId) return {};
+  if (!(await canModifyContent(existing.createdById))) {
+    return { error: getDictionary(await getLocale()).common.forbidden };
+  }
+
+  await db.brandLog.delete({ where: { id: logId } });
+  revalidatePath(`/brands/${brandId}`);
+  return {};
 }

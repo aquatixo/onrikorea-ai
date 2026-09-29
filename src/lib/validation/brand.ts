@@ -61,3 +61,7 @@ export const candidateEvaluationSchema = z.object({
 });
 
 export type CandidateEvaluationInput = z.infer<typeof candidateEvaluationSchema>;
+
+export const brandLogSchema = z.object({
+  body: z.string().trim().min(1, "Entry is required").refine(isSafeText, UNSAFE_INPUT_MESSAGE),
+});
