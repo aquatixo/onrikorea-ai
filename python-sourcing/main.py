@@ -32,7 +32,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from categories import BUCKETS
-from tavily_search import search
+from gemini_search import search
 from name_filter import (
     is_blocked_domain,
     is_retailer_listing_page,
@@ -237,7 +237,7 @@ def main():
                 reason_parts.append(f"소유구조 제외 ({label}): 후보명에 '{parent}' 포함")
 
             # 병행 Claude 파이프라인이 9라운드에 걸쳐 실제로 확인해둔 "이미 검토 끝난 브랜드"
-            # 목록과 이름 대조 -- Tavily 호출 없이 공짜로 되는 체크라 여기서 먼저 한다. 이름이
+            # 목록과 이름 대조 -- 검색 API 호출 없이 공짜로 되는 체크라 여기서 먼저 한다. 이름이
             # 조금이라도 다르면 안 걸리는 한계는 있지만(정확일치만), 최소한 같은 브랜드를 두
             # 파이프라인이 각자 재검토하는 낭비는 막는다.
             known_hit = known_excluded_brand(candidate["name"])
