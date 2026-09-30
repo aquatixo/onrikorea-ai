@@ -79,6 +79,7 @@ export function BrandForm({ mode, brand, locale, action }: Props) {
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>
                 {t.status[s]}
+                {t.statusHint[s] ? ` (${t.statusHint[s]})` : ""}
               </option>
             ))}
           </select>
