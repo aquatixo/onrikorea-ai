@@ -105,14 +105,20 @@ BUCKETS = [
         ],
     },
     {
-        "label": "Python Sourcing — Japan (Wagashi & Traditional Confectionery)",
+        # "Wagashi & Traditional Confectionery"라는 라벨/쿼리가 화과자·센베이 한 갈래로만
+        # 너무 좁게 느껴진다는 피드백으로 일본 헤리티지 과자·간식 전반으로 범위를 넓힘
+        # (사탕/젤리류 포함, 화과자는 그 안의 한 갈래로 유지).
+        "label": "Python Sourcing — Japan (Heritage Snacks & Confectionery)",
         "category": "Snacks",
         "queries": [
+            "heritage Japanese snack confectionery brand family owned since 19",
+            "old Japanese candy snack maker family owned generations",
             "traditional Japanese wagashi senbei confectionery maker since 19",
-            "old Japanese confectionery shop family owned generations",
-            # 현지어(일본어) -- 老舗(노포/오래된 가게)가 핵심 검색어
-            "老舗 和菓子店 創業",
-            "老舗 せんべい 製造 家族経営",
+            # 현지어(일본어) -- 老舗(노포/오래된 가게)가 핵심 검색어. "スナック"는 일본어에서
+            # 흔히 술집(스낵바)을 뜻해 오해 소지가 있으므로 피하고 菓子/食品 계열 단어만 사용.
+            "老舗 菓子店 創業",
+            "老舗 和菓子 せんべい 製造 家族経営",
+            "老舗 食品メーカー 菓子 創業 家族経営",
         ],
     },
     {

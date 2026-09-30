@@ -54,8 +54,8 @@ export const DISCOVERY_BUCKETS: DiscoveryBucket[] = [
       "Heritage baked finished goods — panettone, pandoro, viennoiserie, or biscuit brands (especially Italian/French) — complete packaged consumer products, not a bakery-only fresh-goods business.",
   },
   {
-    label: "Brand Sourcing — Japan (Wagashi & Traditional Confectionery)",
+    label: "Brand Sourcing — Japan (Heritage Snacks & Confectionery)",
     brief:
-      "Heritage Japanese confectionery brands (wagashi, senbei, and similar traditional sweets) — complete packaged consumer products from a long-established, family-owned maker.",
+      "Heritage Japanese snack and confectionery brands (wagashi, senbei, candy, jelly, and similar sweets) — complete packaged consumer products from a long-established, family-owned maker.",
   },
 ];
