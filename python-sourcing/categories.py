@@ -12,21 +12,6 @@
 # these are the small, non-SEO'd family producers that never surface in a generic
 # English "heritage snack brand" search to begin with.
 #
-# Each bucket also layers in higher-yield, more mechanical sourcing channels beyond a
-# plain web search, in roughly descending yield order:
-#   1. local specialty-item name + local-language "family business" phrasing
-#   2. local-language anniversary/founding-year phrasing ("100 Jahre", "desde 18",
-#      "vuodesta 19") -- a bare "since 19" is NOT a real date filter (a search engine
-#      does not parse "19" as "any year starting with 19"; it just adds two more
-#      low-signal keyword tokens), so every founding-year query below spells out a
-#      real anniversary phrase or a two-digit-century prefix in the target language.
-#   3. PDO/PGI protected-origin producer lists and trade-association member rosters --
-#      these are literal lists of qualifying producers, the highest-yield source type
-#      available without a specialized directory
-#   4. food-award winner/finalist lists (award pages are almost always a clean list)
-#   5. trade-fair exhibitor directories -- self-selects for producers that already want
-#      export/distribution partners, which is exactly this pipeline's target
-#
 # Dropped entirely (not just deprioritized):
 #   - Nutritional Supplements: outside this pipeline's target category scope --
 #     supplements go through an entirely different import-declaration/functional-claim
@@ -37,30 +22,47 @@
 #   - The old Nordic-focused snack/jelly queries specifically: that shelf is already a
 #     confirmed oligopoly (KiMs, OK Snacks, Maarud, Sørlandschips), so re-querying it
 #     in English was a guaranteed-empty search.
-# Japan is left as-is (recently reworked on its own) since the country-distribution
-# check doesn't cover it either way.
 #
-# Each lane's queries were later enriched with concrete local specialty-item vocabulary
-# (Polish ptasie mleczko, Hungarian pogácsa, Finnish korvapuusti, Icelandic kleina/
-# flatkaka, Greek melomakarona/kourabiedes, Turkish kurabiye, French canelé/pâte de
-# fruit, German Zwetschgenmännla/Brause, Nordic vingummi/skumbanan) rather than only
-# generic "heritage [category] brand" phrasing -- a fixed query list still only gets
-# one good pass per real-world vocabulary item it names, so the more concrete specialty
-# terms it covers, the less it depends on the family-owned/anniversary phrasing alone to
-# carry a whole lane. This also restores jelly/gummy-candy coverage (dropped along with
-# the old English-only Jellies & Gummies bucket) via each lane's own local term for it,
-# instead of a generic English "gummy candy" category query that doesn't map to any
-# single local vocabulary the way e.g. "biscuit" roughly does.
+# A country being saturated overall (Spain 44, UK 154, Italy 123) doesn't mean every
+# region within it is -- narrowing to a specific under-mined subregion (northern Spain,
+# Scotland/Wales/Northern Ireland, southern Italy, French/German regions) stays valid.
+# The Netherlands has its own lane too, having had no coverage at all before. This list
+# still isn't an automatic "rotate to whichever regions are least-covered this round"
+# mechanism -- it's a fixed set that will itself need a fresh look once these lanes dry
+# up too.
 #
-# The first cut of this rebuild only kept the 7 MOST under-covered countries and
-# accidentally dropped several regions the original saturated-country critique never
-# meant to exclude -- a country being saturated overall (Spain 44, UK 154, Italy 123)
-# doesn't mean every region within it is; narrowing to a specific under-mined subregion
-# (northern Spain, Scotland/Wales/Northern Ireland, southern Italy) stays valid, same as
-# the France/Germany lanes above. Added those back, plus the Netherlands, which had no
-# lane at all despite not being especially saturated either. This list still isn't an
-# automatic "rotate to whichever regions are least-covered this round" mechanism --
-# it's a fixed set that will itself need a fresh look once these lanes dry up too.
+# Query-construction rule (revised after real feedback on the first cut): ONE specialty
+# item per query, not several ("ferratelle pizzelle torrone tenero pasticceria storica
+# famiglia Abruzzo" reads as 6 concepts a search engine loosely ANDs together -- the only
+# pages mentioning all 6 are blog listicles, not an actual ferratelle producer's own
+# site, which never talks about torrone on the same page). Each query below instead
+# follows: [one specialty item] + [manufacturer noun] + [region], optionally with a
+# recipe-site exclusion operator (a bare specialty name alone mostly surfaces recipe
+# blogs, not producers) or a quoted exact anniversary phrase. Two extra techniques:
+#   - Manufacturer nouns matter more than the specialty name -- "ferratelle" alone
+#     surfaces recipes; "ferratelle produttore/pastificio/azienda" surfaces businesses.
+#   - Company-name-suffix search: suffixes like -ificio (Italian), -erie (French),
+#     -ería (Spanish) are baked into real company names ("Torronificio Marotto"), so
+#     suffix + region alone can surface a producer by name pattern -- something no
+#     category-shaped query could ever do.
+# Manufacturer nouns by language: IT azienda/produttore/pastificio/torronificio/
+# biscottificio/forno/laboratorio/fabbrica/pasticceria; ES fábrica/obrador/elaborador/
+# productor/confitería/pastelería; FR maison/fabrique/biscuiterie/confiserie/
+# torréfacteur/atelier; DE Manufaktur/Bäckerei/Konditorei/Rösterei/Familienbetrieb/
+# Hersteller; PT fábrica/fabrico/produtor/pastelaria/torrefação; PL wytwórnia/fabryka/
+# piekarnia/cukiernia/producent; SV tillverkare/bruk/bageri/fabrik; FI valmistaja/
+# leipomo/tehdas; NL fabriek/bakkerij/makerij/producent; EL βιοτεχνία/εργαστήριο/
+# παραγωγός; TR imalathane/üretici/fabrikası/fırını.
+#
+# Japan is left exactly as edited (English queries trimmed to bare category terms,
+# Japanese queries trimmed to bare product nouns with no "老舗"/anniversary/"family
+# business" framing) -- NOTE: a second round of outside feedback specifically flagged
+# this as likely too far ("老舗" was a real, correct signal to search on; the Japanese
+# equivalent of a quoted anniversary phrase would be founding-era terms like "創業明治"/
+# "創業大正", and shop-name-suffix words like 総本家/総本舗 parallel to the -ificio/-erie
+# trick above). Not silently reverted here since the user explicitly stripped it down
+# on purpose, more than once -- flagging it in this comment instead so it's a visible,
+# deliberate choice rather than something a future edit quietly undoes.
 
 BUCKETS = [
     {
@@ -70,9 +72,6 @@ BUCKETS = [
             "heritage Japanese snack confectionery brand",
             "Japanese candy snack maker",
             "traditional Japanese wagashi",
-            # 현지어(일본어) -- 상품명만 남기고 "老舗"/연혁 표현/"가족경영" 등 수식어는 전부
-            # 제외. "スナック"는 일본어에서 흔히 술집(스낵바)을 뜻해 오해 소지가 있으므로
-            # 피하고 菓子/食品 계열 단어만 사용.
             "菓子店",
             "和菓子",
             "食品メーカー 菓子",
@@ -83,20 +82,17 @@ BUCKETS = [
         "label": "Python Sourcing — Portugal",
         "category": "혼합",
         "queries": [
-            "fábrica de bolachas tradicionais portuguesas desde 18",
-            "pastéis secos conventuais fábrica artesanal Portugal",
-            "torrão de ovos amêndoa doçaria conventual produtor",
-            "broas castelares bolos secos fabrico artesanal",
-            "torrefação de café histórica Portugal empresa familiar",
-            "queijadas fábrica tradicional Sintra Évora",
-            "mais antiga fábrica de bolachas de Portugal",
-            "doçaria conventual portuguesa 100 anos empresa familiar",
-            # PDO/PGI 생산자 명단
+            "bolachas tradicionais fábrica Portugal -receita",
+            "pastéis conventuais doçaria artesanal Portugal -receita",
+            "torrão de ovos fábrica artesanal Portugal -receita",
+            "broas castelares fabrico artesanal Portugal -receita",
+            "torrefação de café histórica Portugal -receita",
+            "queijadas Sintra fábrica tradicional -receita",
+            "gomas de fruta fábrica artesanal Portugal -receita",
+            '"desde 18" fábrica doces Portugal',
+            # PDO/PGI 생산자 명단 · 박람회
             "IGP DOP doçaria portuguesa lista de produtores",
-            # 박람회 출품사
             "SISAB Portugal expositores doces bolachas",
-            # 젤리/구미류 -- 포르투갈어 특산 어휘
-            "gomas de fruta fábrica artesanal Portugal",
         ],
     },
     {
@@ -105,21 +101,19 @@ BUCKETS = [
         "category": "혼합",
         "queries": [
             # 폴란드어
-            "pierniki toruńskie tradycyjna piekarnia rodzinna",
-            "krówki cukierki tradycyjne producent od 19",
-            "fabryka cukierków rodzinna tradycja Polska",
-            "opłatki wafle tradycyjne producent Polska",
-            # "새 발 우유"라는 뜻의 폴란드 국민 사탕 -- 크루프키(krówki)와 별개 품목
-            "ptasie mleczko cukiernia tradycyjna rodzinna Polska",
+            "pierniki toruńskie wytwórnia rodzinna -przepis",
+            "krówki cukiernia tradycyjna Polska -przepis",
+            "ptasie mleczko fabryka Polska -przepis",
+            "opłatki wafle producent Polska -przepis",
+            '"od 18" cukiernia tradycja Polska',
             # 체코어
-            "lázeňské oplatky Karlovy Vary výrobce rodinná firma",
-            "perník tradiční výroba Pardubice rodinná",
-            "čokoládovna tradiční česká rodinná firma od roku",
+            "lázeňské oplatky výrobce Karlovy Vary -recept",
+            "perník výroba Pardubice rodinná -recept",
+            "čokoládovna tradiční Česká republika -recept",
             # 헝가리어
-            "kürtőskalács szaloncukor hagyományos gyártó családi",
-            "cukrászda manufaktúra magyar családi alapítva",
-            # 헝가리 전통 짭짤한 패스트리 (스콘형) -- 단맛류 쪽만 있던 헝가리 쿼리 보완
-            "pogácsa hagyományos pékség családi vállalkozás Magyarország",
+            "kürtőskalács gyártó családi Magyarország -recept",
+            "szaloncukor manufaktúra Magyarország -recept",
+            "pogácsa pékség családi Magyarország -recept",
             # 협회/박람회
             "tradycyjna żywność lista producentów regionalnych Polska",
             "Polagra Food wystawcy słodycze producenci",
@@ -133,23 +127,22 @@ BUCKETS = [
         "category": "혼합",
         "queries": [
             # 스웨덴어
-            "polkagris tillverkning familjeföretag sedan 18",
-            "pepparkakor knäckebröd familjeägt bageri sedan",
-            "lakritsfabrik kola karamell svensk familjeföretag",
-            "chokladfabrik svensk familjeägd sedan 19",
-            # 젤리/구미류 (스웨덴어) -- vingummi(와인검)·skumbanan(폼바나나) 등 북유럽 젤리 품목명
-            "vingummi skumbanan godisfabrik familjeföretag Sverige",
+            "polkagris tillverkare Sverige -recept",
+            "pepparkakor bageri familjeägt Sverige -recept",
+            "knäckebröd bruk familjeägt Sverige -recept",
+            "lakritsfabrik svensk familjeföretag -recept",
+            "chokladfabrik svensk familjeägd -recept",
+            "vingummi godisfabrik Sverige -recept",
+            "skumbanan godisfabrik Sverige -recept",
             # 핀란드어
-            "salmiakki lakritsi valmistaja perheyritys vuodesta",
-            "piparkakku näkkileipä leipomo perheyritys Suomi",
-            "suomalainen makeistehdas perheyritys vuodesta 19",
-            # 핀란드 헤리티지 시나몬빵 -- 단맛류 위주였던 핀란드 쿼리에 베이킹 품목 보완
-            "korvapuusti perinteinen leipomo perheyritys Suomi",
+            "salmiakki valmistaja perheyritys Suomi -resepti",
+            "piparkakku leipomo perheyritys Suomi -resepti",
+            "näkkileipä tehdas perheyritys Suomi -resepti",
+            "korvapuusti leipomo perheyritys Suomi -resepti",
             # 아이슬란드어
-            "lakkrís sælgætisgerð íslensk fjölskyldufyrirtæki",
-            "íslenskt kex bakarí frá 19",
-            # 아이슬란드 전통 페이스트리 (꽈배기형 도넛/플랫브레드)
-            "kleina flatkaka bakstur íslensk fjölskyldufyrirtæki",
+            "lakkrís sælgætisgerð íslensk -uppskrift",
+            "kleina bakarí íslenskt fjölskyldufyrirtæki -uppskrift",
+            "flatkaka bakstur íslenskt fjölskyldufyrirtæki -uppskrift",
             # 박람회
             "Matmässan Nordic Organic Food Fair utställare godis kex",
         ],
@@ -160,19 +153,19 @@ BUCKETS = [
         "category": "혼합",
         "queries": [
             # 그리스어
-            "παραδοσιακά κουλουράκια μπισκότα οικογενειακή βιοτεχνία",
-            "μαστίχα Χίου προϊόντα παραγωγός ένωση",
-            "παστέλι λουκούμι παραδοσιακό εργαστήριο από το 19",
-            "ελληνικός καφές παραδοσιακό καβουρδιστήρι οικογενειακή",
-            # 그리스 명절 전통과자 (꿀쿠키/버터쿠키) -- 지금까지 없었던 품목
-            "μελομακάρονα κουραμπιέδες παραδοσιακό οικογενειακό εργαστήριο",
+            "κουλουράκια βιοτεχνία οικογενειακή -συνταγή",
+            "μαστίχα Χίου παραγωγός -συνταγή",
+            "παστέλι εργαστήριο παραδοσιακό -συνταγή",
+            "λουκούμι εργαστήριο παραδοσιακό -συνταγή",
+            "ελληνικός καφές καβουρδιστήριο οικογενειακό -συνταγή",
+            "μελομακάρονα εργαστήριο οικογενειακό -συνταγή",
+            "κουραμπιέδες εργαστήριο οικογενειακό -συνταγή",
             # 터키어
-            "geleneksel lokum imalathanesi aile şirketi kuruluş 18",
-            "pişmaniye helva üretimi aile firması geleneksel",
-            "leblebi kuruyemiş geleneksel üretici aile",
-            "Türk kahvesi kavurma fabrikası aile şirketi 19",
-            # 터키 전통 쿠키 -- 로쿰/헬바 위주였던 쿼리에 제과 품목 보완
-            "kurabiye geleneksel tarif aile fırını Türkiye",
+            "lokum imalathanesi aile şirketi -tarif",
+            "pişmaniye üretimi aile firması -tarif",
+            "leblebi üretici aile Türkiye -tarif",
+            "Türk kahvesi kavurma fabrikası aile -tarif",
+            "kurabiye fırını aile Türkiye -tarif",
             # PDO/PGI 생산자 명단
             "Χίος Μαστίχα ΠΟΠ παραγωγοί κατάλογος",
             "coğrafi işaretli Türk gıda üreticileri listesi lokum",
@@ -183,18 +176,17 @@ BUCKETS = [
         "label": "Python Sourcing — France (Regional)",
         "category": "혼합",
         "queries": [
-            "biscuiterie bretonne artisanale galette palet entreprise familiale",
-            "kouign-amann fabrication artisanale Bretagne maison depuis",
-            "bredele bretzel sucré biscuiterie alsacienne familiale",
-            "calisson d'Aix confiserie artisanale maison depuis 18",
-            "berlingot bêtises de Cambrai confiserie artisanale famille",
-            "gâteau basque conserverie artisanale Pays Basque maison",
-            "nougat de Montélimar fabrique artisanale famille depuis",
-            "torréfacteur artisanal français maison familiale depuis 18",
-            # 보르도 지방 특산 (카늘레) -- 지금까지 아키텐 지방이 빠져있었음
-            "canelé bordelais fabrication artisanale maison depuis",
-            # 젤리/구미류 (프랑스어 특산 어휘, "gummy"에 대응하는 현지 개념이 따로 없음)
-            "pâte de fruit confiserie artisanale française maison depuis",
+            "galette bretonne biscuiterie artisanale -recette",
+            "kouign-amann fabrique artisanale Bretagne -recette",
+            "bredele biscuiterie alsacienne familiale -recette",
+            "calisson d'Aix confiserie artisanale -recette",
+            "bêtises de Cambrai confiserie artisanale -recette",
+            "gâteau basque maison artisanale Pays Basque -recette",
+            "nougat de Montélimar fabrique artisanale -recette",
+            "canelé bordelais fabrique artisanale -recette",
+            "pâte de fruit confiserie artisanale française -recette",
+            "torréfacteur artisanal maison familiale française -recette",
+            '"depuis 18" biscuiterie confiserie France',
             # PDO/PGI/수상
             "IGP label rouge confiserie biscuiterie liste des producteurs",
             "Entreprise du Patrimoine Vivant biscuiterie confiserie liste",
@@ -205,16 +197,19 @@ BUCKETS = [
         "label": "Python Sourcing — Germany & Austria (Regional)",
         "category": "혼합",
         "queries": [
-            "Nürnberger Lebkuchen Familienbetrieb seit 18 Manufaktur",
-            "Aachener Printen Traditionsbäckerei Familienbetrieb",
-            "Dresdner Stollen Bäckerei Familienbetrieb seit",
-            "Springerle Schwäbisch Gebäck Manufaktur Familienbetrieb",
-            "Bonbonkocherei Manufaktur handgemacht Familienbetrieb seit 18",
-            "Kaffeerösterei Traditionsunternehmen Familienbetrieb seit 18",
-            "Tiroler Lebkuchen Konditorei Familienbetrieb seit",
-            # 바이에른 지방 특산 -- 뉘른베르크 전통 자두인형 과자, 발포성 캔디가루(Brause)
-            "Zwetschgenmännla Nürnberger Manufaktur Familienbetrieb",
-            "Brause Manufaktur Familienbetrieb Süßwaren seit 18",
+            "Nürnberger Lebkuchen Manufaktur -Rezept",
+            # Lebküchnerei -- 뉘른베르크 진저브레드 제조사를 부르는 고유 직업명, 회사 이름 자체에
+            # 들어가는 접미사형 단어 (-ificio/-erie와 같은 트릭)
+            "Lebküchnerei Nürnberg Familienbetrieb -Rezept",
+            "Aachener Printen Bäckerei Familienbetrieb -Rezept",
+            "Dresdner Stollen Bäckerei Familienbetrieb -Rezept",
+            "Springerle Konditorei Familienbetrieb Schwaben -Rezept",
+            "Bonbonkocherei Manufaktur handgemacht -Rezept",
+            "Kaffeerösterei Familienbetrieb Deutschland -Rezept",
+            "Tiroler Lebkuchen Konditorei Familienbetrieb -Rezept",
+            "Zwetschgenmännla Manufaktur Nürnberg -Rezept",
+            "Brause Manufaktur Süßwaren -Rezept",
+            '"seit 18" Manufaktur Familienbetrieb Süßwaren',
             # PDO/PGI/박람회
             "geschützte geografische Angabe Gebäck Süßwaren Hersteller Liste",
             "ISM Köln Aussteller Familienunternehmen Gebäck",
@@ -223,16 +218,18 @@ BUCKETS = [
     },
     {
         # 스페인 전체(44건)는 포화지만, 북부(바스크·나바라·라리오하·아라곤·칸타브리아·
-        # 아스투리아스·갈리시아)로 좁히면 여전히 유효 -- 프랑스/독일과 같은 논리.
+        # 아스투리아스·갈리시아)로 좁히면 여전히 유효 -- 프랑스/독일과 같은 논리. mantecados/
+        # polvorones/mazapán 등 이전 버전에 있던 품목은 실제로는 남부(안달루시아)·중부(톨레도)
+        # 특산이라 이 레인(북부)과 안 맞아 빼고, 확실히 북부인 것만 남김.
         "label": "Python Sourcing — Spain (Northern Regional)",
         "category": "혼합",
         "queries": [
-            "sobaos pasiegos fábrica artesanal Cantabria familia",
-            "caramelos artesanos fábrica tradicional Asturias familia",
-            "chocolate a la taza fábrica tradicional España desde 18",
-            "turrón mazapán fábrica familiar Aragón Navarra desde 18",
-            "confitería tradicional Galicia fábrica familiar desde",
-            "mantecados polvorones obrador tradicional País Vasco familia",
+            "sobao pasiego obrador Cantabria -receta",
+            "casadielles obrador Asturias -receta",
+            "confitería artesanal tradicional Galicia -receta",
+            "confitería artesanal tradicional País Vasco -receta",
+            "turrón mazapán obrador familiar Aragón Navarra -receta",
+            '"desde 18" obrador dulces España',
             # PDO/PGI 생산자 명단
             "IGP DOP dulces tradicionales norte España lista de productores",
         ],
@@ -243,11 +240,13 @@ BUCKETS = [
         "label": "Python Sourcing — UK (Scotland, Wales & Northern Ireland)",
         "category": "혼합",
         "queries": [
-            "oatcake tablet Edinburgh rock fudge family owned Scotland since 18",
-            "macaroon bar soor plooms traditional Scottish confectioner family business",
-            "shortbread bakery family owned Scotland generations since",
-            "Welsh cake bara brith Aberffraw biscuit family bakery Wales",
-            "brown lemonade honeycomb traditional Northern Ireland family maker",
+            "oatcake bakery family owned Scotland -recipe",
+            "tablet confectioner family owned Scotland -recipe",
+            "Edinburgh rock maker family owned -recipe",
+            "shortbread bakery family owned Scotland -recipe",
+            "Welsh cake bakery family owned Wales -recipe",
+            "bara brith bakery family owned Wales -recipe",
+            "brown lemonade maker Northern Ireland family owned -recipe",
             # 수상
             "Great Taste Awards Scottish Welsh Northern Irish confectionery producer list",
         ],
@@ -257,10 +256,10 @@ BUCKETS = [
         "label": "Python Sourcing — Netherlands",
         "category": "혼합",
         "queries": [
-            "stroopwafel bakkerij traditioneel familiebedrijf sinds 18",
-            "drop snoepfabriek Nederlands familiebedrijf sinds",
-            "speculaas bakkerij traditioneel familiebedrijf Nederland sinds 18",
-            "traditioneel Nederlands gebak familiebedrijf sinds 19",
+            "stroopwafel bakkerij familiebedrijf -recept",
+            "drop fabriek Nederlands familiebedrijf -recept",
+            "speculaas bakkerij familiebedrijf Nederland -recept",
+            '"sinds 18" bakkerij familiebedrijf Nederland',
         ],
     },
     {
@@ -269,12 +268,17 @@ BUCKETS = [
         "label": "Python Sourcing — Italy (Southern Regional)",
         "category": "혼합",
         "queries": [
-            "ferratelle pizzelle torrone tenero pasticceria storica famiglia Abruzzo",
-            "confetti di Sulmona fabbrica artigianale storica famiglia",
-            "mostaccioli bocconotti parrozzo pasticceria storica famiglia Abruzzo",
-            "torrone croccante mostaccioli pasticceria storica Puglia Calabria famiglia",
-            "taralli friselle forno tradizionale famiglia Puglia",
-            "liquirizia calabrese fabbrica storica famiglia",
+            "ferratelle produttore Abruzzo -ricetta",
+            "pizzelle abruzzesi azienda famiglia -ricetta",
+            "torrone tenero pasticceria storica L'Aquila -ricetta",
+            "confetti di Sulmona fabbrica artigianale -ricetta",
+            "mostaccioli pasticceria storica famiglia Abruzzo -ricetta",
+            "bocconotti pasticceria storica Abruzzo -ricetta",
+            # 상호 접미사 트릭 (-ificio = "그걸 만드는 곳")
+            "torronificio Puglia Calabria",
+            "biscottificio storico Puglia",
+            "taralli forno tradizionale Puglia -ricetta",
+            "liquirizia calabrese fabbrica storica -ricetta",
             # PDO/PGI 생산자 명단
             "consorzio tutela IGP dolci tipici Sud Italia elenco produttori",
         ],

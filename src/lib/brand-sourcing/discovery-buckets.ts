@@ -17,8 +17,9 @@ export type DiscoveryBucket = {
 export const DISCOVERY_BUCKETS: DiscoveryBucket[] = [
   {
     label: "Brand Sourcing — Japan (Heritage Snacks & Confectionery)",
-    brief:
-      "Heritage Japanese snack and confectionery brands (wagashi, senbei, candy, jelly, and similar sweets) — complete packaged consumer products from a long-established, family-owned maker.",
+    // Kept deliberately simple, matching python-sourcing/categories.py's Japan bucket:
+    // plain product terms only, no "long-established/family-owned" framing layered on.
+    brief: "Japanese snack and confectionery brands (wagashi, senbei, candy, jelly, and similar sweets) — complete packaged consumer products.",
   },
   {
     label: "Brand Sourcing — Portugal",
