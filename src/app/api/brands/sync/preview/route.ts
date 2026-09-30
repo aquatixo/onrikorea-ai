@@ -4,10 +4,14 @@ import { getGraphClient } from "@/lib/graph/client";
 import { resolveSharedFile } from "@/lib/graph/resolve-share";
 import { parseBrandImportSheet } from "@/lib/brand-import/parse";
 import { diffBrandsAgainstSheet } from "@/lib/brand-sync/diff";
+import { requireSectionAccess } from "@/lib/auth/require-section-access";
 
 /** Read-only dry run: reports what a merge would do without writing anywhere,
  * so the confirmation dialog can show real counts instead of an unqualified warning. */
 export async function GET() {
+  const denied = await requireSectionAccess("brands");
+  if (denied) return denied;
+
   const shareUrl = process.env.SHAREPOINT_SYNC_FILE_URL;
   if (!shareUrl) {
     return Response.json({ error: "SHAREPOINT_SYNC_FILE_URL is not configured." }, { status: 500 });

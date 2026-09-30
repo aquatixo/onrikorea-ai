@@ -28,6 +28,7 @@ export const dictionaries = {
     },
     common: {
       forbidden: "Only the admin or the original author can edit or delete this.",
+      notFound: "Not found.",
     },
     login: {
       title: "Welcome back",
@@ -655,6 +656,7 @@ export const dictionaries = {
     },
     common: {
       forbidden: "관리자 또는 작성자만 수정/삭제할 수 있습니다.",
+      notFound: "찾을 수 없습니다.",
     },
     login: {
       title: "환영합니다",

@@ -9,6 +9,7 @@ import { diffBrandsAgainstSheet, toBrandCreateInput } from "@/lib/brand-sync/dif
 import { isTrustedRequestOrigin } from "@/lib/security/same-origin";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
+import { requireSectionAccess } from "@/lib/auth/require-section-access";
 
 /**
  * Two-way merge, not a one-way overwrite: reads the SharePoint sheet's current rows,
@@ -22,6 +23,9 @@ export async function POST(request: NextRequest) {
   if (!isTrustedRequestOrigin(request)) {
     return Response.json({ error: "Invalid request origin." }, { status: 403 });
   }
+
+  const denied = await requireSectionAccess("brands");
+  if (denied) return denied;
 
   const shareUrl = process.env.SHAREPOINT_SYNC_FILE_URL;
   if (!shareUrl) {
@@ -63,9 +67,14 @@ export async function POST(request: NextRequest) {
 
     let nextSourceNo = Math.max(0, ...dbBrands.map((b) => b.sourceNo ?? 0)) + 1;
     if (toCreate.length > 0) {
-      await db.$transaction(
-        toCreate.map((row) => db.brand.create({ data: toBrandCreateInput(row, nextSourceNo++) }))
-      );
+      // A single createMany statement instead of N individual create() calls wrapped in
+      // a transaction -- the per-row transaction form hit Prisma's default 5s
+      // interactive-transaction timeout past roughly 100 rows in the manual Excel
+      // importer (see import-actions.ts); createMany inserts everything in one query
+      // and is already atomic on its own.
+      await db.brand.createMany({
+        data: toCreate.map((row) => toBrandCreateInput(row, nextSourceNo++)),
+      });
     }
 
     const t = getDictionary(await getLocale());

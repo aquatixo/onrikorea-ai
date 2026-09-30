@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireSectionAccess } from "@/lib/auth/require-section-access";
 
 export async function GET(request: Request) {
+  const denied = await requireSectionAccess("brandSourcing");
+  if (denied) return denied;
+
   const runId = new URL(request.url).searchParams.get("runId");
   if (!runId) return NextResponse.json({ error: "Missing runId" }, { status: 400 });
 

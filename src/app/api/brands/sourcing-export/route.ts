@@ -3,8 +3,12 @@ import * as XLSX from "xlsx";
 import { db } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
+import { requireSectionAccess } from "@/lib/auth/require-section-access";
 
 export async function GET(request: NextRequest) {
+  const denied = await requireSectionAccess("brandSourcing");
+  if (denied) return denied;
+
   const locale = await getLocale();
   const t = getDictionary(locale);
   const { searchParams } = new URL(request.url);

@@ -4,9 +4,13 @@ import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { buildBrandsWorkbook } from "@/lib/brand-export/build-workbook";
 import { parsePageSize } from "@/lib/pagination";
+import { requireSectionAccess } from "@/lib/auth/require-section-access";
 import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
+  const denied = await requireSectionAccess("brands");
+  if (denied) return denied;
+
   const t = getDictionary(await getLocale());
   const { searchParams } = new URL(request.url);
   const scope = searchParams.get("scope") === "page" ? "page" : "all";

@@ -1,9 +1,13 @@
 import { ResponseType } from "@microsoft/microsoft-graph-client";
 import { getGraphClient } from "@/lib/graph/client";
 import { resolveSharedFile } from "@/lib/graph/resolve-share";
+import { requireSectionAccess } from "@/lib/auth/require-section-access";
 
 /** Downloads the CURRENT SharePoint file as-is, unchanged -- used as a backup before /push overwrites it. */
 export async function GET() {
+  const denied = await requireSectionAccess("brands");
+  if (denied) return denied;
+
   const shareUrl = process.env.SHAREPOINT_SYNC_FILE_URL;
   if (!shareUrl) {
     return Response.json({ error: "SHAREPOINT_SYNC_FILE_URL is not configured." }, { status: 500 });

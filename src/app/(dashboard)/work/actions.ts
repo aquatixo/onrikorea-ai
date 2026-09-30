@@ -142,7 +142,7 @@ export async function deleteWork(id: string, returnTo: string | undefined): Prom
 
 export async function updateWorkStatus(id: string, status: WorkStatus): Promise<{ error?: string }> {
   const existing = await db.workItem.findUnique({ where: { id }, select: { createdById: true } });
-  if (!existing) return { error: "Not found." };
+  if (!existing) return { error: getDictionary(await getLocale()).common.notFound };
   if (!(await canModifyContent(existing.createdById))) {
     return { error: getDictionary(await getLocale()).common.forbidden };
   }
