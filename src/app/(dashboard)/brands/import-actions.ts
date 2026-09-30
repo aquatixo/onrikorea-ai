@@ -97,25 +97,26 @@ export async function importBrandsFromExcel(formData: FormData): Promise<ImportR
   }
 
   try {
-    await db.$transaction(
-      toCreate.map(({ row, domain, sourceNo }) =>
-        db.brand.create({
-          data: {
-            sourceNo,
-            methodology: row.methodology ?? undefined,
-            name: row.name,
-            country: row.country ?? undefined,
-            sku: row.sku ?? undefined,
-            foundedYear: row.foundedYear ?? undefined,
-            website: row.website ?? undefined,
-            websiteDomain: domain,
-            contactPoint: row.contactPoint ?? undefined,
-            coldEmail: row.coldEmail,
-            reply: row.reply,
-          },
-        })
-      )
-    );
+    // A single createMany statement instead of N individual create() calls wrapped in
+    // a transaction -- that older approach hit Prisma's default 5s interactive
+    // transaction timeout past roughly 100 rows (each create() is its own network
+    // round trip to Supabase), failing with a swallowed, unhelpful error. createMany
+    // inserts everything in one query and is already atomic on its own.
+    await db.brand.createMany({
+      data: toCreate.map(({ row, domain, sourceNo }) => ({
+        sourceNo,
+        methodology: row.methodology ?? undefined,
+        name: row.name,
+        country: row.country ?? undefined,
+        sku: row.sku ?? undefined,
+        foundedYear: row.foundedYear ?? undefined,
+        website: row.website ?? undefined,
+        websiteDomain: domain,
+        contactPoint: row.contactPoint ?? undefined,
+        coldEmail: row.coldEmail,
+        reply: row.reply,
+      })),
+    });
   } catch {
     return { success: false, errors: [t.brandImport.importFailed] };
   }
