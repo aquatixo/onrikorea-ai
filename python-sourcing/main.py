@@ -32,7 +32,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from categories import BUCKETS
-from gemini_search import search
+from serper_search import search
 from name_filter import (
     is_blocked_domain,
     is_retailer_listing_page,
