@@ -22,10 +22,11 @@ export function BrandExportMenu({
   const searchParams = useSearchParams();
   const q = searchParams.get("q") ?? "";
   const page = searchParams.get("page") ?? "1";
+  const pageSize = searchParams.get("pageSize") ?? "10";
 
   const qParam = q ? `&q=${encodeURIComponent(q)}` : "";
   const allHref = `/api/brands/export?scope=all${qParam}`;
-  const pageHref = `/api/brands/export?scope=page&page=${page}${qParam}`;
+  const pageHref = `/api/brands/export?scope=page&page=${page}&pageSize=${pageSize}${qParam}`;
 
   return (
     <DropdownMenu>
