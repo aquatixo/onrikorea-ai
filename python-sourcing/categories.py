@@ -131,29 +131,4 @@ BUCKETS = [
             "Nordic Baltic heritage baby cereal porridge brand since 19",
         ],
     },
-    {
-        # 조건 B 타겟 카테고리에 명시된 커피/차 -- 마스터 리스트에 실제 사례가 많은데도
-        # (Birchall, Barry's Tea, Bewley's, Kusmi, Mariage Frères 등) 기존 버킷에 전혀
-        # 없었던 카테고리라 새로 추가.
-        "label": "Python Sourcing — Coffee & Tea",
-        "category": "Coffee & Tea",
-        "queries": [
-            "heritage tea brand family owned since 19",
-            "heritage coffee roaster brand family owned since 19",
-            "Ireland UK heritage tea coffee brand family owned",
-            # 현지어(프랑스어)
-            "maison de thé torréfacteur artisanal français depuis 19 entreprise familiale",
-        ],
-    },
-    {
-        # 조건 B 타겟 카테고리에 명시된 꿀 -- 마스터 리스트 사례 다수 (Airborne Honey,
-        # Munro Honey, Bee Maid, Savannah Bee, GloryBee 등) 있었으나 버킷이 없었음.
-        "label": "Python Sourcing — Honey",
-        "category": "Honey",
-        "queries": [
-            "heritage honey brand family owned since 19",
-            "New Zealand Australia heritage honey brand family owned",
-            "Nordic Baltic heritage honey brand since 19",
-        ],
-    },
 ]

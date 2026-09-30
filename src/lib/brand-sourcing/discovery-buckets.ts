@@ -58,14 +58,4 @@ export const DISCOVERY_BUCKETS: DiscoveryBucket[] = [
     brief:
       "Heritage Japanese confectionery brands (wagashi, senbei, and similar traditional sweets) — complete packaged consumer products from a long-established, family-owned maker.",
   },
-  {
-    label: "Brand Sourcing — Coffee & Tea",
-    brief:
-      "Heritage tea or coffee roaster brands — complete packaged consumer products (leaf tea, tea bags, roasted/ground coffee), not a café-only business.",
-  },
-  {
-    label: "Brand Sourcing — Honey",
-    brief:
-      "Heritage honey brands — complete packaged consumer products from a long-established, family-owned producer.",
-  },
 ];

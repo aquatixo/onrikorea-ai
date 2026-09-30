@@ -343,14 +343,6 @@ def main():
                     if site_info.get("snippet"):
                         reason_parts.append(f"Site snippet: {site_info['snippet'][:200]}")
 
-            # 조건 G: 탈락 사유가 아니라 우선순위 조정용 참고 메모 (병행 Claude 파이프라인
-            # 인수인계 문서 기준). 꿀은 검역 난이도가 특히 높다고 명시돼 있어 항상 표시.
-            if bucket["category"] == "Honey" and verdict != "reject":
-                reason_parts.append(
-                    "참고 — 조건 G: 꿀은 검역 난이도 최상급 (축산물 검역, 잔류항생제·C4당 혼입 검사, "
-                    "원산지 증명, 수출국 작업장 등록) — 탈락 아님, 우선순위 하향 참고"
-                )
-
             if verdict == "pass":
                 # Evidence-only: nothing here judged the remaining ambiguous ownership
                 # cases or heritage-story quality, so "no problems found by the
