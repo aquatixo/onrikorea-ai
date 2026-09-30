@@ -1,113 +1,47 @@
 # Mirrors src/lib/brand-sourcing/discovery-buckets.ts -- kept as a separate list since
 # this is a different language/runtime. If you add a category on one side, add it here too.
 #
-# Region-specific queries (Nordic/Baltic, UK/Ireland, Oceania) are here on purpose: a
-# generic English query like "heritage chocolate brand family owned" mostly surfaces
-# US content-farm listicles ("Top 10 Chocolate Brands"), not small regional producers.
-# Naming an actual country/region steers results toward that country's own web presence
-# instead, which is much more likely to be the brand's own (smaller, less SEO-optimized)
-# site rather than a big US media roundup.
+# Rebuilt around a REGION axis instead of a PRODUCT-CATEGORY axis, per a master-list
+# country-distribution check (1,616 rows, 2026-09-22 snapshot): US 245 / UK 154 /
+# Italy 123 / France 61 / Japan 50 / Germany 46 vs. Turkey 18 / Poland 17 / Sweden 15 /
+# Greece 12 / Portugal 8 / Finland 7 / Czechia 6 / Hungary 6 / Iceland 3. The old
+# category-shaped buckets (Snacks/Biscuits/Baking/Confectionery/Jellies/Chocolate) were
+# mostly generic-English queries that just re-searched the countries already saturated
+# in the master list, driving up duplicate-candidate rates. Each bucket below instead
+# targets one of the most under-covered regions, in that region's own language --
+# these are the small, non-SEO'd family producers that never surface in a generic
+# English "heritage snack brand" search to begin with.
+#
+# Each bucket also layers in higher-yield, more mechanical sourcing channels beyond a
+# plain web search, in roughly descending yield order:
+#   1. local specialty-item name + local-language "family business" phrasing
+#   2. local-language anniversary/founding-year phrasing ("100 Jahre", "desde 18",
+#      "vuodesta 19") -- a bare "since 19" is NOT a real date filter (a search engine
+#      does not parse "19" as "any year starting with 19"; it just adds two more
+#      low-signal keyword tokens), so every founding-year query below spells out a
+#      real anniversary phrase or a two-digit-century prefix in the target language.
+#   3. PDO/PGI protected-origin producer lists and trade-association member rosters --
+#      these are literal lists of qualifying producers, the highest-yield source type
+#      available without a specialized directory
+#   4. food-award winner/finalist lists (award pages are almost always a clean list)
+#   5. trade-fair exhibitor directories -- self-selects for producers that already want
+#      export/distribution partners, which is exactly this pipeline's target
+#
+# Dropped entirely (not just deprioritized):
+#   - Nutritional Supplements: outside this pipeline's target category scope --
+#     supplements go through an entirely different import-declaration/functional-claim
+#     approval track and shouldn't be mixed into a food-brand sourcing run.
+#   - Baby Cereal & Porridge: direct category overlap with an existing partner
+#     relationship (Organix) -- only ever had 2 master-list rows, which reflects
+#     deliberate avoidance, not an unmined gap.
+#   - The old Nordic-focused snack/jelly queries specifically: that shelf is already a
+#     confirmed oligopoly (KiMs, OK Snacks, Maarud, Sørlandschips), so re-querying it
+#     in English was a guaranteed-empty search.
+# Japan is left as-is (recently reworked on its own) since the country-distribution
+# check doesn't cover it either way.
 
 BUCKETS = [
     {
-        "label": "Python Sourcing — Snacks",
-        "category": "Snacks",
-        "queries": [
-            "heritage savory snack brand family owned since 19",
-            "oldest independent chips crackers brand history",
-            "Nordic family owned snack brand since 19",
-            "New Zealand Australia heritage snack brand family owned",
-        ],
-    },
-    {
-        "label": "Python Sourcing — Biscuits & Shortcakes",
-        "category": "Biscuits & Shortcakes",
-        "queries": [
-            "heritage biscuit shortbread shortcake brand family owned",
-            "Scottish Irish heritage biscuit shortbread brand family owned",
-            "Nordic Baltic heritage biscuit brand since 19",
-            # 스코틀랜드 특산 품목명 직접 사용 -- "heritage biscuit"보다 실제 브랜드를
-            # 훨씬 잘 찾아낸다 (오트케이크/타블렛/에딘버러락은 일반 쿼리로 잘 안 나옴)
-            "Scottish oatcake tablet Edinburgh rock family owned since 19",
-            # 현지어(프랑스어)
-            "biscuiterie traditionnelle française depuis 19 entreprise familiale",
-            "meilleure biscuiterie artisanale France histoire familiale",
-            # 현지어(독일어) -- Lebkuchen/Printen은 영어 쿼리로 거의 안 나온다
-            "Lebkuchen Printen traditionelle Bäckerei Familienbetrieb seit 18",
-            # 현지어(네덜란드어)
-            "traditionele Nederlandse stroopwafel speculaas bakkerij familiebedrijf",
-            # 현지어(스웨덴어)
-            "pepparkakor knäckebröd svenskt familjeföretag sedan 19",
-            # 현지어(스페인어) -- 갈레타(비스킷)는 스페인/포르투갈 쪽 산업이 커서 영어로는 거의 안 나옴
-            "galletas tradicionales fábrica familiar España desde 19",
-        ],
-    },
-    {
-        "label": "Python Sourcing — Baking (Panettone, Viennoiserie)",
-        "category": "Baking",
-        "queries": [
-            "oldest panettone pandoro maker Italy family owned",
-            "traditional Italian panettone producer since 19 family business",
-            "heritage French biscuiterie viennoiserie brand family owned",
-            # 현지어(이탈리아어) -- 이 카테고리 자체가 이탈리아 특산품이라 현지어 쿼리가 핵심
-            "miglior panettone artigianale pasticceria storica",
-            "pasticceria storica panettone pandoro dal 19",
-            "cantucci cantuccini biscotti toscani pasticceria storica famiglia",
-            # 현지어(프랑스어)
-            "biscuiterie viennoiserie artisanale française depuis 19",
-            # 현지어(독일어) -- Stollen도 베이킹 완제품
-            "Stollen Christstollen traditionelle Bäckerei Familienbetrieb seit 18",
-        ],
-    },
-    {
-        "label": "Python Sourcing — Confectionery & Candy",
-        "category": "Confectionery & Candy",
-        "queries": [
-            "heritage candy confectionery brand family owned since 19",
-            "Nordic Baltic heritage confectionery candy brand since 19",
-            "Ireland UK heritage sweets confectionery brand family owned",
-            # 현지어(이탈리아어) -- torrone/panforte는 영어 쿼리로 거의 안 나온다
-            "torrone artigianale storica azienda familiare Italia",
-            "panforte confetti storica azienda dolciaria italiana",
-            # 현지어(프랑스어) -- dragées/calisson/nougat
-            "dragées calisson nougat confiserie artisanale française depuis 18",
-            # 현지어(벨기에/프랑스어) -- 프랄린
-            "pralines chocolat artisanal belge depuis 19 entreprise familiale",
-            # 현지어(독일어) -- 마지팬
-            "Marzipan Konditorei traditionell Familienbetrieb seit 18",
-            # 터키/그리스 -- 로쿰(터키시딜라이트), 할바
-            "Turkish delight lokum helva traditional family maker since 19",
-            "traditional Greek loukoumi halva confectionery family business",
-            # 중동/이집트 -- 지금까지 이 지역을 타겟하는 쿼리가 전혀 없었음
-            "heritage Middle East Egypt confectionery halva dried fruit nuts family owned since 19",
-            # 현지어(스페인어) -- 투론(누가)은 스페인 특산품, 영어 쿼리로는 거의 안 나옴
-            "turrón artesanal fábrica familiar España desde 19",
-            "confitería tradicional española desde 19 empresa familiar",
-        ],
-    },
-    {
-        "label": "Python Sourcing — Jellies & Gummies",
-        "category": "Jellies & Gummies",
-        "queries": [
-            "heritage fruit jelly gummy candy brand family owned",
-            "Nordic heritage fruit jelly gummy candy brand since 19",
-        ],
-    },
-    {
-        "label": "Python Sourcing — Chocolate",
-        "category": "Chocolate",
-        "queries": [
-            "heritage chocolate brand family owned since 19 bars pralines",
-            "Ireland UK heritage chocolate brand family owned",
-            "Nordic Baltic heritage chocolate brand since 19",
-            # 현지어(이탈리아어) -- 잔두이오토
-            "gianduiotto cioccolato artigianale storica azienda familiare Italia",
-        ],
-    },
-    {
-        # "Wagashi & Traditional Confectionery"라는 라벨/쿼리가 화과자·센베이 한 갈래로만
-        # 너무 좁게 느껴진다는 피드백으로 일본 헤리티지 과자·간식 전반으로 범위를 넓힘
-        # (사탕/젤리류 포함, 화과자는 그 안의 한 갈래로 유지).
         "label": "Python Sourcing — Japan (Heritage Snacks & Confectionery)",
         "category": "Snacks",
         "queries": [
@@ -122,19 +56,139 @@ BUCKETS = [
         ],
     },
     {
-        "label": "Python Sourcing — Nutritional Supplements",
-        "category": "Nutritional Supplements",
+        # 마스터 8건 -- 가장 얇은 지역 중 하나
+        "label": "Python Sourcing — Portugal",
+        "category": "혼합",
         "queries": [
-            "heritage nutritional supplement vitamin brand family owned",
-            "New Zealand Australia heritage supplement vitamin brand family owned",
+            "fábrica de bolachas tradicionais portuguesas desde 18",
+            "pastéis secos conventuais fábrica artesanal Portugal",
+            "torrão de ovos amêndoa doçaria conventual produtor",
+            "broas castelares bolos secos fabrico artesanal",
+            "torrefação de café histórica Portugal empresa familiar",
+            "queijadas fábrica tradicional Sintra Évora",
+            "mais antiga fábrica de bolachas de Portugal",
+            "doçaria conventual portuguesa 100 anos empresa familiar",
+            # PDO/PGI 생산자 명단
+            "IGP DOP doçaria portuguesa lista de produtores",
+            # 박람회 출품사
+            "SISAB Portugal expositores doces bolachas",
         ],
     },
     {
-        "label": "Python Sourcing — Baby Cereal & Porridge",
-        "category": "Baby Cereal & Porridge",
+        # 마스터 폴란드 17 · 체코 6 · 헝가리 6
+        "label": "Python Sourcing — Poland, Czechia & Hungary",
+        "category": "혼합",
         "queries": [
-            "heritage baby cereal infant porridge brand family owned",
-            "Nordic Baltic heritage baby cereal porridge brand since 19",
+            # 폴란드어
+            "pierniki toruńskie tradycyjna piekarnia rodzinna",
+            "krówki cukierki tradycyjne producent od 19",
+            "fabryka cukierków rodzinna tradycja Polska",
+            "opłatki wafle tradycyjne producent Polska",
+            # 체코어
+            "lázeňské oplatky Karlovy Vary výrobce rodinná firma",
+            "perník tradiční výroba Pardubice rodinná",
+            "čokoládovna tradiční česká rodinná firma od roku",
+            # 헝가리어
+            "kürtőskalács szaloncukor hagyományos gyártó családi",
+            "cukrászda manufaktúra magyar családi alapítva",
+            # 협회/박람회
+            "tradycyjna żywność lista producentów regionalnych Polska",
+            "Polagra Food wystawcy słodycze producenci",
+        ],
+    },
+    {
+        # 마스터 스웨덴 15 · 핀란드 7 · 아이슬란드 3
+        # 덴마크/노르웨이 스낵·베이킹은 KiMs/OK Snacks/Maarud/Sørlandschips 완전 과점
+        # 확인됨 -- 독립 헤리티지 브랜드가 없어 이 레인에서 의도적으로 제외.
+        "label": "Python Sourcing — Sweden, Finland & Iceland",
+        "category": "혼합",
+        "queries": [
+            # 스웨덴어
+            "polkagris tillverkning familjeföretag sedan 18",
+            "pepparkakor knäckebröd familjeägt bageri sedan",
+            "lakritsfabrik kola karamell svensk familjeföretag",
+            "chokladfabrik svensk familjeägd sedan 19",
+            # 핀란드어
+            "salmiakki lakritsi valmistaja perheyritys vuodesta",
+            "piparkakku näkkileipä leipomo perheyritys Suomi",
+            "suomalainen makeistehdas perheyritys vuodesta 19",
+            # 아이슬란드어
+            "lakkrís sælgætisgerð íslensk fjölskyldufyrirtæki",
+            "íslenskt kex bakarí frá 19",
+            # 박람회
+            "Matmässan Nordic Organic Food Fair utställare godis kex",
+        ],
+    },
+    {
+        # 마스터 그리스 12 · 튀르키예 18
+        "label": "Python Sourcing — Greece & Turkey",
+        "category": "혼합",
+        "queries": [
+            # 그리스어
+            "παραδοσιακά κουλουράκια μπισκότα οικογενειακή βιοτεχνία",
+            "μαστίχα Χίου προϊόντα παραγωγός ένωση",
+            "παστέλι λουκούμι παραδοσιακό εργαστήριο από το 19",
+            "ελληνικός καφές παραδοσιακό καβουρδιστήρι οικογενειακή",
+            # 터키어
+            "geleneksel lokum imalathanesi aile şirketi kuruluş 18",
+            "pişmaniye helva üretimi aile firması geleneksel",
+            "leblebi kuruyemiş geleneksel üretici aile",
+            "Türk kahvesi kavurma fabrikası aile şirketi 19",
+            # PDO/PGI 생산자 명단
+            "Χίος Μαστίχα ΠΟΠ παραγωγοί κατάλογος",
+            "coğrafi işaretli Türk gıda üreticileri listesi lokum",
+        ],
+    },
+    {
+        # 마스터 프랑스 61건이나 파리/대형 브랜드 편중 추정 -- 지방 특산으로 한정
+        "label": "Python Sourcing — France (Regional)",
+        "category": "혼합",
+        "queries": [
+            "biscuiterie bretonne artisanale galette palet entreprise familiale",
+            "kouign-amann fabrication artisanale Bretagne maison depuis",
+            "bredele bretzel sucré biscuiterie alsacienne familiale",
+            "calisson d'Aix confiserie artisanale maison depuis 18",
+            "berlingot bêtises de Cambrai confiserie artisanale famille",
+            "gâteau basque conserverie artisanale Pays Basque maison",
+            "nougat de Montélimar fabrique artisanale famille depuis",
+            "torréfacteur artisanal français maison familiale depuis 18",
+            # PDO/PGI/수상
+            "IGP label rouge confiserie biscuiterie liste des producteurs",
+            "Entreprise du Patrimoine Vivant biscuiterie confiserie liste",
+        ],
+    },
+    {
+        # 마스터 독일 46건 -- 대도시/대형 브랜드 편중 추정, 지방 특산으로 한정
+        "label": "Python Sourcing — Germany & Austria (Regional)",
+        "category": "혼합",
+        "queries": [
+            "Nürnberger Lebkuchen Familienbetrieb seit 18 Manufaktur",
+            "Aachener Printen Traditionsbäckerei Familienbetrieb",
+            "Dresdner Stollen Bäckerei Familienbetrieb seit",
+            "Springerle Schwäbisch Gebäck Manufaktur Familienbetrieb",
+            "Bonbonkocherei Manufaktur handgemacht Familienbetrieb seit 18",
+            "Kaffeerösterei Traditionsunternehmen Familienbetrieb seit 18",
+            "Tiroler Lebkuchen Konditorei Familienbetrieb seit",
+            # PDO/PGI/박람회
+            "geschützte geografische Angabe Gebäck Süßwaren Hersteller Liste",
+            "ISM Köln Aussteller Familienunternehmen Gebäck",
+            "Slow Food Presidio Deutschland Süßwaren Hersteller",
+        ],
+    },
+    {
+        # 지역 무관 -- 리스트 형태라 추출 효율이 가장 높은 채널만 모음 (수상작/박람회 출품사)
+        "label": "Python Sourcing — Awards & Trade Fair Exhibitors",
+        "category": "혼합",
+        "queries": [
+            "Great Taste Awards 3 star winners biscuits confectionery producer list",
+            "Farm Shop and Deli Awards finalists snacks bakery",
+            "World Food Innovation Awards confectionery finalists",
+            "Slow Food Presidia list biscuits confectionery producers",
+            "Anuga exhibitor list fine food confectionery family company",
+            "SIAL Paris exhibitor directory biscuits confectionery",
+            "ISM Cologne exhibitor list sweets bakery small producer",
+            "Biofach exhibitor list organic snacks biscuits",
+            "Speciality and Fine Food Fair exhibitor list producers",
         ],
     },
 ]

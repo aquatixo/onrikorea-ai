@@ -6,56 +6,53 @@ export type DiscoveryBucket = {
 };
 
 /**
- * Deterministic category fan-out, derived from the user's stated sourcing focus
- * plus the heritage-brand criteria from the original cowork sourcing prompt. Each
- * bucket is its own parallel discovery call -- more buckets means broader category
- * coverage but scales discovery-stage cost roughly linearly (each is a separate
- * Sonnet 5 + web search call).
+ * Deterministic region fan-out, rebuilt around a REGION axis instead of a
+ * PRODUCT-CATEGORY axis -- mirrors python-sourcing/categories.py, see that file's
+ * header comment for the full rationale (a master-list country-distribution check
+ * showed the old category-shaped buckets mostly re-searched countries the master
+ * list already had heavy coverage of). Each bucket is its own parallel discovery
+ * call -- more buckets means broader coverage but scales discovery-stage cost
+ * roughly linearly (each is a separate Sonnet 5 + web search call).
  */
 export const DISCOVERY_BUCKETS: DiscoveryBucket[] = [
-  {
-    label: "Brand Sourcing — Snacks",
-    brief:
-      "Heritage savory snack brands (chips, crackers, nuts, dried fruit snacks) — a complete packaged consumer product, not a raw commodity.",
-  },
-  {
-    label: "Brand Sourcing — Biscuits & Shortcakes",
-    brief:
-      "Heritage biscuit, cookie, shortbread, or shortcake brands — complete packaged consumer products.",
-  },
-  {
-    label: "Brand Sourcing — Confectionery & Candy",
-    brief:
-      "Heritage confectionery/candy brands (hard candy, boiled sweets, toffees, lollipops) — not chocolate or jellies, which have their own buckets.",
-  },
-  {
-    label: "Brand Sourcing — Jellies & Gummies",
-    brief:
-      "Heritage fruit jelly or gummy candy brands — complete packaged consumer products.",
-  },
-  {
-    label: "Brand Sourcing — Chocolate",
-    brief:
-      "Heritage solid chocolate or confectionery brands — bars, pralines, truffles. Explicitly NOT drinking chocolate or any beverage.",
-  },
-  {
-    label: "Brand Sourcing — Nutritional Supplements",
-    brief:
-      "Heritage nutritional supplement or vitamin brands — complete consumer products (capsules, powders, gummies), not raw ingredient/OEM-only suppliers.",
-  },
-  {
-    label: "Brand Sourcing — Baby Cereal & Porridge",
-    brief:
-      "Heritage baby cereal, infant porridge, or weaning-food brands — complete packaged consumer products for infants/toddlers.",
-  },
-  {
-    label: "Brand Sourcing — Baking (Panettone, Viennoiserie)",
-    brief:
-      "Heritage baked finished goods — panettone, pandoro, viennoiserie, or biscuit brands (especially Italian/French) — complete packaged consumer products, not a bakery-only fresh-goods business.",
-  },
   {
     label: "Brand Sourcing — Japan (Heritage Snacks & Confectionery)",
     brief:
       "Heritage Japanese snack and confectionery brands (wagashi, senbei, candy, jelly, and similar sweets) — complete packaged consumer products from a long-established, family-owned maker.",
+  },
+  {
+    label: "Brand Sourcing — Portugal",
+    brief:
+      "Heritage Portuguese heritage food brands — traditional biscuits, convent pastries, coffee roasters — from a long-established, family-owned maker. Search in Portuguese; a generic English query barely surfaces this market.",
+  },
+  {
+    label: "Brand Sourcing — Poland, Czechia & Hungary",
+    brief:
+      "Heritage Polish/Czech/Hungarian heritage food brands — gingerbread, traditional caramels/candy, spa wafers, chocolate — from a long-established, family-owned maker. Search in the local language.",
+  },
+  {
+    label: "Brand Sourcing — Sweden, Finland & Iceland",
+    brief:
+      "Heritage Swedish/Finnish/Icelandic heritage food brands — licorice, gingerbread/crispbread, hard candy, chocolate — from a long-established, family-owned maker. Search in the local language. Denmark/Norway snacks and baking are deliberately excluded here: that shelf is a confirmed oligopoly (KiMs, OK Snacks, Maarud, Sørlandschips) with no independent heritage brands left.",
+  },
+  {
+    label: "Brand Sourcing — Greece & Turkey",
+    brief:
+      "Heritage Greek/Turkish heritage food brands — traditional biscuits, Turkish delight/loukoumi, halva, roasted coffee — from a long-established, family-owned maker. Search in the local language.",
+  },
+  {
+    label: "Brand Sourcing — France (Regional)",
+    brief:
+      "Heritage regional French specialty brands (Brittany, Alsace, Provence, the Basque Country, the North) — a real local specialty item, not a generic national brand already well represented in the master list.",
+  },
+  {
+    label: "Brand Sourcing — Germany & Austria (Regional)",
+    brief:
+      "Heritage regional German/Austrian specialty brands (Nuremberg/Aachen/Dresden gingerbread and stollen, Swabian Springerle, Tyrolean confectionery) — a real regional specialty item, not a generic national brand already well represented in the master list.",
+  },
+  {
+    label: "Brand Sourcing — Awards & Trade Fair Exhibitors",
+    brief:
+      "Region-agnostic, list-shaped sources: food award winner/finalist lists (Great Taste, World Food Innovation, Slow Food Presidia) and trade-fair exhibitor directories (Anuga, SIAL, ISM Cologne, Biofach, Speciality & Fine Food Fair) — these self-select for small producers already seeking export/distribution partners.",
   },
 ];
