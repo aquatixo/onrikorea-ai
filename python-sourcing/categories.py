@@ -39,6 +39,18 @@
 #     in English was a guaranteed-empty search.
 # Japan is left as-is (recently reworked on its own) since the country-distribution
 # check doesn't cover it either way.
+#
+# Each lane's queries were later enriched with concrete local specialty-item vocabulary
+# (Polish ptasie mleczko, Hungarian pogácsa, Finnish korvapuusti, Icelandic kleina/
+# flatkaka, Greek melomakarona/kourabiedes, Turkish kurabiye, French canelé/pâte de
+# fruit, German Zwetschgenmännla/Brause, Nordic vingummi/skumbanan) rather than only
+# generic "heritage [category] brand" phrasing -- a fixed query list still only gets
+# one good pass per real-world vocabulary item it names, so the more concrete specialty
+# terms it covers, the less it depends on the family-owned/anniversary phrasing alone to
+# carry a whole lane. This also restores jelly/gummy-candy coverage (dropped along with
+# the old English-only Jellies & Gummies bucket) via each lane's own local term for it,
+# instead of a generic English "gummy candy" category query that doesn't map to any
+# single local vocabulary the way e.g. "biscuit" roughly does.
 
 BUCKETS = [
     {
@@ -72,6 +84,8 @@ BUCKETS = [
             "IGP DOP doçaria portuguesa lista de produtores",
             # 박람회 출품사
             "SISAB Portugal expositores doces bolachas",
+            # 젤리/구미류 -- 포르투갈어 특산 어휘
+            "gomas de fruta fábrica artesanal Portugal",
         ],
     },
     {
@@ -84,6 +98,8 @@ BUCKETS = [
             "krówki cukierki tradycyjne producent od 19",
             "fabryka cukierków rodzinna tradycja Polska",
             "opłatki wafle tradycyjne producent Polska",
+            # "새 발 우유"라는 뜻의 폴란드 국민 사탕 -- 크루프키(krówki)와 별개 품목
+            "ptasie mleczko cukiernia tradycyjna rodzinna Polska",
             # 체코어
             "lázeňské oplatky Karlovy Vary výrobce rodinná firma",
             "perník tradiční výroba Pardubice rodinná",
@@ -91,6 +107,8 @@ BUCKETS = [
             # 헝가리어
             "kürtőskalács szaloncukor hagyományos gyártó családi",
             "cukrászda manufaktúra magyar családi alapítva",
+            # 헝가리 전통 짭짤한 패스트리 (스콘형) -- 단맛류 쪽만 있던 헝가리 쿼리 보완
+            "pogácsa hagyományos pékség családi vállalkozás Magyarország",
             # 협회/박람회
             "tradycyjna żywność lista producentów regionalnych Polska",
             "Polagra Food wystawcy słodycze producenci",
@@ -108,13 +126,19 @@ BUCKETS = [
             "pepparkakor knäckebröd familjeägt bageri sedan",
             "lakritsfabrik kola karamell svensk familjeföretag",
             "chokladfabrik svensk familjeägd sedan 19",
+            # 젤리/구미류 (스웨덴어) -- vingummi(와인검)·skumbanan(폼바나나) 등 북유럽 젤리 품목명
+            "vingummi skumbanan godisfabrik familjeföretag Sverige",
             # 핀란드어
             "salmiakki lakritsi valmistaja perheyritys vuodesta",
             "piparkakku näkkileipä leipomo perheyritys Suomi",
             "suomalainen makeistehdas perheyritys vuodesta 19",
+            # 핀란드 헤리티지 시나몬빵 -- 단맛류 위주였던 핀란드 쿼리에 베이킹 품목 보완
+            "korvapuusti perinteinen leipomo perheyritys Suomi",
             # 아이슬란드어
             "lakkrís sælgætisgerð íslensk fjölskyldufyrirtæki",
             "íslenskt kex bakarí frá 19",
+            # 아이슬란드 전통 페이스트리 (꽈배기형 도넛/플랫브레드)
+            "kleina flatkaka bakstur íslensk fjölskyldufyrirtæki",
             # 박람회
             "Matmässan Nordic Organic Food Fair utställare godis kex",
         ],
@@ -129,11 +153,15 @@ BUCKETS = [
             "μαστίχα Χίου προϊόντα παραγωγός ένωση",
             "παστέλι λουκούμι παραδοσιακό εργαστήριο από το 19",
             "ελληνικός καφές παραδοσιακό καβουρδιστήρι οικογενειακή",
+            # 그리스 명절 전통과자 (꿀쿠키/버터쿠키) -- 지금까지 없었던 품목
+            "μελομακάρονα κουραμπιέδες παραδοσιακό οικογενειακό εργαστήριο",
             # 터키어
             "geleneksel lokum imalathanesi aile şirketi kuruluş 18",
             "pişmaniye helva üretimi aile firması geleneksel",
             "leblebi kuruyemiş geleneksel üretici aile",
             "Türk kahvesi kavurma fabrikası aile şirketi 19",
+            # 터키 전통 쿠키 -- 로쿰/헬바 위주였던 쿼리에 제과 품목 보완
+            "kurabiye geleneksel tarif aile fırını Türkiye",
             # PDO/PGI 생산자 명단
             "Χίος Μαστίχα ΠΟΠ παραγωγοί κατάλογος",
             "coğrafi işaretli Türk gıda üreticileri listesi lokum",
@@ -152,6 +180,10 @@ BUCKETS = [
             "gâteau basque conserverie artisanale Pays Basque maison",
             "nougat de Montélimar fabrique artisanale famille depuis",
             "torréfacteur artisanal français maison familiale depuis 18",
+            # 보르도 지방 특산 (카늘레) -- 지금까지 아키텐 지방이 빠져있었음
+            "canelé bordelais fabrication artisanale maison depuis",
+            # 젤리/구미류 (프랑스어 특산 어휘, "gummy"에 대응하는 현지 개념이 따로 없음)
+            "pâte de fruit confiserie artisanale française maison depuis",
             # PDO/PGI/수상
             "IGP label rouge confiserie biscuiterie liste des producteurs",
             "Entreprise du Patrimoine Vivant biscuiterie confiserie liste",
@@ -169,6 +201,9 @@ BUCKETS = [
             "Bonbonkocherei Manufaktur handgemacht Familienbetrieb seit 18",
             "Kaffeerösterei Traditionsunternehmen Familienbetrieb seit 18",
             "Tiroler Lebkuchen Konditorei Familienbetrieb seit",
+            # 바이에른 지방 특산 -- 뉘른베르크 전통 자두인형 과자, 발포성 캔디가루(Brause)
+            "Zwetschgenmännla Nürnberger Manufaktur Familienbetrieb",
+            "Brause Manufaktur Familienbetrieb Süßwaren seit 18",
             # PDO/PGI/박람회
             "geschützte geografische Angabe Gebäck Süßwaren Hersteller Liste",
             "ISM Köln Aussteller Familienunternehmen Gebäck",
