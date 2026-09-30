@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Download } from "lucide-react";
+import { Upload, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -110,6 +110,7 @@ export function ImportBrandsDialog({ locale }: { locale: Locale }) {
 
             <DialogFooter>
               <Button type="submit" disabled={isPending}>
+                {isPending && <Loader2 className="size-4 animate-spin" />}
                 {isPending ? t.brandImport.importing : t.brandImport.submit}
               </Button>
             </DialogFooter>
