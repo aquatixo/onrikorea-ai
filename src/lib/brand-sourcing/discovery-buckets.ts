@@ -51,6 +51,26 @@ export const DISCOVERY_BUCKETS: DiscoveryBucket[] = [
       "Heritage regional German/Austrian specialty brands (Nuremberg gingerbread and plum-figure sweets/Zwetschgenmännla, Aachen/Dresden gingerbread and stollen, Swabian Springerle, effervescent candy powder/Brause, Tyrolean confectionery) — a real regional specialty item, not a generic national brand already well represented in the master list.",
   },
   {
+    label: "Brand Sourcing — Spain (Northern Regional)",
+    brief:
+      "Heritage northern Spanish specialty brands (Basque Country, Navarre, La Rioja, Aragon, Cantabria, Asturias, Galicia) — traditional caramels, mantecados/polvorones, marzipan/turrón, drinking chocolate — a real local specialty item, not a generic national brand. Spain overall is well represented in the master list, but this specific region isn't.",
+  },
+  {
+    label: "Brand Sourcing — UK (Scotland, Wales & Northern Ireland)",
+    brief:
+      "Heritage Scottish/Welsh/Northern Irish specialty brands (oatcakes, tablet, Edinburgh rock, shortbread, Welsh cakes, bara brith, brown lemonade) — a distinct market from England, whose brands already dominate the master list's UK count.",
+  },
+  {
+    label: "Brand Sourcing — Netherlands",
+    brief:
+      "Heritage Dutch specialty brands — stroopwafel, drop (Dutch licorice), speculaas — from a long-established, family-owned maker. Not represented in the master list at all currently.",
+  },
+  {
+    label: "Brand Sourcing — Italy (Southern Regional)",
+    brief:
+      "Heritage southern Italian specialty brands (Abruzzo, Puglia, Calabria, Basilicata, Molise) — ferratelle, torrone tenero, confetti di Sulmona, mostaccioli, taralli, southern liquirizia — a real local specialty item, distinct from the Milan/Florence-centric brands already well represented in the master list.",
+  },
+  {
     label: "Brand Sourcing — Awards & Trade Fair Exhibitors",
     brief:
       "Region-agnostic, list-shaped sources: food award winner/finalist lists (Great Taste, World Food Innovation, Slow Food Presidia) and trade-fair exhibitor directories (Anuga, SIAL, ISM Cologne, Biofach, Speciality & Fine Food Fair) — these self-select for small producers already seeking export/distribution partners.",

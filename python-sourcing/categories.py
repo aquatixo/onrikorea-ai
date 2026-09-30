@@ -51,20 +51,31 @@
 # the old English-only Jellies & Gummies bucket) via each lane's own local term for it,
 # instead of a generic English "gummy candy" category query that doesn't map to any
 # single local vocabulary the way e.g. "biscuit" roughly does.
+#
+# The first cut of this rebuild only kept the 7 MOST under-covered countries and
+# accidentally dropped several regions the original saturated-country critique never
+# meant to exclude -- a country being saturated overall (Spain 44, UK 154, Italy 123)
+# doesn't mean every region within it is; narrowing to a specific under-mined subregion
+# (northern Spain, Scotland/Wales/Northern Ireland, southern Italy) stays valid, same as
+# the France/Germany lanes above. Added those back, plus the Netherlands, which had no
+# lane at all despite not being especially saturated either. This list still isn't an
+# automatic "rotate to whichever regions are least-covered this round" mechanism --
+# it's a fixed set that will itself need a fresh look once these lanes dry up too.
 
 BUCKETS = [
     {
         "label": "Python Sourcing — Japan (Heritage Snacks & Confectionery)",
         "category": "Snacks",
         "queries": [
-            "heritage Japanese snack confectionery brand family owned since 19",
-            "old Japanese candy snack maker family owned generations",
-            "traditional Japanese wagashi senbei confectionery maker since 19",
-            # 현지어(일본어) -- 老舗(노포/오래된 가게)가 핵심 검색어. "スナック"는 일본어에서
-            # 흔히 술집(스낵바)을 뜻해 오해 소지가 있으므로 피하고 菓子/食品 계열 단어만 사용.
-            "老舗 菓子店 創業",
-            "老舗 和菓子 せんべい 製造 家族経営",
-            "老舗 食品メーカー 菓子 創業 家族経営",
+            "heritage Japanese snack confectionery brand",
+            "Japanese candy snack maker",
+            "traditional Japanese wagashi",
+            # 현지어(일본어) -- 상품명만 남기고 "老舗"/연혁 표현/"가족경영" 등 수식어는 전부
+            # 제외. "スナック"는 일본어에서 흔히 술집(스낵바)을 뜻해 오해 소지가 있으므로
+            # 피하고 菓子/食品 계열 단어만 사용.
+            "菓子店",
+            "和菓子",
+            "食品メーカー 菓子",
         ],
     },
     {
@@ -208,6 +219,64 @@ BUCKETS = [
             "geschützte geografische Angabe Gebäck Süßwaren Hersteller Liste",
             "ISM Köln Aussteller Familienunternehmen Gebäck",
             "Slow Food Presidio Deutschland Süßwaren Hersteller",
+        ],
+    },
+    {
+        # 스페인 전체(44건)는 포화지만, 북부(바스크·나바라·라리오하·아라곤·칸타브리아·
+        # 아스투리아스·갈리시아)로 좁히면 여전히 유효 -- 프랑스/독일과 같은 논리.
+        "label": "Python Sourcing — Spain (Northern Regional)",
+        "category": "혼합",
+        "queries": [
+            "sobaos pasiegos fábrica artesanal Cantabria familia",
+            "caramelos artesanos fábrica tradicional Asturias familia",
+            "chocolate a la taza fábrica tradicional España desde 18",
+            "turrón mazapán fábrica familiar Aragón Navarra desde 18",
+            "confitería tradicional Galicia fábrica familiar desde",
+            "mantecados polvorones obrador tradicional País Vasco familia",
+            # PDO/PGI 생산자 명단
+            "IGP DOP dulces tradicionales norte España lista de productores",
+        ],
+    },
+    {
+        # 영국(154건)은 전체로는 포화지만, 스코틀랜드·웨일스·북아일랜드는 잉글랜드와
+        # 어휘·브랜드가 아예 다른 별개 시장 -- 지방 단위로 좁히면 여전히 유효.
+        "label": "Python Sourcing — UK (Scotland, Wales & Northern Ireland)",
+        "category": "혼합",
+        "queries": [
+            "oatcake tablet Edinburgh rock fudge family owned Scotland since 18",
+            "macaroon bar soor plooms traditional Scottish confectioner family business",
+            "shortbread bakery family owned Scotland generations since",
+            "Welsh cake bara brith Aberffraw biscuit family bakery Wales",
+            "brown lemonade honeycomb traditional Northern Ireland family maker",
+            # 수상
+            "Great Taste Awards Scottish Welsh Northern Irish confectionery producer list",
+        ],
+    },
+    {
+        # 네덜란드 -- 지금까지 어느 레인에도 없던 완전 공백 지역
+        "label": "Python Sourcing — Netherlands",
+        "category": "혼합",
+        "queries": [
+            "stroopwafel bakkerij traditioneel familiebedrijf sinds 18",
+            "drop snoepfabriek Nederlands familiebedrijf sinds",
+            "speculaas bakkerij traditioneel familiebedrijf Nederland sinds 18",
+            "traditioneel Nederlands gebak familiebedrijf sinds 19",
+        ],
+    },
+    {
+        # 이탈리아 전체(123건)는 포화지만, 남부(아브루초·풀리아·칼라브리아·바실리카타·
+        # 몰리세)는 파리/밀라노/피렌체 편중과 무관한 별개 특산 어휘권 -- 지방 단위로 좁히면 유효.
+        "label": "Python Sourcing — Italy (Southern Regional)",
+        "category": "혼합",
+        "queries": [
+            "ferratelle pizzelle torrone tenero pasticceria storica famiglia Abruzzo",
+            "confetti di Sulmona fabbrica artigianale storica famiglia",
+            "mostaccioli bocconotti parrozzo pasticceria storica famiglia Abruzzo",
+            "torrone croccante mostaccioli pasticceria storica Puglia Calabria famiglia",
+            "taralli friselle forno tradizionale famiglia Puglia",
+            "liquirizia calabrese fabbrica storica famiglia",
+            # PDO/PGI 생산자 명단
+            "consorzio tutela IGP dolci tipici Sud Italia elenco produttori",
         ],
     },
     {
