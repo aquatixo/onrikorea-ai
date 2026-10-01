@@ -4,10 +4,15 @@ category-exclusion logic the app already has, instead of re-implementing it in
 Python and risking the two copies drifting apart."""
 
 import requests
-from config import APP_BASE_URL
+from config import APP_BASE_URL, INTERNAL_API_SECRET
 
 
 def evaluate_candidate(candidate: dict) -> dict:
-    resp = requests.post(f"{APP_BASE_URL}/api/brands/evaluate-candidate", json=candidate, timeout=15)
+    resp = requests.post(
+        f"{APP_BASE_URL}/api/brands/evaluate-candidate",
+        json=candidate,
+        headers={"X-Internal-Secret": INTERNAL_API_SECRET},
+        timeout=15,
+    )
     resp.raise_for_status()
     return resp.json()

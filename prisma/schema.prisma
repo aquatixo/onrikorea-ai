@@ -98,8 +98,57 @@ model SourcingRun {
   createdAt  DateTime            @default(now())
   status     String              @default("running") // "running" | "done" | "stopped" | "error"
   pid        Int?                // OS process id of the running python-sourcing/main.py, so it can be killed on Stop
-  progress   Json?               // { stage, stageProgress: {discovery,dedup,website,koreaCheck,scoring}, counts: {...}, errors }
+  backend    String              @default("serper") // "serper" | "tavily" -- which search backend this run used
+  progress   Json?               // { stage, target: {candidatesOut,target}, budget: {searchUsed,budget}, stoppedBy, counts: {...}, errors }
   candidates SourcingCandidate[]
+}
+
+// Daily-run state for python-sourcing/main.py -- without these, every run started over
+// from query #1 of every lane, so day 2 onward re-asked the exact same questions a
+// search engine answers near-identically, and every "new" candidate got deduped away
+// against day 1's own finds (0 real new candidates from day 2 on). These three tables
+// let a run resume where the last one left off instead.
+//
+// Everything is keyed by `backend` too -- Serper and Tavily each get their own
+// independent cursor/budget/ledger over the SAME query list in categories.py, since
+// they draw from separate free-tier quotas and can genuinely surface different results
+// for the identical query text. Running one backend never advances or retires the
+// other's progress.
+model SourcingQueryLedger {
+  id                  String   @id @default(uuid())
+  backend             String   @default("serper") // "serper" | "tavily" -- default backfills pre-Tavily rows, which were all Serper
+  laneCode            String // bucket label, e.g. "Python Sourcing — Portugal"
+  queryText           String
+  executedAt          DateTime @default(now())
+  timesRun            Int      @default(0)
+  resultsCount        Int      @default(0) // last run's raw search-result count
+  newCandidates       Int      @default(0) // last run's count of non-duplicate "flag" candidates
+  consecutiveZeroRuns Int      @default(0) // resets to 0 whenever a run finds >=1 new candidate
+  retired             Boolean  @default(false) // true once consecutiveZeroRuns >= 2 -- skipped from then on
+
+  @@unique([backend, laneCode, queryText])
+  @@index([backend, laneCode, retired])
+}
+
+model SourcingLaneState {
+  backend        String    @default("serper") // default backfills pre-Tavily rows, which were all Serper
+  laneCode       String    // bucket label
+  cursor         Int       @default(0) // index into that bucket's queries[] to resume from
+  exhausted      Boolean   @default(false) // cursor reached the end of queries[] -- needs a human to add more
+  lastRunAt      DateTime?
+  totalNewBrands Int       @default(0)
+
+  @@id([backend, laneCode])
+}
+
+model SourcingDailyBudget {
+  backend       String   @default("serper") // default backfills pre-Tavily rows, which were all Serper
+  runDate       DateTime @db.Date
+  searchUsed    Int      @default(0)
+  candidatesOut Int      @default(0)
+  stoppedBy     String? // "target" | "budget" | "exhausted", set once the day's run stops
+
+  @@id([backend, runDate])
 }
 
 model SourcingCandidate {

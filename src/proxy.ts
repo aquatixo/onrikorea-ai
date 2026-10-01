@@ -18,10 +18,29 @@ const { auth } = NextAuth(authConfig);
 // this distinguish "not signed in" (→ /login) from "signed in but not allowed to see
 // this section" (→ / with a notice) -- NextAuth's own `authorized` callback can only
 // express a single boolean and always redirects to `pages.signIn` either way.
+// python-sourcing/main.py calls /api/brands/evaluate-candidate directly (server-to-
+// server, no browser session) carrying this shared secret instead -- without this,
+// the redirect-to-/login below fired before the request ever reached that route's own
+// requireSectionAccess bypass, so the Python script got back a login-page HTML
+// response instead of a JSON evaluation and every candidate failed to parse it.
+// Plain string comparison, not a timing-safe one, since this must stay Edge-runtime
+// compatible (no Node `crypto` module here) -- the secret is long/random enough that
+// this is an acceptable tradeoff for a locally-run internal script. Scoped to exactly
+// this one path (not "any path carrying the secret") so a leaked secret can only ever
+// skip auth for this single mechanical evaluation endpoint, not the whole app.
+const INTERNAL_SECRET_PATH = "/api/brands/evaluate-candidate";
+
+function hasValidInternalSecret(req: { headers: Headers }): boolean {
+  const expected = process.env.INTERNAL_API_SECRET;
+  const provided = req.headers.get("x-internal-secret");
+  return !!expected && !!provided && expected === provided;
+}
+
 const proxy = auth((req) => {
   const { pathname } = req.nextUrl;
 
   if (pathname.startsWith("/login")) return;
+  if (pathname === INTERNAL_SECRET_PATH && hasValidInternalSecret(req)) return;
 
   if (!req.auth?.user) {
     const loginUrl = new URL("/login", req.url);
