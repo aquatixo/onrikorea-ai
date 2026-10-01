@@ -40,13 +40,15 @@ export function HomeTypingHero({ className }: { className?: string }) {
   }, []);
 
   return (
-    <h1 className={cn(className, "relative inline-block")}>
-      {/* Invisible full-width ghost reserves the box size up front so the typing
-          animation never changes this element's footprint and shifts siblings. */}
+    <h1 className={cn(className, "relative flex h-[38px] items-center sm:h-[60px]")}>
+      {/* Invisible full-text ghost reserves the width; the explicit fixed height above
+          (matching this font size's line-height) reserves the height. Together the
+          typing animation never resizes this element or shifts the badge/buttons
+          around it, regardless of how many characters are currently typed. */}
       <span className="invisible" aria-hidden>
         {TYPED_TEXT}
       </span>
-      <span className="absolute inset-y-0 left-0 inline-flex items-baseline">
+      <span className="absolute inset-0 flex items-center">
         <span>{text}</span>
         <span
           className="ml-1 inline-block w-[3px] animate-pulse bg-primary sm:w-[4px]"
