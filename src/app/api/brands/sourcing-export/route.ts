@@ -11,12 +11,13 @@ export async function GET(request: NextRequest) {
 
   const locale = await getLocale();
   const t = getDictionary(locale);
-  const { searchParams } = new URL(request.url);
-  const runId = searchParams.get("runId");
 
-  const run = runId
-    ? await db.sourcingRun.findUnique({ where: { id: runId }, include: { candidates: true } })
-    : await db.sourcingRun.findFirst({ orderBy: { createdAt: "desc" }, include: { candidates: true } });
+  // Every pending SourcingCandidate (across every run, not just the latest one) --
+  // matches what the review table on screen shows, now that daily runs accumulate
+  // candidates over several days instead of one run replacing the last.
+  const candidates = await db.sourcingCandidate.findMany({
+    orderBy: [{ verdict: "asc" }, { name: "asc" }],
+  });
 
   // Same column layout as the main Brands export (No/Methodology/Name/.../Cold Email/Reply)
   // so a downloaded sourcing sheet looks and works like the one everyone already knows --
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
   // a candidate is actually added to Brands. Verdict/Notes are appended for review context.
   const headers = [...t.exportHeaders, t.sourcing.colVerdict, t.sourcing.colReason];
 
-  const rows = (run?.candidates ?? []).map((c, i) => [
+  const rows = candidates.map((c, i) => [
     i + 1,
     c.methodology ?? "",
     c.name,

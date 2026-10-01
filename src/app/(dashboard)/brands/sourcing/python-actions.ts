@@ -14,12 +14,14 @@ import { db } from "@/lib/db";
  * Local-only by design (see chat history): this spawns a real Python process, which
  * only works wherever `npm run dev` is actually running, not on the deployed Vercel site.
  */
-export async function startPythonBrandSourcing(): Promise<{ runId: string } | { error: string }> {
-  const run = await db.sourcingRun.create({ data: { status: "running" } });
+export async function startPythonBrandSourcing(
+  backend: "serper" | "tavily" = "serper"
+): Promise<{ runId: string } | { error: string }> {
+  const run = await db.sourcingRun.create({ data: { status: "running", backend } });
   const scriptDir = path.join(process.cwd(), "python-sourcing");
 
   try {
-    const child = spawn("python", ["main.py", run.id], {
+    const child = spawn("python", ["main.py", run.id, backend], {
       cwd: scriptDir,
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"],
@@ -35,7 +37,7 @@ export async function startPythonBrandSourcing(): Promise<{ runId: string } | { 
     let stderrTail = "";
     let stdoutTail = "";
     const MAX_TAIL = 4000;
-    const tag = `[sourcing ${run.id.slice(0, 8)}]`;
+    const tag = `[sourcing:${backend} ${run.id.slice(0, 8)}]`;
     child.stderr?.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
       stderrTail = (stderrTail + text).slice(-MAX_TAIL);

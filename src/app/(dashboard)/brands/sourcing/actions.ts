@@ -115,6 +115,11 @@ export async function addSourcingCandidateToBrands(candidateId: string): Promise
         notes: candidate.reason,
       },
     });
+    // The review list now shows every pending SourcingCandidate across every run (not
+    // just the latest one), so a candidate has to actually leave the table once it's
+    // been decided -- otherwise an added candidate would sit there forever since this
+    // never used to delete it (only the explicit "reject" delete path did).
+    await db.sourcingCandidate.delete({ where: { id: candidateId } });
     revalidatePath("/brands/sourcing");
     return { id: brand.id };
   } catch {

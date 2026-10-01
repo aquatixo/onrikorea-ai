@@ -7,11 +7,12 @@ import {
   addSourcingCandidatesToBrands,
   deleteSourcingCandidates,
 } from "@/app/(dashboard)/brands/sourcing/actions";
-import { ExpandableName } from "@/components/expandable-name";
+import { ExpandableText } from "@/components/expandable-text";
 import { WebsiteLink } from "@/components/website-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { SourcingCandidate } from "@prisma/client";
 
@@ -22,14 +23,12 @@ const VERDICT_STYLE: Record<string, string> = {
 };
 
 export function SourcingResultsTable({
-  runId,
-  createdAt,
+  lastRunAt,
   candidates,
   verdictLabel,
   locale,
 }: {
-  runId: string;
-  createdAt: Date;
+  lastRunAt: Date | null;
   candidates: SourcingCandidate[];
   verdictLabel: Record<string, string>;
   locale: Locale;
@@ -37,6 +36,7 @@ export function SourcingResultsTable({
   const dict = getDictionary(locale);
   const t = dict.sourcing;
   const router = useRouter();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [selected, setSelected] = React.useState<Set<string>>(() => new Set());
   const [isPending, startTransition] = React.useTransition();
   const [summary, setSummary] = React.useState<string | null>(null);
@@ -64,12 +64,12 @@ export function SourcingResultsTable({
     setSelected(allSelected ? new Set() : new Set(candidates.map((c) => c.id)));
   }
 
-  function handleAddSelected() {
+  async function handleAddSelected() {
     if (selected.size === 0) {
-      alert(t.selectAtLeastOne);
+      await confirm({ description: t.selectAtLeastOne, alertOnly: true });
       return;
     }
-    if (!confirm(t.confirmAddSelected(selected.size))) return;
+    if (!(await confirm({ description: t.confirmAddSelected(selected.size) }))) return;
 
     setSummary(null);
     startTransition(async () => {
@@ -81,12 +81,12 @@ export function SourcingResultsTable({
     });
   }
 
-  function handleDeleteSelected() {
+  async function handleDeleteSelected() {
     if (selected.size === 0) {
-      alert(t.selectAtLeastOne);
+      await confirm({ description: t.selectAtLeastOne, alertOnly: true });
       return;
     }
-    if (!confirm(t.confirmDeleteSelected(selected.size))) return;
+    if (!(await confirm({ description: t.confirmDeleteSelected(selected.size), destructive: true }))) return;
 
     setSummary(null);
     startTransition(async () => {
@@ -98,12 +98,15 @@ export function SourcingResultsTable({
 
   return (
     <div className="space-y-3">
+      {confirmDialog}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-medium">{t.resultsTitle(candidates.length)}</p>
-          <p className="text-xs text-muted-foreground">
-            {t.lastRunAt}: {createdAt.toLocaleString(locale === "ko" ? "ko-KR" : "en-US")}
-          </p>
+          {lastRunAt && (
+            <p className="text-xs text-muted-foreground">
+              {t.lastRunAt}: {lastRunAt.toLocaleString(locale === "ko" ? "ko-KR" : "en-US")}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {selected.size > 0 && (
@@ -113,7 +116,7 @@ export function SourcingResultsTable({
             variant="outline"
             nativeButton={false}
             render={
-              <a href={`/api/brands/sourcing-export?runId=${runId}`}>
+              <a href="/api/brands/sourcing-export">
                 <Download className="size-4" />
                 {t.downloadExcel}
               </a>
@@ -133,7 +136,11 @@ export function SourcingResultsTable({
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         {/* Select + Name are frozen (sticky) on the left so you always know which candidate a
             row is no matter how far right you scroll. Header row is sticky on vertical scroll too. */}
-        <div className="max-h-[70vh] overflow-auto">
+        {/* Custom-styled (not OS-default overlay) scrollbars so the horizontal one stays
+            visible at all times instead of only appearing on hover/scroll -- with 13+
+            columns, a reader needs to actually see the bar is there to know there's more
+            to the right, not discover it by accident. */}
+        <div className="max-h-[70vh] overflow-auto [&::-webkit-scrollbar]:h-3 [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-track]:bg-muted [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border">
           <Table className="table-fixed">
             <TableHeader className="sticky top-0 z-20 bg-card">
               <TableRow className="hover:bg-transparent">
@@ -158,11 +165,11 @@ export function SourcingResultsTable({
                 <TableHead className="w-[120px]">{t.colSku}</TableHead>
                 <TableHead className="w-[70px]">{t.colYear}</TableHead>
                 <TableHead className="w-[170px]">{t.colWebsite}</TableHead>
+                <TableHead className="w-[80px]">{t.colVerdict}</TableHead>
+                <TableHead className="w-[240px]">{t.colReason}</TableHead>
                 <TableHead className="w-[130px]">{t.colContactPoint}</TableHead>
                 <TableHead className="w-[100px]">{t.colColdEmail}</TableHead>
                 <TableHead className="w-[90px]">{t.colReply}</TableHead>
-                <TableHead className="w-[80px]">{t.colVerdict}</TableHead>
-                <TableHead className="w-[240px]">{t.colReason}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -180,7 +187,7 @@ export function SourcingResultsTable({
                     </div>
                   </TableCell>
                   <TableCell className="sticky left-[44px] z-10 border-r border-border bg-card align-top font-medium">
-                    <ExpandableName name={c.name} />
+                    <ExpandableText text={c.name} />
                   </TableCell>
                   <TableCell className="align-top text-muted-foreground">{i + 1}</TableCell>
                   <TableCell
@@ -203,15 +210,15 @@ export function SourcingResultsTable({
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="align-top text-muted-foreground">—</TableCell>
-                  <TableCell className="align-top text-muted-foreground">—</TableCell>
-                  <TableCell className="align-top text-muted-foreground">—</TableCell>
                   <TableCell className="align-top">
                     <Badge className={VERDICT_STYLE[c.verdict]}>{verdictLabel[c.verdict] ?? c.verdict}</Badge>
                   </TableCell>
-                  <TableCell className="truncate align-top text-xs text-muted-foreground" title={c.reason}>
-                    {c.reason}
+                  <TableCell className="truncate align-top text-xs text-muted-foreground">
+                    <ExpandableText text={c.reason} />
                   </TableCell>
+                  <TableCell className="align-top text-muted-foreground">—</TableCell>
+                  <TableCell className="align-top text-muted-foreground">—</TableCell>
+                  <TableCell className="align-top text-muted-foreground">—</TableCell>
                 </TableRow>
               ))}
             </TableBody>

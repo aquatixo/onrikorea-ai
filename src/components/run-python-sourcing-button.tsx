@@ -7,8 +7,19 @@ import { startPythonBrandSourcing } from "@/app/(dashboard)/brands/sourcing/pyth
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 type LatestRunInfo = { id: string; status: string; progress: SourcingProgress | null } | null;
+type Backend = "serper" | "tavily";
 
-export function RunPythonSourcingButton({ locale, latestRun }: { locale: Locale; latestRun: LatestRunInfo }) {
+export function RunPythonSourcingButton({
+  locale,
+  backend,
+  label,
+  latestRun,
+}: {
+  locale: Locale;
+  backend: Backend;
+  label: string;
+  latestRun: LatestRunInfo;
+}) {
   const t = getDictionary(locale);
   const [activeRunId, setActiveRunId] = React.useState<string | null>(
     latestRun && latestRun.status === "running" ? latestRun.id : null
@@ -19,7 +30,7 @@ export function RunPythonSourcingButton({ locale, latestRun }: { locale: Locale;
   async function handleStart() {
     setError(null);
     setIsStarting(true);
-    const result = await startPythonBrandSourcing();
+    const result = await startPythonBrandSourcing(backend);
     setIsStarting(false);
     if ("error" in result) {
       setError(result.error);
@@ -42,7 +53,7 @@ export function RunPythonSourcingButton({ locale, latestRun }: { locale: Locale;
   return (
     <div className="space-y-2">
       <Button variant="outline" onClick={handleStart} disabled={isStarting}>
-        {isStarting ? t.sourcing.runningPython : t.sourcing.runPythonButton}
+        {isStarting ? t.sourcing.runningPython : label}
       </Button>
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>

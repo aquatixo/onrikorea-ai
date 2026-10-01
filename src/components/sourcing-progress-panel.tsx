@@ -10,13 +10,13 @@ import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 export type SourcingProgress = {
   stage?: string;
-  stageProgress?: Record<string, number>;
+  target?: { candidatesOut: number; target: number };
+  budget?: { searchUsed: number; budget: number };
+  stoppedBy?: "target" | "budget" | "exhausted" | null;
   counts?: Record<string, number>;
   errors?: number;
   message?: string;
 };
-
-const STAGE_KEYS = ["discovery", "dedup", "website", "koreaCheck", "scoring"] as const;
 
 const STATUS_STYLE: Record<string, string> = {
   running: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
@@ -69,9 +69,11 @@ export function SourcingProgressPanel({
     router.refresh();
   }
 
-  const stageProgress = progress?.stageProgress ?? {};
   const counts = progress?.counts ?? {};
   const errors = progress?.errors ?? 0;
+  const target = progress?.target ?? { candidatesOut: 0, target: 1 };
+  const budget = progress?.budget ?? { searchUsed: 0, budget: 1 };
+  const stoppedBy = progress?.stoppedBy;
 
   return (
     <div className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
@@ -104,10 +106,23 @@ export function SourcingProgressPanel({
       )}
 
       <div className="space-y-2.5">
-        {STAGE_KEYS.map((key) => (
-          <StageBar key={key} label={t.stageLabel[key]} percent={stageProgress[key] ?? 0} />
-        ))}
+        <StageBar
+          label={t.progressLabel.candidatesToday}
+          percent={Math.round((target.candidatesOut / Math.max(1, target.target)) * 100)}
+          rawLabel={`${target.candidatesOut} / ${target.target}`}
+        />
+        <StageBar
+          label={t.progressLabel.searchUsedToday}
+          percent={Math.round((budget.searchUsed / Math.max(1, budget.budget)) * 100)}
+          rawLabel={`${budget.searchUsed} / ${budget.budget}`}
+        />
       </div>
+
+      {stoppedBy && (
+        <p className="text-xs text-muted-foreground">
+          {t.stoppedByLabel[stoppedBy as keyof typeof t.stoppedByLabel] ?? stoppedBy}
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-2.5 border-t border-border pt-4 sm:grid-cols-3">
         <StatChip label={t.countLabel.discovered} value={counts.discovered ?? 0} />
@@ -122,19 +137,19 @@ export function SourcingProgressPanel({
   );
 }
 
-function StageBar({ label, percent }: { label: string; percent: number }) {
+function StageBar({ label, percent, rawLabel }: { label: string; percent: number; rawLabel: string }) {
   const clamped = Math.min(100, Math.max(0, percent));
   return (
     <div className="flex items-center gap-3">
-      <span className="w-24 shrink-0 text-xs font-medium text-muted-foreground">{label}</span>
+      <span className="w-36 shrink-0 text-xs font-medium text-muted-foreground">{label}</span>
       <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
         <div
           className={cn("h-full rounded-full bg-primary transition-all duration-500", clamped >= 100 && "bg-emerald-500")}
           style={{ width: `${clamped}%` }}
         />
       </div>
-      <span className="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-muted-foreground">
-        {clamped}%
+      <span className="w-14 shrink-0 text-right text-xs font-semibold tabular-nums text-muted-foreground">
+        {rawLabel}
       </span>
     </div>
   );
