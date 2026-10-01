@@ -1,7 +1,7 @@
 // Edge-safe (no Prisma/Node imports) -- used both by proxy.ts (Edge runtime) and by
 // client components deciding what nav to render. The Prisma UserRole enum has the
-// same two values; kept as a plain string union here so this file has zero deps.
-export type UserRole = "ADMIN" | "USER";
+// same values; kept as a plain string union here so this file has zero deps.
+export type UserRole = "ADMIN" | "DEVELOPER" | "USER";
 
 export const PAGE_SECTIONS = ["brands", "brandSourcing", "work", "stores", "storeVisits", "products"] as const;
 export type PageSection = (typeof PAGE_SECTIONS)[number];
@@ -35,7 +35,10 @@ export function sectionForPath(pathname: string): PageSection | null {
 }
 
 export function hasSectionAccess(role: UserRole, allowedPages: string[], section: PageSection): boolean {
-  return role === "ADMIN" || allowedPages.includes(section);
+  // DEVELOPER gets the same full section access as ADMIN -- the thing it's actually
+  // restricted from (a WorkItem flagged isSecure) is a content-level filter applied
+  // where WorkItem is queried, not a section-level gate like this one.
+  return role === "ADMIN" || role === "DEVELOPER" || allowedPages.includes(section);
 }
 
 export function hasPathAccess(role: UserRole, allowedPages: string[], pathname: string): boolean {

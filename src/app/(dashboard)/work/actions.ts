@@ -63,8 +63,12 @@ export async function createWork(prevState: WorkFormState, formData: FormData): 
   }
 
   const session = await auth();
+  // Defense in depth -- WorkForm only ever renders the checkbox for an ADMIN session,
+  // but this action is directly callable, so a non-admin's isSecure value (even if
+  // somehow present) is never honored here.
+  const isSecure = session?.user?.role === "ADMIN" ? parsed.data.isSecure : false;
   const work = await db.workItem.create({
-    data: { ...parsed.data, fileUrl, fileName, createdById: session?.user?.id },
+    data: { ...parsed.data, isSecure, fileUrl, fileName, createdById: session?.user?.id },
   });
   redirect(`/work/${work.id}`);
 }
@@ -78,7 +82,10 @@ export async function updateWork(
   const dict = getDictionary(await getLocale());
   const t = dict.work.form;
 
-  const existing = await db.workItem.findUnique({ where: { id }, select: { fileUrl: true, createdById: true } });
+  const existing = await db.workItem.findUnique({
+    where: { id },
+    select: { fileUrl: true, createdById: true, isSecure: true },
+  });
   if (!existing) return { message: t.fixErrors };
   if (!(await canModifyContent(existing.createdById))) {
     return { message: dict.common.forbidden };
@@ -108,6 +115,12 @@ export async function updateWork(
     fileName = null;
   }
 
+  const session = await auth();
+  // Defense in depth, same as createWork -- a non-admin's submitted value is ignored
+  // and the item's existing isSecure flag (which only ADMIN could have set) is kept
+  // untouched instead, rather than silently clearing it.
+  const isSecure = session?.user?.role === "ADMIN" ? parsed.data.isSecure : existing.isSecure;
+
   await db.workItem.update({
     where: { id },
     data: {
@@ -118,6 +131,7 @@ export async function updateWork(
       content: parsed.data.content ?? null,
       startDate: parsed.data.startDate ?? null,
       endDate: parsed.data.endDate ?? null,
+      isSecure,
       ...(fileUrl !== undefined ? { fileUrl, fileName } : {}),
     },
   });

@@ -39,6 +39,11 @@ export const workFormSchema = z
     color: optionalColor,
     startDate: optionalDate,
     endDate: optionalDate,
+    // Parsed here for every submitter, but only ever honored server-side when the
+    // session role is ADMIN (see createWork) -- a non-admin's request simply can't
+    // carry this checkbox at all, since WorkForm never renders it for them, but the
+    // schema still needs to accept the field name without erroring if it's absent.
+    isSecure: z.coerce.boolean().optional().default(false),
   })
   .refine(dateRangeRefinement, dateRangeIssue);
 
@@ -55,6 +60,7 @@ export const workEditSchema = z
     startDate: optionalDate,
     endDate: optionalDate,
     removeFile: z.coerce.boolean().optional().default(false),
+    isSecure: z.coerce.boolean().optional().default(false),
   })
   .refine(dateRangeRefinement, dateRangeIssue);
 

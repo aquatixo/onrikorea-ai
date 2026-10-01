@@ -30,7 +30,7 @@ function localizeVisitErrors(
     }
     if (field === "storeId") localized[field] = [t.visits.storeRequired];
     if (field === "visitDate") localized[field] = [t.visits.visitDateRequired];
-    if (field === "visitor") localized[field] = [t.visits.visitorRequired];
+    if (field === "visitors") localized[field] = [t.visits.visitorRequired];
   }
   return localized;
 }
@@ -40,7 +40,10 @@ export async function createStoreVisit(
   formData: FormData
 ): Promise<StoreVisitFormState> {
   const t = getDictionary(await getLocale()).field;
-  const parsed = storeVisitFormSchema.safeParse(Object.fromEntries(formData));
+  const parsed = storeVisitFormSchema.safeParse({
+    ...Object.fromEntries(formData),
+    visitors: formData.getAll("visitors"),
+  });
   if (!parsed.success) {
     return { errors: localizeVisitErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
   }
@@ -65,7 +68,10 @@ export async function updateStoreVisit(
     return { message: dict.common.forbidden };
   }
 
-  const parsed = storeVisitFormSchema.safeParse(Object.fromEntries(formData));
+  const parsed = storeVisitFormSchema.safeParse({
+    ...Object.fromEntries(formData),
+    visitors: formData.getAll("visitors"),
+  });
   if (!parsed.success) {
     return { errors: localizeVisitErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
   }

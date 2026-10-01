@@ -191,6 +191,11 @@ model Person {
 
 enum UserRole {
   ADMIN
+  // Full access to every PageSection (same as ADMIN), but never sees a WorkItem with
+  // isSecure set -- for someone doing ongoing development work on this app who isn't
+  // meant to see security/company-confidential work items. See hasSectionAccess and
+  // every WorkItem query gated on isSecure.
+  DEVELOPER
   USER
 }
 
@@ -236,6 +241,10 @@ model WorkItem {
   fileUrl      String?       // Vercel Blob URL
   fileName     String?       // original filename, shown/downloaded as this
   assigneeName String        // no auth yet -- just a plain name, not a user relation
+  // Set only by ADMIN (see work/actions.ts) -- a secure item is excluded from every
+  // WorkItem query/list/count for anyone whose session role isn't ADMIN, and the
+  // detail/edit pages 404 a direct link to one instead of just hiding it from lists.
+  isSecure     Boolean       @default(false)
 
   comments     WorkComment[]
 
@@ -388,7 +397,10 @@ model StoreVisit {
   store     Store             @relation(fields: [storeId], references: [id], onDelete: Restrict)
 
   visitDate DateTime
-  visitor   String            // no auth yet -- just a plain name, same as WorkItem.assigneeName
+  // Multiple people can visit a store together, picked from registered (non-dev-test)
+  // User accounts -- stores each one's User.name, same string-matching convention as
+  // WorkItem.assigneeName/Person.name (no auth relation, just plain names).
+  visitors  String[]          @default([])
   status    StoreVisitStatus  @default(IN_PROGRESS)
   memo      String?           @db.Text
 

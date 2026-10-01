@@ -1,5 +1,5 @@
-import Link from "next/link";
-import { Settings, KeyRound, Users } from "lucide-react";
+﻿import Link from "next/link";
+import { Settings, KeyRound, Users, UserCog } from "lucide-react";
 import { auth } from "@/auth";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
@@ -15,7 +15,10 @@ export default async function SettingsPage() {
   const cards = [
     { href: "/settings/password", label: t.changePasswordCard, desc: t.changePasswordCardDesc, icon: KeyRound },
     ...(isAdmin
-      ? [{ href: "/settings/users", label: t.userManagementCard, desc: t.userManagementCardDesc, icon: Users }]
+      ? [
+          { href: "/settings/users", label: t.userManagementCard, desc: t.userManagementCardDesc, icon: Users },
+          { href: "/settings/work-assignees", label: t.peopleManagementCard, desc: t.peopleManagementCardDesc, icon: UserCog },
+        ]
       : []),
   ];
 

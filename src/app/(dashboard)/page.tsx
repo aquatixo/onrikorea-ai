@@ -39,14 +39,19 @@ export default async function HomePage(props: { searchParams: Promise<{ denied?:
   const allowedPages = session?.user?.allowedPages ?? [];
   const canSeeBrands = hasSectionAccess(role, allowedPages, "brands");
   const canSeeWork = hasSectionAccess(role, allowedPages, "work");
+  // Same rule as the Work list itself -- a secure item doesn't count toward these
+  // numbers or appear in "recent" for anyone but ADMIN.
+  const workSecureFilter = role === "ADMIN" ? {} : { isSecure: false };
 
   const [brandCount, contactedCount, openWorkCount, inProgressCount, recentBrands, recentWork] = await Promise.all([
     canSeeBrands ? db.brand.count() : Promise.resolve(0),
     canSeeBrands ? db.brand.count({ where: { status: { in: ["CONTACTED", "REPLIED"] } } }) : Promise.resolve(0),
-    canSeeWork ? db.workItem.count({ where: { status: { not: "DONE" } } }) : Promise.resolve(0),
-    canSeeWork ? db.workItem.count({ where: { status: "IN_PROGRESS" } }) : Promise.resolve(0),
+    canSeeWork ? db.workItem.count({ where: { status: { not: "DONE" }, ...workSecureFilter } }) : Promise.resolve(0),
+    canSeeWork ? db.workItem.count({ where: { status: "IN_PROGRESS", ...workSecureFilter } }) : Promise.resolve(0),
     canSeeBrands ? db.brand.findMany({ orderBy: { updatedAt: "desc" }, take: 5 }) : Promise.resolve([]),
-    canSeeWork ? db.workItem.findMany({ orderBy: { updatedAt: "desc" }, take: 5 }) : Promise.resolve([]),
+    canSeeWork
+      ? db.workItem.findMany({ where: workSecureFilter, orderBy: { updatedAt: "desc" }, take: 5 })
+      : Promise.resolve([]),
   ]);
 
   const allModules: { href: string; label: string; icon: typeof Building2; soon: boolean; section?: PageSection }[] = [

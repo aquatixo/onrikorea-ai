@@ -11,7 +11,7 @@ import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { BrandLog } from "@prisma/client";
 
 type LogWithAuthor = BrandLog & { createdBy: { name: string } | null };
-type CurrentUser = { id: string; role: "ADMIN" | "USER" } | null;
+type CurrentUser = { id: string; role: "ADMIN" | "DEVELOPER" | "USER" } | null;
 
 function formatTimestamp(date: Date, locale: Locale) {
   return date.toLocaleString(locale === "ko" ? "ko-KR" : "en-US", {

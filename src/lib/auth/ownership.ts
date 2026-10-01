@@ -1,4 +1,4 @@
-type SessionUser = { id: string; role: "ADMIN" | "USER" };
+type SessionUser = { id: string; role: "ADMIN" | "DEVELOPER" | "USER" };
 
 // The one rule for every content model with a createdById: an ADMIN can touch anything;
 // anyone else can only touch what they created. A null createdById (pre-existing rows

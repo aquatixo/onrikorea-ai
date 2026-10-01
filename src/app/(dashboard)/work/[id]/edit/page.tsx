@@ -21,14 +21,14 @@ export default async function EditWorkPage(props: {
   const locale = await getLocale();
   const t = getDictionary(locale);
 
-  const [item, people] = await Promise.all([
-    db.workItem.findUnique({ where: { id } }),
-    db.person.findMany({ orderBy: { name: "asc" } }),
-  ]);
+  const [item, session] = await Promise.all([db.workItem.findUnique({ where: { id } }), auth()]);
   if (!item) notFound();
-
-  const session = await auth();
+  // Same as the detail page -- a secure item doesn't exist for anyone but ADMIN.
+  if (item.isSecure && session?.user?.role !== "ADMIN") notFound();
   if (!isOwnerOrAdmin(session?.user, item.createdById)) redirect(detailHref);
+
+  // Fetched only once we know the page will actually render the form.
+  const people = await db.person.findMany({ orderBy: { name: "asc" } });
 
   return (
     <main className="mx-auto w-full max-w-xl space-y-5 px-4 py-8 sm:px-6 sm:py-10">
@@ -45,6 +45,7 @@ export default async function EditWorkPage(props: {
           action={updateWork.bind(null, id, safeReturnTo)}
           mode="edit"
           assigneeOptions={people.map((p) => p.name)}
+          canSetSecure={session?.user?.role === "ADMIN"}
           defaultValues={{
             title: item.title,
             assigneeName: item.assigneeName,
@@ -55,6 +56,7 @@ export default async function EditWorkPage(props: {
             endDate: item.endDate,
             fileUrl: item.fileUrl,
             fileName: item.fileName,
+            isSecure: item.isSecure,
           }}
         />
       </div>

@@ -26,7 +26,7 @@ const allowedPagesField = z.array(z.enum(PAGE_SECTIONS)).default([]);
 export const createUserSchema = z.object({
   username: z.string().trim().min(1, "Username is required").max(150).refine(isSafeText, UNSAFE_INPUT_MESSAGE),
   name: z.string().trim().min(1, "Name is required").refine(isSafeText, UNSAFE_INPUT_MESSAGE),
-  role: z.enum(["ADMIN", "USER"]),
+  role: z.enum(["ADMIN", "DEVELOPER", "USER"]),
   allowedPages: allowedPagesField,
 });
 
@@ -34,7 +34,7 @@ export type CreateUserValues = z.infer<typeof createUserSchema>;
 
 export const updateUserSchema = z.object({
   name: z.string().trim().min(1, "Name is required").refine(isSafeText, UNSAFE_INPUT_MESSAGE),
-  role: z.enum(["ADMIN", "USER"]),
+  role: z.enum(["ADMIN", "DEVELOPER", "USER"]),
   allowedPages: allowedPagesField,
   resetPassword: z.coerce.boolean().optional().default(false),
 });

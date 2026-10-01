@@ -73,7 +73,7 @@ export default async function StoreVisitsPage() {
                   <TableCell className="font-medium">{formatDate(visit.visitDate, locale)}</TableCell>
                   <TableCell className="text-muted-foreground">{visit.store.name}</TableCell>
                   <TableCell className="text-muted-foreground">{visit.store.chain ?? "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{visit.visitor}</TableCell>
+                  <TableCell className="text-muted-foreground">{visit.visitors.join(", ")}</TableCell>
                   <TableCell className="text-muted-foreground">{visit._count.items}</TableCell>
                   <TableCell>
                     <Badge className={STORE_VISIT_STATUS_STYLE[visit.status]}>{t.visitStatus[visit.status]}</Badge>

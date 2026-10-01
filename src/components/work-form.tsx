@@ -14,6 +14,10 @@ type Props = {
   mode?: "create" | "edit";
   defaultAssignee?: string;
   assigneeOptions?: string[];
+  // Only an ADMIN session ever sees the "보안" checkbox at all -- a DEVELOPER/USER
+  // can't set or clear it, and (since the detail/edit pages 404 a secure item for
+  // them) never even reaches this form for one that's already flagged.
+  canSetSecure?: boolean;
   defaultValues?: {
     title?: string;
     assigneeName?: string | null;
@@ -24,6 +28,7 @@ type Props = {
     endDate?: Date | null;
     fileUrl?: string | null;
     fileName?: string | null;
+    isSecure?: boolean;
   };
 };
 
@@ -40,6 +45,7 @@ export function WorkForm({
   mode = "create",
   defaultAssignee,
   assigneeOptions = [],
+  canSetSecure = false,
   defaultValues,
 }: Props) {
   const t = getDictionary(locale).work.form;
@@ -77,6 +83,22 @@ export function WorkForm({
         error={state.errors?.category}
       />
       <WorkColorField label={t.colorLabel} noneLabel={t.noColor} defaultValue={defaultValues?.color} />
+
+      {canSetSecure && (
+        <label className="flex items-start gap-2 rounded-lg border border-border px-3 py-2.5 text-sm">
+          <input
+            type="checkbox"
+            name="isSecure"
+            value="true"
+            defaultChecked={defaultValues?.isSecure ?? false}
+            className="mt-0.5 size-4 rounded border-border"
+          />
+          <span>
+            <span className="font-medium">{t.secureLabel}</span>
+            <span className="block text-xs text-muted-foreground">{t.secureHint}</span>
+          </span>
+        </label>
+      )}
 
       <div className="space-y-1.5">
         <label htmlFor="content" className="text-sm font-medium">

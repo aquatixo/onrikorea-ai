@@ -115,7 +115,7 @@ export default async function StoreVisitDetailPage(props: {
           <div>
             <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{visit.store.name}</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              {visit.store.chain ?? "—"} · {formatDate(visit.visitDate, locale)} · {visit.visitor}
+              {visit.store.chain ?? "—"} · {formatDate(visit.visitDate, locale)} · {visit.visitors.join(", ")}
             </p>
           </div>
           <Badge className={STORE_VISIT_STATUS_STYLE[visit.status]}>{t.visitStatus[visit.status]}</Badge>

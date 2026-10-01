@@ -28,7 +28,10 @@ const requiredDate = z
 export const storeVisitFormSchema = z.object({
   storeId: z.string().trim().min(1, "Store is required"),
   visitDate: requiredDate,
-  visitor: z.string().trim().min(1, "Visitor is required").refine(isSafeText, UNSAFE_INPUT_MESSAGE),
+  // Checkboxes of registered users now, not free text -- still a plain string array
+  // matched by name (same convention as WorkItem.assigneeName), just picked from a
+  // fixed list instead of typed in, so no isSafeText refine needed here.
+  visitors: z.array(z.string().trim().min(1)).min(1, "At least one visitor is required"),
   memo: optionalSafeText,
 });
 export type StoreVisitFormValues = z.infer<typeof storeVisitFormSchema>;

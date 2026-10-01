@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Pencil, Paperclip, CalendarRange, MessageSquare } from "lucide-react";
+import { ArrowLeft, Pencil, Paperclip, CalendarRange, MessageSquare, Lock } from "lucide-react";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { isOwnerOrAdmin } from "@/lib/auth/ownership";
@@ -49,6 +49,10 @@ export default async function WorkDetailPage(props: {
   if (!item) notFound();
 
   const session = await auth();
+  // A secure item simply doesn't exist for anyone but ADMIN -- 404 rather than a
+  // "forbidden" message, so a direct/shared link to one doesn't even confirm it exists.
+  if (item.isSecure && session?.user?.role !== "ADMIN") notFound();
+
   const currentUser = session?.user ? { id: session.user.id, role: session.user.role } : null;
   const canModify = isOwnerOrAdmin(currentUser, item.createdById);
 
@@ -90,7 +94,10 @@ export default async function WorkDetailPage(props: {
         <div className="space-y-5 p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-2.5">
-              <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{item.title}</h1>
+              <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
+                {item.isSecure && <Lock className="size-5 shrink-0 text-muted-foreground" />}
+                {item.title}
+              </h1>
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-muted py-1 pr-2.5 pl-1 text-xs font-medium text-muted-foreground">
                   <UserAvatar name={item.assigneeName} size="sm" />

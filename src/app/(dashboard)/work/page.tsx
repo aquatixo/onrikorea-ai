@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Plus, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Plus, ChevronsLeft, ChevronsRight, Lock } from "lucide-react";
 import { db } from "@/lib/db";
+import { auth } from "@/auth";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { getPageWindow, parsePageSize } from "@/lib/pagination";
@@ -50,7 +51,15 @@ export default async function WorkPage(props: {
   const parsedPage = Number.parseInt(searchParams.page ?? "1", 10);
   const currentPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
 
+  const session = await auth();
+  const isAdmin = session?.user?.role === "ADMIN";
+  // Excluded entirely for anyone but ADMIN -- not just from the list, but from the
+  // sidebar's category counts too, so a secure item's category can't leak its
+  // existence to a DEVELOPER/USER who'd otherwise never see the item itself.
+  const secureFilter: Prisma.WorkItemWhereInput = isAdmin ? {} : { isSecure: false };
+
   const where: Prisma.WorkItemWhereInput = {
+    ...secureFilter,
     ...(assignee ? { assigneeName: assignee } : {}),
     ...(category ? { category } : {}),
     ...(q ? { title: { contains: q, mode: "insensitive" } } : {}),
@@ -62,7 +71,7 @@ export default async function WorkPage(props: {
     // used to only ever query this for the "기타" bucket, which is what left real people's
     // categories invisible in the nav even though the data was there all along.
     db.workItem.findMany({
-      where: { category: { not: null }, NOT: { category: "" } },
+      where: { ...secureFilter, category: { not: null }, NOT: { category: "" } },
       distinct: ["assigneeName", "category"],
       select: { assigneeName: true, category: true },
       orderBy: [{ assigneeName: "asc" }, { category: "asc" }],
@@ -140,7 +149,10 @@ export default async function WorkPage(props: {
                 >
                   <UserAvatar name={item.assigneeName} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{item.title}</p>
+                    <p className="flex items-center gap-1.5 truncate font-medium">
+                      {item.isSecure && <Lock className="size-3.5 shrink-0 text-muted-foreground" />}
+                      {item.title}
+                    </p>
                     <p className="truncate text-xs text-muted-foreground">
                       {item.assigneeName}
                       {item.category ? ` · ${item.category}` : ""}

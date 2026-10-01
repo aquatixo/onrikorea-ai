@@ -58,13 +58,15 @@ export default async function UsersPage() {
                   <TableCell className="text-muted-foreground">{u.name}</TableCell>
                   <TableCell>
                     <Badge variant={u.role === "ADMIN" ? "default" : "secondary"}>
-                      {u.role === "ADMIN" ? tu.roleAdmin : tu.roleUser}
+                      {u.role === "ADMIN" ? tu.roleAdmin : u.role === "DEVELOPER" ? tu.roleDeveloper : tu.roleUser}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {u.role === "ADMIN"
                       ? tu.allPages
-                      : u.allowedPages.length === 0
+                      : u.role === "DEVELOPER"
+                        ? tu.allPagesExceptSecure
+                        : u.allowedPages.length === 0
                         ? tu.noPages
                         : u.allowedPages.length === PAGE_SECTIONS.length
                           ? tu.allPages

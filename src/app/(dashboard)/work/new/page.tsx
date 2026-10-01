@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
+import { auth } from "@/auth";
 import { WorkForm } from "@/components/work-form";
 import { createWork } from "@/app/(dashboard)/work/actions";
 import { getLocale } from "@/lib/i18n/get-locale";
@@ -11,7 +12,7 @@ export default async function NewWorkPage(props: { searchParams: Promise<{ assig
   const t = getDictionary(locale);
   const { assignee, category } = await props.searchParams;
 
-  const people = await db.person.findMany({ orderBy: { name: "asc" } });
+  const [people, session] = await Promise.all([db.person.findMany({ orderBy: { name: "asc" } }), auth()]);
   const backHref = assignee ? `/work?assignee=${encodeURIComponent(assignee)}` : "/work";
 
   return (
@@ -26,6 +27,7 @@ export default async function NewWorkPage(props: { searchParams: Promise<{ assig
           action={createWork}
           defaultAssignee={assignee}
           assigneeOptions={people.map((p) => p.name)}
+          canSetSecure={session?.user?.role === "ADMIN"}
           defaultValues={category ? { category } : undefined}
         />
       </div>

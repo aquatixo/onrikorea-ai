@@ -15,8 +15,3 @@
       (`parseBrandImportSheet`)로 머지하면 그 뒤 필드가 한 칸씩 밀림. 컬럼 매핑 고치기 전까지 보류.
       ([brands/page.tsx:25](src/app/(dashboard)/brands/page.tsx:25), `SyncSharePointDialog` 숨겨둔 상태)
 
-## 권한/인증
-
-- [ ] 아직 admin role이 없어서 누구나 호출 가능한 상태인 기능들 — 실제 admin role 생기면 그 뒤로 막기:
-      - `createPerson` ([work/person-actions.ts:9](src/app/(dashboard)/work/person-actions.ts:9))
-      - item 추가 폼 노출 여부 ([work/add-item-form.tsx:13](src/components/work/add-item-form.tsx:13))

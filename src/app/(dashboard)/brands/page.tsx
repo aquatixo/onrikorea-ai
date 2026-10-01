@@ -22,10 +22,6 @@ import { BrandRow } from "@/components/brand-row";
 import { BrandSearch } from "@/components/brand-search";
 import { BrandExportMenu } from "@/components/brand-export-menu";
 import { ImportBrandsDialog } from "@/components/import-brands-dialog";
-// TODO: on hold -- real SharePoint sheet has an extra 채널 column between 방법론 and
-// Name that parseBrandImportSheet doesn't account for (would shift every field by one
-// column on merge). Fix the parser's column mapping before re-enabling.
-// import { SyncSharePointDialog } from "@/components/sync-sharepoint-dialog";
 import { PageSizeControl } from "@/components/page-size-control";
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/lib/db";

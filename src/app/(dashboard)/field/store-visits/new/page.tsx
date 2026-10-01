@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { StoreVisitForm } from "@/components/field/store-visit-form";
 import { createStoreVisit } from "@/app/(dashboard)/field/store-visits/actions";
 import { db } from "@/lib/db";
+import { isRealTeamUser } from "@/lib/dev-test-accounts";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 
@@ -11,7 +12,11 @@ export const dynamic = "force-dynamic";
 export default async function NewStoreVisitPage() {
   const locale = await getLocale();
   const t = getDictionary(locale).field;
-  const stores = await db.store.findMany({ where: { isActive: true }, orderBy: { name: "asc" } });
+  const [stores, allUsers] = await Promise.all([
+    db.store.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+    db.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, username: true } }),
+  ]);
+  const users = allUsers.filter((u) => isRealTeamUser(u.username));
 
   return (
     <main className="mx-auto w-full max-w-xl space-y-5 px-4 py-8 sm:px-6 sm:py-10">
@@ -20,7 +25,7 @@ export default async function NewStoreVisitPage() {
       </Link>
       <h1 className="text-2xl font-bold tracking-tight">{t.visits.newTitle}</h1>
       <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-        <StoreVisitForm mode="create" stores={stores} locale={locale} action={createStoreVisit} />
+        <StoreVisitForm mode="create" stores={stores} users={users} locale={locale} action={createStoreVisit} />
       </div>
     </main>
   );

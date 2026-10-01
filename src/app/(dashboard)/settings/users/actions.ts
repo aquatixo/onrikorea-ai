@@ -69,7 +69,7 @@ export async function createUser(prevState: UserFormState, formData: FormData): 
       name: parsed.data.name,
       passwordHash,
       role: parsed.data.role,
-      allowedPages: parsed.data.role === "ADMIN" ? [] : parsed.data.allowedPages,
+      allowedPages: parsed.data.role === "ADMIN" || parsed.data.role === "DEVELOPER" ? [] : parsed.data.allowedPages,
     },
   });
   redirect("/settings/users");
@@ -103,7 +103,7 @@ export async function updateUser(
     data: {
       name: parsed.data.name,
       role: parsed.data.role,
-      allowedPages: parsed.data.role === "ADMIN" ? [] : parsed.data.allowedPages,
+      allowedPages: parsed.data.role === "ADMIN" || parsed.data.role === "DEVELOPER" ? [] : parsed.data.allowedPages,
       ...(parsed.data.resetPassword ? { passwordHash: await defaultPasswordHash() } : {}),
     },
   });

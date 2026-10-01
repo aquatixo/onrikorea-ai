@@ -10,15 +10,10 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.53",
-    "@azure/identity": "^4.13.3",
     "@base-ui/react": "^1.8.0",
-    "@microsoft/microsoft-graph-client": "^3.0.7",
-    "@microsoft/microsoft-graph-types": "^2.43.1",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@vercel/blob": "^2.8.0",
-    "ai": "^7.0.100",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.3.0",
     "inngest": "^4.20.0",

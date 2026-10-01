@@ -6,6 +6,7 @@ import { updateStoreVisit } from "@/app/(dashboard)/field/store-visits/actions";
 import { auth } from "@/auth";
 import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { db } from "@/lib/db";
+import { isRealTeamUser } from "@/lib/dev-test-accounts";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 
@@ -16,11 +17,13 @@ export default async function EditStoreVisitPage(props: { params: Promise<{ id: 
   const locale = await getLocale();
   const t = getDictionary(locale).field;
 
-  const [visit, stores] = await Promise.all([
+  const [visit, stores, allUsers] = await Promise.all([
     db.storeVisit.findUnique({ where: { id } }),
     db.store.findMany({ orderBy: { name: "asc" } }),
+    db.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, username: true } }),
   ]);
   if (!visit) notFound();
+  const users = allUsers.filter((u) => isRealTeamUser(u.username));
 
   const session = await auth();
   if (!isOwnerOrAdmin(session?.user, visit.createdById)) redirect(`/field/store-visits/${id}`);
@@ -35,7 +38,7 @@ export default async function EditStoreVisitPage(props: { params: Promise<{ id: 
       </Link>
       <h1 className="text-2xl font-bold tracking-tight">{t.visits.edit}</h1>
       <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-        <StoreVisitForm mode="update" visit={visit} stores={stores} locale={locale} action={updateStoreVisit.bind(null, id)} />
+        <StoreVisitForm mode="update" visit={visit} stores={stores} users={users} locale={locale} action={updateStoreVisit.bind(null, id)} />
       </div>
     </main>
   );

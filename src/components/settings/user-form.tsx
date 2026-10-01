@@ -14,7 +14,7 @@ type ExistingUser = {
   id: string;
   username: string;
   name: string;
-  role: "ADMIN" | "USER";
+  role: "ADMIN" | "DEVELOPER" | "USER";
   allowedPages: string[];
 };
 
@@ -32,7 +32,7 @@ export function UserForm({
   const tu = t.settings.users;
   const [state, formAction, isPending] = useActionState(action, initialState);
   const router = useRouter();
-  const [role, setRole] = React.useState<"ADMIN" | "USER">(user?.role ?? "USER");
+  const [role, setRole] = React.useState<"ADMIN" | "DEVELOPER" | "USER">(user?.role ?? "USER");
   const [allowedPages, setAllowedPages] = React.useState<Set<string>>(new Set(user?.allowedPages ?? []));
   const [resetPassword, setResetPassword] = React.useState(false);
 
@@ -88,16 +88,19 @@ export function UserForm({
           id="role"
           name="role"
           value={role}
-          onChange={(e) => setRole(e.target.value as "ADMIN" | "USER")}
+          onChange={(e) => setRole(e.target.value as "ADMIN" | "DEVELOPER" | "USER")}
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
         >
           <option value="USER">{tu.roleUser}</option>
+          <option value="DEVELOPER">{tu.roleDeveloper}</option>
           <option value="ADMIN">{tu.roleAdmin}</option>
         </select>
       </div>
 
-      {role === "ADMIN" ? (
-        <p className="text-xs text-muted-foreground">{tu.adminFullAccessNote}</p>
+      {role === "ADMIN" || role === "DEVELOPER" ? (
+        <p className="text-xs text-muted-foreground">
+          {role === "ADMIN" ? tu.adminFullAccessNote : tu.developerFullAccessNote}
+        </p>
       ) : (
         <div className="space-y-1.5">
           <label className="text-sm font-medium">{tu.pagesLabel}</label>

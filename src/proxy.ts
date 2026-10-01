@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+﻿import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "@/auth.config";
 import { hasPathAccess } from "@/lib/access-control";
@@ -51,8 +51,10 @@ const proxy = auth((req) => {
   const { role, allowedPages } = req.auth.user;
   // Boundary-safe, matching sectionForPath's own prefix check -- a bare startsWith
   // would also (mis)match a hypothetical future route like /settings/users-export.
-  const isUsersAdminPath = pathname === "/settings/users" || pathname.startsWith("/settings/users/");
-  const deniedUsersPage = isUsersAdminPath && role !== "ADMIN";
+  const isAdminOnlySettingsPath = ["/settings/users", "/settings/work-assignees"].some(
+    (p) => pathname === p || pathname.startsWith(p + "/")
+  );
+  const deniedUsersPage = isAdminOnlySettingsPath && role !== "ADMIN";
   if (deniedUsersPage || !hasPathAccess(role, allowedPages, pathname)) {
     return NextResponse.redirect(new URL("/?denied=1", req.url));
   }

@@ -7,7 +7,7 @@ import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 type Photo = { id: string; fileUrl: string; fileName: string | null; caption: string | null; createdById: string | null };
-type CurrentUser = { id: string; role: "ADMIN" | "USER" } | null;
+type CurrentUser = { id: string; role: "ADMIN" | "DEVELOPER" | "USER" } | null;
 
 export function PhotoLightbox({
   photos,
