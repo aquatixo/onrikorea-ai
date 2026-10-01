@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user-avatar";
+import { HomeTypingHero } from "@/components/home-typing-hero";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { STATUS_STYLE } from "@/lib/brand-status";
@@ -77,13 +78,7 @@ export default async function HomePage(props: { searchParams: Promise<{ denied?:
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
             <Sparkles className="size-3.5" /> {t.home.badge}
           </div>
-          <h1 className="text-3xl leading-tight font-extrabold tracking-tight sm:text-5xl">
-            {t.home.titleLine1}
-            <br className="hidden sm:block" /> {t.home.titleLine2}
-          </h1>
-          <p className="max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg">
-            {t.home.description}
-          </p>
+          <HomeTypingHero className="text-3xl leading-tight font-extrabold tracking-tight sm:text-5xl" />
           <div className="flex flex-wrap gap-3 pt-1">
             <Button
               nativeButton={false}
@@ -122,8 +117,8 @@ export default async function HomePage(props: { searchParams: Promise<{ denied?:
             const Icon = m.icon;
             const content = (
               <>
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <Icon className="size-5 text-primary" />
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary">
+                  <Icon className="size-5 text-primary-foreground" />
                 </span>
                 <span className="text-xs font-medium">{m.label}</span>
                 {m.soon && (
@@ -259,12 +254,12 @@ function StatCard({
     <Card size="sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-xs font-medium text-muted-foreground sm:text-sm">{label}</CardTitle>
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-          <Icon className="size-4 text-primary" />
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary">
+          <Icon className="size-4 text-primary-foreground" />
         </span>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold sm:text-3xl">{value}</div>
+        <div className="text-2xl font-black tracking-tight sm:text-3xl">{value}</div>
       </CardContent>
     </Card>
   );
