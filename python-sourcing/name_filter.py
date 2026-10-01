@@ -84,6 +84,31 @@ NON_BRAND_DOMAINS = {
     "tabelog.com", "retty.me", "gnavi.co.jp", "ekiten.jp", "ameblo.jp",
     "hatenablog.com", "hatenablog.jp", "note.com", "cookpad.com", "rakuten.co.jp",
     "yahoo.co.jp", "goo.ne.jp",
+    # tour/activity booking marketplaces -- same class as tripadvisor.com/yelp.com
+    # above, just missed on the first pass. Real junk: civitatis.com hosted a
+    # "guided tour of the Selaya Sobao Museum" booking page, not a brand's own site.
+    "civitatis.com", "getyourguide.com", "viator.com", "klook.com",
+    # major recipe/cooking media sites the regional-specialty queries surface
+    # constantly (same class as allrecipes.com/thespruceeats.com above) --
+    # cucchiaio.it ("Cucchiaio d'Argento") is Italy's biggest recipe site, always a
+    # recipe page, never a brand. lebkuchen-rezepte.de is covered generically by
+    # is_recipe_page() below instead, since its whole domain is built from the word
+    # "Rezepte" (recipes) and that pattern recurs under other domain names too.
+    "cucchiaio.it", "giallozafferano.it", "marmiton.org", "chefkoch.de",
+    # food/travel "guide to [country]'s snacks" tourism and lifestyle sites -- write
+    # about regional specialties for travelers, never the manufacturer. Real junk:
+    # deliciousitaly.com's "Abruzzo food" guide, geogastronomica.com's "Sobao
+    # Pasiego" explainer, mochimommy.com's "snacks to bring home from Japan" listicle.
+    "deliciousitaly.com", "geogastronomica.com", "mochimommy.com", "japan-guide.com",
+    # research/feasibility-study and NGO/academic orgs that surface on "traditional
+    # recipe development" style queries -- funiber.org is a real junk hit: a food-
+    # science feasibility study ABOUT a traditional sobao recipe, not a sobao brand.
+    "funiber.org",
+    # personal travel/lifestyle blogs -- real junk from the same run: a travel
+    # blogger's "petticoat, shortbread and oatcakes" post, a family-travel blog's
+    # "El Día del Sobao Pasiego" post. Long-tail and unlikely to recur by this exact
+    # domain, but free to block now that they're known.
+    "mlisstravels.com", "cantabriaconninos.com",
 }
 
 # A URL path containing an e-commerce collection/category segment (e.g.
@@ -108,10 +133,13 @@ _ARTICLE_PATH_SEGMENTS = {
     "gallery", "buying-guide", "buying-guides",
 }
 
-# A WordPress-style date path (/2017/11/17/...) is essentially always a blog post --
-# real junk: an Italian lifestyle blog's "comprare-miglior-panettone-milano" post
-# lived at exactly this kind of path.
-_DATE_PATH = re.compile(r"/(19|20)\d{2}/\d{1,2}/\d{1,2}/")
+# A WordPress-style date path (/2017/11/17/... or the day-less /2017/11/...) is
+# essentially always a blog post -- real junk: an Italian lifestyle blog's
+# "comprare-miglior-panettone-milano" post lived at the 3-segment form, a Neapolitan
+# recipe blog's "ferratelle-morbide-ricetta-tipica-abruzzese.html" post lived at the
+# day-less 2-segment form (year/month/slug.html, no day number at all) -- the original
+# regex required all three segments and missed that second, very common permalink shape.
+_DATE_PATH = re.compile(r"/(19|20)\d{2}/\d{1,2}/")
 
 
 def is_article_page(url: str) -> bool:
@@ -125,6 +153,56 @@ def is_article_page(url: str) -> bool:
         return True
     path_parts = {p for p in path.split("/") if p}
     return bool(path_parts & _ARTICLE_PATH_SEGMENTS)
+
+
+# "recipe" in the local language, as a whole domain label or whole path segment only
+# (not a bare substring -- a brand genuinely named e.g. "Secret Recipe" would otherwise
+# be rejected). Real junk this catches: lebkuchen-rezepte.de (the whole domain is built
+# from "Lebkuchen" + "Rezepte"), cucchiaio.it/ricetta/ferratelle.amp.html (Italy's
+# biggest recipe site, path segment "ricetta"). Every regional-specialty query already
+# carries a "-receta"/"-Rezept"/"-ricetta" exclusion operator at search time, but that
+# only suppresses the WORD "recipe" itself, not every page that happens to be a recipe
+# without using that exact word in its title/snippet -- this is the second line of
+# defense for whatever slips past the search operator.
+_RECIPE_TOKENS = {
+    "rezept", "rezepte", "recipe", "recipes", "ricetta", "ricette",
+    "receta", "recetas", "recette", "recettes",
+}
+
+
+def is_recipe_page(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+        host = parsed.netloc.lower().removeprefix("www.")
+        path_parts = [p.lower() for p in parsed.path.split("/") if p]
+    except Exception:
+        return False
+    host_labels = set(re.split(r"[.-]", host))
+    if host_labels & _RECIPE_TOKENS:
+        return True
+    return any(part.split(".")[0] in _RECIPE_TOKENS for part in path_parts)
+
+
+# A parked/placeholder domain (never configured past the registrar's or website
+# builder's default page) has no brand to find at all -- real junk: loullig.com's
+# search snippet was literally "Titre du site Titre du site Bientôt disponible ...
+# Créez un site Web", a Wix-style default page in French. Checked against the search
+# result's description/snippet text, not the URL, since a parked domain's title/URL
+# alone usually look fine (the registrant typed a real-looking name).
+_PARKED_PAGE_SUBSTRINGS = [
+    "coming soon", "bientôt disponible", "créez un site web", "create your website",
+    "build your website", "site en construction", "en construction",
+    "under construction", "domain for sale", "this domain is for sale",
+    "página en construcción", "questo dominio è in vendita",
+    "diese domain steht zum verkauf", "default web site page", "titre du site",
+]
+
+
+def is_parked_page(description: str) -> bool:
+    if not description:
+        return False
+    lower = description.lower()
+    return any(s in lower for s in _PARKED_PAGE_SUBSTRINGS)
 
 _LISTICLE_START = re.compile(r"^\s*\d{1,3}\s")  # "10 Leading...", not "1919 Chocolate" (a real year)
 _IMPERATIVE_START = re.compile(r"^(buy|shop|get|find|discover)\b", re.IGNORECASE)

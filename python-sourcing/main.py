@@ -60,6 +60,8 @@ from name_filter import (
     is_blocked_domain,
     is_retailer_listing_page,
     is_article_page,
+    is_recipe_page,
+    is_parked_page,
     domain_matches_name,
     guess_brand_name,
 )
@@ -359,7 +361,13 @@ def process_one_query(conn, run_id: str, bucket: dict, query_text: str, progress
 
     raw = []
     for r in results:
-        if is_blocked_domain(r["url"]) or is_retailer_listing_page(r["url"]) or is_article_page(r["url"]):
+        if (
+            is_blocked_domain(r["url"])
+            or is_retailer_listing_page(r["url"])
+            or is_article_page(r["url"])
+            or is_recipe_page(r["url"])
+            or is_parked_page(r.get("description", ""))
+        ):
             continue
         name = guess_brand_name(r["title"], r["url"])
         if not name:
