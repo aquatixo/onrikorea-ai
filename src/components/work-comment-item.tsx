@@ -6,6 +6,7 @@ import { useTransition } from "react";
 import { WorkCommentForm } from "@/components/work-comment-form";
 import { UserAvatar } from "@/components/user-avatar";
 import { updateWorkComment, deleteWorkComment } from "@/app/(dashboard)/work/actions";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { WorkComment } from "@prisma/client";
@@ -35,10 +36,12 @@ function CommentActions({
 }) {
   const t = getDictionary(locale).work.detail;
   const router = useRouter();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [isPending, startTransition] = useTransition();
 
   return (
     <>
+      {confirmDialog}
       <button
         onClick={onEdit}
         className="text-xs font-medium text-muted-foreground transition hover:text-foreground"
@@ -47,11 +50,11 @@ function CommentActions({
       </button>
       <button
         disabled={isPending}
-        onClick={() => {
-          if (!confirm(t.confirmDeleteComment)) return;
+        onClick={async () => {
+          if (!(await confirm({ description: t.confirmDeleteComment, destructive: true }))) return;
           startTransition(async () => {
             const result = await deleteWorkComment(comment.id, workItemId);
-            if (result?.error) alert(result.error);
+            if (result?.error) await confirm({ description: result.error, alertOnly: true });
             router.refresh();
           });
         }}

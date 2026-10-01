@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { UserAvatar } from "@/components/user-avatar";
 import { updateBrandLog, deleteBrandLog } from "@/app/(dashboard)/brands/actions";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { BrandLog } from "@prisma/client";
@@ -34,6 +35,7 @@ export function BrandLogItem({
 }) {
   const t = getDictionary(locale).detail;
   const router = useRouter();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [isEditing, setIsEditing] = React.useState(false);
   const [body, setBody] = React.useState(log.body);
   const [error, setError] = React.useState<string | null>(null);
@@ -91,6 +93,7 @@ export function BrandLogItem({
 
   return (
     <div className="flex gap-3">
+      {confirmDialog}
       <UserAvatar name={authorName} size="sm" />
       <div className="min-w-0 flex-1 space-y-1">
         <div className="rounded-2xl rounded-tl-sm bg-muted/60 px-3.5 py-2.5">
@@ -110,11 +113,11 @@ export function BrandLogItem({
             </button>
             <button
               disabled={isPending}
-              onClick={() => {
-                if (!confirm(t.confirmDeleteLog)) return;
+              onClick={async () => {
+                if (!(await confirm({ description: t.confirmDeleteLog, destructive: true }))) return;
                 startTransition(async () => {
                   const result = await deleteBrandLog(log.id, brandId);
-                  if (result?.error) alert(result.error);
+                  if (result?.error) await confirm({ description: result.error, alertOnly: true });
                   router.refresh();
                 });
               }}
