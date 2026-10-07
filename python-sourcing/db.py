@@ -120,6 +120,20 @@ def update_daily_budget(
     conn.commit()
 
 
+def add_search_usage(conn, backend: str, run_date: date, calls: int) -> None:
+    """Adds calls to another backend's daily usage -- for searches one backend's run makes
+    on the other's account (a Tavily run's Korea checks always go through Serper)."""
+    if calls <= 0:
+        return
+    get_or_create_daily_budget(conn, backend, run_date)
+    with conn.cursor() as cur:
+        cur.execute(
+            'UPDATE "SourcingDailyBudget" SET "searchUsed" = "searchUsed" + %s WHERE backend = %s AND "runDate" = %s',
+            (calls, backend, run_date),
+        )
+    conn.commit()
+
+
 def get_lane_state(conn, backend: str, lane_code: str) -> dict:
     with conn.cursor() as cur:
         cur.execute(
