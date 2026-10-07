@@ -33,6 +33,16 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# full DB export (contains real user password hashes/contacts) -- never commit this
+db-export.json
+
+# full Vercel Blob storage export
+vercel-blob-export/
+vercel-blob-export.zip
+
+# session handoff notes -- local working document, not part of the repo
+HANDOFF.md
+
 # vercel
 .vercel
 

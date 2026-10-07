@@ -21,7 +21,14 @@ export function WebsiteLink({ website }: { website: string }) {
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
-      className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+      // Browsers natively let you drag a link by its text (no custom drag code needed to
+      // trigger it) -- mousedown-then-drag-out-of-bounds to "cancel" a click is a common
+      // habit, but on a link it instead starts that native drag gesture, and releasing it
+      // outside a valid drop target can leave the browser's drag state stuck (page stops
+      // responding to clicks until reload). Nothing here is ever meant to be dragged
+      // anywhere, so just disable the browser's native drag entirely.
+      draggable={false}
+      className="inline-flex items-center gap-1 text-sm text-primary hover:underline [-webkit-user-drag:none]"
     >
       <Globe className="size-3.5" />
       {domainOnly(website)}

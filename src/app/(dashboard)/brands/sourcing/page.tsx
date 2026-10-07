@@ -1,11 +1,6 @@
 import { db } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
-// TODO: on hold indefinitely -- the Claude/Anthropic-API sourcing pipeline (real LLM
-// judgment of ownership/heritage/packaging, not just the mechanical checks the Python
-// engine does) has no separate budget/credit line and isn't expected to get one. Not
-// wired up in the UI at all for now -- re-enable (see run-sourcing-button.tsx, still in
-// the tree) only if that changes.
 import { RunPythonSourcingButton } from "@/components/run-python-sourcing-button";
 import { SourcingBackendStatus } from "@/components/sourcing-backend-status";
 import type { SourcingProgress } from "@/components/sourcing-progress-panel";

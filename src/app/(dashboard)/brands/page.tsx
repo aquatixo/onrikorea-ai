@@ -93,7 +93,6 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
           <PageSizeControl value={pageSize} label={t.brands.rowsPerPage} />
           <BrandSearch defaultValue={q} placeholder={t.brands.searchPlaceholder} />
           <ImportBrandsDialog locale={locale} />
-          {/* TODO: on hold -- see column-mapping bug note above. Swap back in once fixed. */}
           <Button
             nativeButton={false}
             render={

@@ -183,9 +183,9 @@ export const dictionaries = {
     sourcing: {
       title: "Brand Sourcing",
       subtitle: "Search the web for new heritage brand candidates matching our sourcing criteria.",
-      runPythonButtonServer: "Run Python Sourcing — Serper (local)",
-      runPythonButtonTavily: "Run Python Sourcing — Tavily (local)",
-      runningPython: "Running locally... this can take several minutes",
+      runPythonButtonServer: "Run Python Sourcing — Serper",
+      runPythonButtonTavily: "Run Python Sourcing — Tavily",
+      runningPython: "Running... this can take several minutes",
       noRunsYet: "No sourcing runs yet. Click \"Run Brand Sourcing\" to find candidates.",
       noRunsToday: "Not run yet today",
       resultsTitle: (n: number) => `${n} candidate${n === 1 ? "" : "s"} found`,
@@ -243,6 +243,7 @@ export const dictionaries = {
         flagged: "Flagged for review",
         errors: "Errors",
         skippedCrawl: "Skipped crawl (rejected free)",
+        duplicatesSkipped: "Already known (not shown)",
       },
     },
     status: {
@@ -827,9 +828,9 @@ export const dictionaries = {
     sourcing: {
       title: "브랜드 발굴",
       subtitle: "소싱 기준에 맞는 새로운 헤리티지 브랜드 후보를 웹에서 검색합니다.",
-      runPythonButtonServer: "Python 발굴 실행 — Serper (로컬)",
-      runPythonButtonTavily: "Python 발굴 실행 — Tavily (로컬)",
-      runningPython: "로컬에서 실행 중... 몇 분 정도 소요될 수 있습니다",
+      runPythonButtonServer: "Python 발굴 실행 — Serper",
+      runPythonButtonTavily: "Python 발굴 실행 — Tavily",
+      runningPython: "실행 중... 몇 분 정도 소요될 수 있습니다",
       noRunsYet: "아직 발굴 실행 기록이 없습니다. \"브랜드 발굴 실행\"을 클릭해 후보를 찾아보세요.",
       noRunsToday: "오늘 아직 실행 안 함",
       resultsTitle: (n: number) => `후보 ${n}건 발견`,
@@ -887,6 +888,7 @@ export const dictionaries = {
         flagged: "검토 필요",
         errors: "오류",
         skippedCrawl: "조기 제외 (크롤링 생략)",
+        duplicatesSkipped: "이미 등록됨 (미표시)",
       },
     },
     status: {
