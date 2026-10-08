@@ -12,6 +12,12 @@ import { cn } from "cn";
 
 type AssigneeEntry = { name: string; isEtc: boolean };
 
+// Dragging a category onto another assignee moves EVERY item in it at once, with no
+// confirmation or undo, including admin-only secure items the dragger can't see. Off until
+// it gets a confirm step and skips secure items; items can still be reassigned one by one
+// from the edit form.
+const CATEGORY_DRAG_ENABLED = false;
+
 function assigneeHref(name: string, category: string, pageSize: number) {
   const params = new URLSearchParams();
   if (name) params.set("assignee", name);
@@ -107,12 +113,14 @@ export function WorkAssigneeNav({
                 onClick={() => {
                   if (categories.length > 0) toggleExpanded(name, isOpen);
                 }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOverAssignee(name);
-                }}
-                onDragLeave={() => setDragOverAssignee((current) => (current === name ? null : current))}
-                onDrop={(e) => handleDrop(e, name)}
+                {...(CATEGORY_DRAG_ENABLED ? {
+                  onDragOver: (e: React.DragEvent) => {
+                    e.preventDefault();
+                    setDragOverAssignee(name);
+                  },
+                  onDragLeave: () => setDragOverAssignee((current) => (current === name ? null : current)),
+                  onDrop: (e: React.DragEvent) => handleDrop(e, name),
+                } : {})}
                 className={cn(
                   "flex flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
                   isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
@@ -140,16 +148,19 @@ export function WorkAssigneeNav({
                   <Link
                     key={cat}
                     href={assigneeHref(name, cat, pageSize)}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.effectAllowed = "move";
-                      e.dataTransfer.setData(
-                        "application/json",
-                        JSON.stringify({ fromAssignee: name, category: cat })
-                      );
-                    }}
+                    draggable={CATEGORY_DRAG_ENABLED}
+                    {...(CATEGORY_DRAG_ENABLED ? {
+                      onDragStart: (e: React.DragEvent) => {
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData(
+                          "application/json",
+                          JSON.stringify({ fromAssignee: name, category: cat })
+                        );
+                      },
+                    } : {})}
                     className={cn(
-                      "cursor-grab rounded-lg px-2.5 py-1 text-xs font-medium transition-colors active:cursor-grabbing",
+                      "rounded-lg px-2.5 py-1 text-xs font-medium transition-colors",
+                      CATEGORY_DRAG_ENABLED && "cursor-grab active:cursor-grabbing",
                       currentAssignee === name && currentCategory === cat
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-muted"

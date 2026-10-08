@@ -36,7 +36,16 @@ export async function freshToken<T extends object>(
 ): Promise<T | null> {
   const t = token as TokenLike;
   if (typeof t.id !== "string" || !t.id) return null;
-  const current = await load(t.id);
+  let current: CurrentAuthUser | null;
+  try {
+    current = await load(t.id);
+  } catch (e) {
+    // DB unreachable: keep the session. Ending it here would sign out every active user
+    // during an outage (Auth.js deletes the cookie when this callback throws), and the
+    // app can't serve data without the DB anyway.
+    console.error("auth-stamp check skipped, DB error:", e);
+    return token;
+  }
   if (!current) return null; // user deleted
   if (t.authStamp) return t.authStamp === current.stamp ? token : null;
   // Session issued before stamps existed: compare the fields it carries instead, and

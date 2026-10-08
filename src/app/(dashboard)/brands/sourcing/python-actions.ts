@@ -4,6 +4,7 @@ import { spawn } from "child_process";
 import path from "path";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
 
 /**
  * Starts the Python evidence-only sourcing engine as a local subprocess and returns
@@ -17,6 +18,7 @@ import { db } from "@/lib/db";
 export async function startPythonBrandSourcing(
   backend: "serper" | "tavily" = "serper"
 ): Promise<{ runId: string } | { error: string }> {
+  if (!(await requireSection("brandSourcing"))) return { error: await noAccessMessage() };
   const run = await db.sourcingRun.create({ data: { status: "running", backend } });
   const scriptDir = path.join(process.cwd(), "python-sourcing");
 
@@ -85,6 +87,7 @@ export async function startPythonBrandSourcing(
 }
 
 export async function stopPythonBrandSourcing(runId: string): Promise<{ ok: true } | { error: string }> {
+  if (!(await requireSection("brandSourcing"))) return { error: await noAccessMessage() };
   const run = await db.sourcingRun.findUnique({ where: { id: runId } });
   if (!run) return { error: "Run not found." };
 

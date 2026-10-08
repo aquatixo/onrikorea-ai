@@ -28,6 +28,7 @@ export const dictionaries = {
     },
     common: {
       forbidden: "Only the admin or the original author can edit or delete this.",
+      noSectionAccess: "You don't have access to this menu. Sign in again or ask an admin.",
       notFound: "Not found.",
     },
     login: {
@@ -41,6 +42,7 @@ export const dictionaries = {
       signingIn: "Signing in...",
       footer: "Internal tool for the Global Business Department.",
       sessionExpired: "Your account's permissions or password were changed. Please sign in again.",
+      passwordChanged: "Your password was changed. Sign in with your new password.",
     },
     home: {
       badge: "Global Business Department",
@@ -187,6 +189,7 @@ export const dictionaries = {
       runPythonButtonServer: "Run Python Sourcing — Serper",
       runPythonButtonTavily: "Run Python Sourcing — Tavily",
       runningPython: "Running... this can take several minutes",
+      alreadyInBrands: (name: string) => `Already in Brands as "${name}" -- not added again.`,
       noRunsYet: "No sourcing runs yet. Click \"Run Brand Sourcing\" to find candidates.",
       noRunsToday: "Not run yet today",
       resultsTitle: (n: number) => `${n} candidate${n === 1 ? "" : "s"} found`,
@@ -674,6 +677,7 @@ export const dictionaries = {
     },
     common: {
       forbidden: "관리자 또는 작성자만 수정/삭제할 수 있습니다.",
+      noSectionAccess: "이 메뉴에 대한 권한이 없습니다. 다시 로그인하거나 관리자에게 문의하세요.",
       notFound: "찾을 수 없습니다.",
     },
     login: {
@@ -687,6 +691,7 @@ export const dictionaries = {
       signingIn: "로그인 중...",
       footer: "Global Business Department 내부 도구",
       sessionExpired: "계정 정보(권한 또는 비밀번호)가 변경되었습니다. 다시 로그인해 주세요.",
+      passwordChanged: "비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해 주세요.",
     },
     home: {
       badge: "글로벌사업부",
@@ -833,6 +838,7 @@ export const dictionaries = {
       runPythonButtonServer: "Python 발굴 실행 — Serper",
       runPythonButtonTavily: "Python 발굴 실행 — Tavily",
       runningPython: "실행 중... 몇 분 정도 소요될 수 있습니다",
+      alreadyInBrands: (name: string) => `이미 Brands에 등록된 브랜드입니다 ("${name}"). 다시 추가하지 않았습니다.`,
       noRunsYet: "아직 발굴 실행 기록이 없습니다. \"브랜드 발굴 실행\"을 클릭해 후보를 찾아보세요.",
       noRunsToday: "오늘 아직 실행 안 함",
       resultsTitle: (n: number) => `후보 ${n}건 발견`,

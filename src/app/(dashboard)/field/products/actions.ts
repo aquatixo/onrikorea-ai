@@ -8,6 +8,7 @@ import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
 import { canModifyContent } from "@/lib/auth/ownership-server";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
+import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
 
 export type ProductFormState = {
   errors?: Partial<Record<string, string[]>>;
@@ -31,6 +32,7 @@ function localizeErrors(
 }
 
 export async function createProduct(prevState: ProductFormState, formData: FormData): Promise<ProductFormState> {
+  if (!(await requireSection("products"))) return { message: await noAccessMessage() };
   const t = getDictionary(await getLocale()).field;
   const storeVisitId = formData.get("storeVisitId");
   if (typeof storeVisitId !== "string" || !storeVisitId) {
@@ -52,6 +54,7 @@ export async function updateProduct(
   prevState: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
+  if (!(await requireSection("products"))) return { message: await noAccessMessage() };
   const dict = getDictionary(await getLocale());
   const t = dict.field;
 
@@ -71,6 +74,7 @@ export async function updateProduct(
 }
 
 export async function deleteProduct(id: string): Promise<{ error?: string }> {
+  if (!(await requireSection("products"))) return { error: await noAccessMessage() };
   const target = await db.product.findUnique({ where: { id }, select: { createdById: true } });
   if (!target) return {};
   if (!(await canModifyContent(target.createdById))) {

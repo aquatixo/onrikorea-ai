@@ -10,10 +10,11 @@ import { uploadFieldPhoto, deleteFieldPhoto, isAllowedImageType } from "@/lib/bl
 import { canModifyContent } from "@/lib/auth/ownership-server";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
+import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
 
-function realImageFile(formData: FormData): File | null {
+async function realImageFile(formData: FormData): Promise<File | null> {
   const value = formData.get("image");
-  return value instanceof File && value.size > 0 && isAllowedImageType(value) ? value : null;
+  return value instanceof File && value.size > 0 && (await isAllowedImageType(value)) ? value : null;
 }
 
 export type StoreFormState = {
@@ -38,13 +39,14 @@ function localizeErrors(
 }
 
 export async function createStore(prevState: StoreFormState, formData: FormData): Promise<StoreFormState> {
+  if (!(await requireSection("stores"))) return { message: await noAccessMessage() };
   const t = getDictionary(await getLocale()).field;
   const parsed = storeFormSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { errors: localizeErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
   }
 
-  const image = realImageFile(formData);
+  const image = await realImageFile(formData);
   let imageUrl: string | undefined;
   let imageName: string | undefined;
   if (image) {
@@ -59,6 +61,7 @@ export async function createStore(prevState: StoreFormState, formData: FormData)
 }
 
 export async function updateStore(id: string, prevState: StoreFormState, formData: FormData): Promise<StoreFormState> {
+  if (!(await requireSection("stores"))) return { message: await noAccessMessage() };
   const dict = getDictionary(await getLocale());
   const t = dict.field;
 
@@ -73,7 +76,7 @@ export async function updateStore(id: string, prevState: StoreFormState, formDat
     return { errors: localizeErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
   }
 
-  const image = realImageFile(formData);
+  const image = await realImageFile(formData);
   const removeImage = formData.get("removeImage") === "true";
 
   let imageUrl: string | null | undefined;
@@ -97,6 +100,7 @@ export async function updateStore(id: string, prevState: StoreFormState, formDat
 }
 
 export async function setStoreActive(id: string, isActive: boolean): Promise<{ error?: string }> {
+  if (!(await requireSection("stores"))) return { error: await noAccessMessage() };
   const existing = await db.store.findUnique({ where: { id }, select: { createdById: true } });
   if (!existing) return {};
   if (!(await canModifyContent(existing.createdById))) {
@@ -109,6 +113,7 @@ export async function setStoreActive(id: string, isActive: boolean): Promise<{ e
 }
 
 export async function deleteStore(id: string): Promise<{ error?: string }> {
+  if (!(await requireSection("stores"))) return { error: await noAccessMessage() };
   const dict = getDictionary(await getLocale());
   const t = dict.field;
 

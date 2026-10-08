@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
+import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
 
 const ETC_ASSIGNEE = "기타";
 
@@ -14,6 +15,7 @@ export async function reassignCategory(
   category: string,
   toAssignee: string
 ): Promise<{ success: true } | { error: string }> {
+  if (!(await requireSection("work"))) return { error: await noAccessMessage() };
   const t = getDictionary(await getLocale()).work.form;
 
   if (!fromAssignee || !category || !toAssignee || fromAssignee === toAssignee) {

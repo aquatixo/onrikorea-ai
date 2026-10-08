@@ -11,6 +11,7 @@ import { canModifyContent } from "@/lib/auth/ownership-server";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import type { StoreVisitPhotoType, StoreVisitStatus } from "@prisma/client";
+import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
 
 export type StoreVisitFormState = {
   errors?: Partial<Record<string, string[]>>;
@@ -39,6 +40,7 @@ export async function createStoreVisit(
   prevState: StoreVisitFormState,
   formData: FormData
 ): Promise<StoreVisitFormState> {
+  if (!(await requireSection("storeVisits"))) return { message: await noAccessMessage() };
   const t = getDictionary(await getLocale()).field;
   const parsed = storeVisitFormSchema.safeParse({
     ...Object.fromEntries(formData),
@@ -59,6 +61,7 @@ export async function updateStoreVisit(
   prevState: StoreVisitFormState,
   formData: FormData
 ): Promise<StoreVisitFormState> {
+  if (!(await requireSection("storeVisits"))) return { message: await noAccessMessage() };
   const dict = getDictionary(await getLocale());
   const t = dict.field;
 
@@ -80,6 +83,7 @@ export async function updateStoreVisit(
 }
 
 export async function deleteStoreVisit(id: string): Promise<{ error?: string }> {
+  if (!(await requireSection("storeVisits"))) return { error: await noAccessMessage() };
   const target = await db.storeVisit.findUnique({ where: { id }, select: { createdById: true } });
   if (!target) return {};
   if (!(await canModifyContent(target.createdById))) {
@@ -92,6 +96,7 @@ export async function deleteStoreVisit(id: string): Promise<{ error?: string }> 
 }
 
 export async function setStoreVisitStatus(id: string, status: StoreVisitStatus): Promise<{ error?: string }> {
+  if (!(await requireSection("storeVisits"))) return { error: await noAccessMessage() };
   const target = await db.storeVisit.findUnique({ where: { id }, select: { createdById: true } });
   if (!target) return {};
   if (!(await canModifyContent(target.createdById))) {
@@ -108,10 +113,10 @@ export type ItemFormState = {
   message?: string;
 };
 
-function getPhotoFiles(formData: FormData): File[] {
-  return formData
-    .getAll("photos")
-    .filter((f): f is File => f instanceof File && f.size > 0 && isAllowedImageType(f));
+async function getPhotoFiles(formData: FormData): Promise<File[]> {
+  const files = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+  const real = await Promise.all(files.map((f) => isAllowedImageType(f)));
+  return files.filter((_, i) => real[i]);
 }
 
 function localizeItemErrors(
@@ -135,6 +140,7 @@ export async function addStoreVisitItem(
   prevState: ItemFormState,
   formData: FormData
 ): Promise<ItemFormState> {
+  if (!(await requireSection("storeVisits"))) return { message: await noAccessMessage() };
   const t = getDictionary(await getLocale()).field;
   const parsed = productFormSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -164,7 +170,7 @@ export async function addStoreVisitItem(
     },
   });
 
-  const files = getPhotoFiles(formData);
+  const files = await getPhotoFiles(formData);
   if (files.length > 0) {
     const photoType = (formData.get("photoType") as string) || "PRODUCT";
     const uploaded = await Promise.all(files.map((f) => uploadFieldPhoto(f)));
@@ -189,6 +195,7 @@ export async function updateStoreVisitItem(
   prevState: ItemFormState,
   formData: FormData
 ): Promise<ItemFormState> {
+  if (!(await requireSection("storeVisits"))) return { message: await noAccessMessage() };
   const dict = getDictionary(await getLocale());
   const t = dict.field;
 
@@ -228,7 +235,7 @@ export async function updateStoreVisitItem(
     },
   });
 
-  const files = getPhotoFiles(formData);
+  const files = await getPhotoFiles(formData);
   if (files.length > 0) {
     const photoType = (formData.get("photoType") as string) || "PRODUCT";
     const uploaded = await Promise.all(files.map((f) => uploadFieldPhoto(f)));
@@ -248,6 +255,7 @@ export async function updateStoreVisitItem(
 }
 
 export async function deleteStoreVisitItem(storeVisitId: string, itemId: string): Promise<{ error?: string }> {
+  if (!(await requireSection("storeVisits"))) return { error: await noAccessMessage() };
   const item = await db.product.findUnique({ where: { id: itemId } });
   if (!item || item.storeVisitId !== storeVisitId) return {}; // referential check
   if (!(await canModifyContent(item.createdById))) {
@@ -259,7 +267,8 @@ export async function deleteStoreVisitItem(storeVisitId: string, itemId: string)
 }
 
 export async function uploadStoreVisitPhoto(storeVisitId: string, formData: FormData): Promise<{ error?: string }> {
-  const files = getPhotoFiles(formData);
+  if (!(await requireSection("storeVisits"))) return { error: await noAccessMessage() };
+  const files = await getPhotoFiles(formData);
   if (files.length === 0) return { error: "no-file" };
   const photoType = (formData.get("photoType") as string) || "STORE";
   const captionRaw = formData.get("caption");
@@ -283,6 +292,7 @@ export async function uploadStoreVisitPhoto(storeVisitId: string, formData: Form
 }
 
 export async function deleteStoreVisitPhoto(photoId: string, storeVisitId: string): Promise<{ error?: string }> {
+  if (!(await requireSection("storeVisits"))) return { error: await noAccessMessage() };
   const photo = await db.storeVisitPhoto.findUnique({ where: { id: photoId } });
   if (!photo || photo.storeVisitId !== storeVisitId) return {}; // referential check
   if (!(await canModifyContent(photo.createdById))) {

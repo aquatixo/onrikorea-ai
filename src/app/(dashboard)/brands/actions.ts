@@ -10,6 +10,7 @@ import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
 import { canModifyContent } from "@/lib/auth/ownership-server";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
+import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
 
 export type BrandFormState = {
   errors?: Partial<Record<string, string[]>>;
@@ -38,6 +39,7 @@ export async function createBrand(
   prevState: BrandFormState,
   formData: FormData
 ): Promise<BrandFormState> {
+  if (!(await requireSection("brands"))) return { message: await noAccessMessage() };
   const t = getDictionary(await getLocale()).form;
 
   const parsed = brandFormSchema.safeParse(Object.fromEntries(formData));
@@ -73,6 +75,7 @@ export async function updateBrand(
   prevState: BrandFormState,
   formData: FormData
 ): Promise<BrandFormState> {
+  if (!(await requireSection("brands"))) return { message: await noAccessMessage() };
   const dict = getDictionary(await getLocale());
   const t = dict.form;
 
@@ -113,6 +116,7 @@ export async function updateBrand(
 }
 
 export async function deleteBrand(id: string, returnTo: string | undefined): Promise<{ error?: string }> {
+  if (!(await requireSection("brands"))) return { error: await noAccessMessage() };
   const target = await db.brand.findUnique({ where: { id }, select: { createdById: true } });
   if (!target) return {};
   if (!(await canModifyContent(target.createdById))) {
@@ -124,6 +128,7 @@ export async function deleteBrand(id: string, returnTo: string | undefined): Pro
 }
 
 export async function createBrandLog(brandId: string, body: string): Promise<{ success: true } | { error: string }> {
+  if (!(await requireSection("brands"))) return { error: await noAccessMessage() };
   const dict = getDictionary(await getLocale());
   const t = dict.detail;
 
@@ -140,6 +145,7 @@ export async function createBrandLog(brandId: string, body: string): Promise<{ s
 }
 
 export async function updateBrandLog(logId: string, brandId: string, body: string): Promise<{ success: true } | { error: string }> {
+  if (!(await requireSection("brands"))) return { error: await noAccessMessage() };
   const dict = getDictionary(await getLocale());
   const t = dict.detail;
 
@@ -159,6 +165,7 @@ export async function updateBrandLog(logId: string, brandId: string, body: strin
 }
 
 export async function deleteBrandLog(logId: string, brandId: string): Promise<{ error?: string }> {
+  if (!(await requireSection("brands"))) return { error: await noAccessMessage() };
   const existing = await db.brandLog.findUnique({ where: { id: logId }, select: { createdById: true, brandId: true } });
   if (!existing || existing.brandId !== brandId) return {};
   if (!(await canModifyContent(existing.createdById))) {

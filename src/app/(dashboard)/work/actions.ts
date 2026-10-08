@@ -12,6 +12,7 @@ import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { getUserName } from "@/lib/user/get-user-name";
 import type { WorkStatus } from "@prisma/client";
+import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
 
 export type WorkFormState = {
   errors?: Partial<Record<string, string[]>>;
@@ -42,6 +43,7 @@ function realFile(formData: FormData, key: string): File | null {
 }
 
 export async function createWork(prevState: WorkFormState, formData: FormData): Promise<WorkFormState> {
+  if (!(await requireSection("work"))) return { message: await noAccessMessage() };
   const t = getDictionary(await getLocale()).work.form;
 
   const parsed = workFormSchema.safeParse(Object.fromEntries(formData));
@@ -79,6 +81,7 @@ export async function updateWork(
   prevState: WorkFormState,
   formData: FormData
 ): Promise<WorkFormState> {
+  if (!(await requireSection("work"))) return { message: await noAccessMessage() };
   const dict = getDictionary(await getLocale());
   const t = dict.work.form;
 
@@ -142,6 +145,7 @@ export async function updateWork(
 }
 
 export async function deleteWork(id: string, returnTo: string | undefined): Promise<{ error?: string }> {
+  if (!(await requireSection("work"))) return { error: await noAccessMessage() };
   // Cascades to WorkComment (and its replies) at the DB level.
   const existing = await db.workItem.findUnique({ where: { id }, select: { fileUrl: true, createdById: true } });
   if (!existing) return {};
@@ -155,6 +159,7 @@ export async function deleteWork(id: string, returnTo: string | undefined): Prom
 }
 
 export async function updateWorkStatus(id: string, status: WorkStatus): Promise<{ error?: string }> {
+  if (!(await requireSection("work"))) return { error: await noAccessMessage() };
   const existing = await db.workItem.findUnique({ where: { id }, select: { createdById: true } });
   if (!existing) return { error: getDictionary(await getLocale()).common.notFound };
   if (!(await canModifyContent(existing.createdById))) {
@@ -176,6 +181,7 @@ export async function addWorkComment(input: {
   body: string;
   parentId?: string;
 }): Promise<{ success: true } | { error: string }> {
+  if (!(await requireSection("work"))) return { error: await noAccessMessage() };
   const t = getDictionary(await getLocale()).work.detail;
 
   // Author always comes from the server-side name cookie, never from the client call --
@@ -211,6 +217,7 @@ export async function updateWorkComment(
   workItemId: string,
   body: string
 ): Promise<{ success: true } | { error: string }> {
+  if (!(await requireSection("work"))) return { error: await noAccessMessage() };
   const dict = getDictionary(await getLocale());
   const t = dict.work.detail;
 
@@ -230,6 +237,7 @@ export async function updateWorkComment(
 }
 
 export async function deleteWorkComment(commentId: string, workItemId: string): Promise<{ error?: string }> {
+  if (!(await requireSection("work"))) return { error: await noAccessMessage() };
   // Referential check -- this comment must actually belong to the work item the URL says it does.
   const existing = await db.workComment.findUnique({ where: { id: commentId }, select: { createdById: true, workItemId: true } });
   if (!existing || existing.workItemId !== workItemId) return {};

@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
 import { createUserSchema, updateUserSchema } from "@/lib/validation/settings";
@@ -90,7 +90,7 @@ export async function updateUser(
     return { errors: localizeErrors(parsed.error.flatten().fieldErrors, t), message: t.fixErrors };
   }
 
-  const target = await db.user.findUnique({ where: { id }, select: { role: true } });
+  const target = await db.user.findUnique({ where: { id }, select: { role: true, allowedPages: true } });
   if (!target) return { message: t.users.notFound };
 
   if (target.role === "ADMIN" && parsed.data.role !== "ADMIN") {
@@ -98,15 +98,23 @@ export async function updateUser(
     if (adminCount <= 1) return { message: t.users.lastAdmin };
   }
 
+  const allowedPages = parsed.data.role === "ADMIN" || parsed.data.role === "DEVELOPER" ? [] : parsed.data.allowedPages;
   await db.user.update({
     where: { id },
     data: {
       name: parsed.data.name,
       role: parsed.data.role,
-      allowedPages: parsed.data.role === "ADMIN" || parsed.data.role === "DEVELOPER" ? [] : parsed.data.allowedPages,
+      allowedPages,
       ...(parsed.data.resetPassword ? { passwordHash: await defaultPasswordHash() } : {}),
     },
   });
+
+  // Editing your OWN role/pages/password invalidates your own session (auth-stamp.ts) --
+  // go to the login page now rather than failing on the next click.
+  const samePages = [...target.allowedPages].sort().join(",") === [...allowedPages].sort().join(",");
+  if (session.user.id === id && (target.role !== parsed.data.role || !samePages || parsed.data.resetPassword)) {
+    await signOut({ redirectTo: "/login?expired=1" });
+  }
   redirect("/settings/users");
 }
 

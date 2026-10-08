@@ -6,6 +6,7 @@ import { extractDomain } from "@/lib/extract-domain";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { parseBrandImportSheet, type ImportError } from "@/lib/brand-import/parse";
+import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
 
 export type ImportResult = { success: true; count: number } | { success: false; errors: string[] };
 
@@ -39,6 +40,7 @@ function formatError(error: ImportError, t: ReturnType<typeof getDictionary>): s
 }
 
 export async function importBrandsFromExcel(formData: FormData): Promise<ImportResult> {
+  if (!(await requireSection("brands"))) return { success: false, errors: [await noAccessMessage()] };
   const t = getDictionary(await getLocale());
 
   const file = formData.get("file");

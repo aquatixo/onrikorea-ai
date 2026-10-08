@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { db } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { changePasswordSchema } from "@/lib/validation/settings";
@@ -50,5 +50,9 @@ export async function changePassword(
   const newPasswordHash = await hashPassword(parsed.data.newPassword);
   await db.user.update({ where: { id: user.id }, data: { passwordHash: newPasswordHash } });
 
+  // The session's auth stamp includes the password hash (lib/auth/auth-stamp.ts), so this
+  // session is now invalid. Sign out here with a message that says why, instead of letting
+  // the next click land on the generic "your account was changed" notice.
+  await signOut({ redirectTo: "/login?passwordChanged=1" });
   return { success: true, message: t.passwordChanged };
 }
