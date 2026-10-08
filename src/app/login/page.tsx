@@ -8,11 +8,11 @@ import { getDictionary } from "@/lib/i18n/dictionary";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackUrl?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; expired?: string }>;
 }) {
   const locale = await getLocale();
   const t = getDictionary(locale).login;
-  const { callbackUrl } = await searchParams;
+  const { callbackUrl, expired } = await searchParams;
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
@@ -41,6 +41,12 @@ export default async function LoginPage({
             <p className="text-sm text-muted-foreground">{t.subtitle}</p>
           </div>
         </div>
+
+        {expired === "1" && (
+          <p role="status" className="rounded-lg border border-border bg-muted px-4 py-3 text-center text-sm">
+            {t.sessionExpired}
+          </p>
+        )}
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-7">
           <LoginForm locale={locale} callbackUrl={callbackUrl ?? "/"} />

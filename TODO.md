@@ -10,11 +10,9 @@
 
 ## 인증 / 권한
 
-- [ ] 권한(role/allowedPages) 변경이 재로그인 전까지 반영 안 되는 문제 — JWT 세션이 stateless라
-      관리자가 권한을 바꿔도 당사자가 직접 로그아웃하지 않는 한 구 권한으로 계속 로그인된 상태 유지됨
-      (세션 만료도 30일 rolling이라 사실상 무기한 유지될 수 있음). 강제 로그아웃 수단이 전혀 없음.
-      제안된 해법: `User.tokenVersion Int @default(0)` 추가 → 권한 변경 시 증가 → 대시보드
-      레이아웃([layout.tsx](src/app/(dashboard)/layout.tsx))에서 JWT의 tokenVersion과 DB 값을 비교해
-      다르면 강제 signOut. 미들웨어(`proxy.ts`)는 Edge Runtime이라 이 체크를 못 넣어서, 권한 변경 직후
-      딱 1 request는 구 권한으로 통과할 수 있는 한계는 있음.
+- [x] ~~권한 변경이 재로그인 전까지 반영 안 되는 문제~~ — 해결. 로그인 시 역할·허용 페이지·비밀번호
+      해시로 만든 지문을 토큰에 넣고, 서버에서 세션을 읽을 때마다 DB 값과 비교해 다르면 세션 무효 →
+      대시보드가 `/login/expired`로 보내 쿠키 삭제 후 안내와 함께 로그인 화면으로 이동
+      ([auth-stamp.ts](src/lib/auth/auth-stamp.ts)). 스키마 변경 없음. 한계: 미들웨어(`proxy.ts`)는 Edge라
+      DB를 못 봐서, 권한 변경 직후 첫 요청의 페이지 접근 판단만 구 권한 기준 (그 페이지 렌더 단계에서 로그아웃됨).
 

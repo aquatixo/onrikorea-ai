@@ -13,6 +13,7 @@ declare module "next-auth" {
   interface User {
     role: UserRole;
     allowedPages: string[];
+    authStamp?: string;
   }
 }
 
@@ -21,5 +22,6 @@ declare module "next-auth/jwt" {
     id?: string;
     role?: UserRole;
     allowedPages?: string[];
+    authStamp?: string;
   }
 }

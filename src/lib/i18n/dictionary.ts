@@ -40,6 +40,7 @@ export const dictionaries = {
       signIn: "Sign in",
       signingIn: "Signing in...",
       footer: "Internal tool for the Global Business Department.",
+      sessionExpired: "Your account's permissions or password were changed. Please sign in again.",
     },
     home: {
       badge: "Global Business Department",
@@ -685,6 +686,7 @@ export const dictionaries = {
       signIn: "로그인",
       signingIn: "로그인 중...",
       footer: "Global Business Department 내부 도구",
+      sessionExpired: "계정 정보(권한 또는 비밀번호)가 변경되었습니다. 다시 로그인해 주세요.",
     },
     home: {
       badge: "글로벌사업부",

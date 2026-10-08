@@ -16,9 +16,9 @@ export const authConfig = {
     // (rather than exporting `auth` directly as middleware), so it makes every
     // sign-in/permission redirect decision itself instead of deferring to this.
     jwt({ token, user }) {
-      // Only set when `user` is present (sign-in time) -- role/allowedPages changes
-      // made later via the admin's user-management page take effect on next sign-in,
-      // not live, since JWT sessions have no server-side store to push an update through.
+      // Only set when `user` is present (sign-in time). This Edge-safe copy can't reach the
+      // DB, so it never re-checks the user; src/auth.ts wraps it and ends the session when
+      // an admin has changed the user's role/pages/password since (see auth-stamp.ts).
       if (user) {
         token.id = user.id;
         token.role = user.role;

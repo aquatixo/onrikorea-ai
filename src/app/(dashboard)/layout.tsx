@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
 import { auth } from "@/auth";
 import { getLocale } from "@/lib/i18n/get-locale";
@@ -8,6 +9,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const locale = await getLocale();
   const userName = await getUserName();
   const session = await auth();
+  // proxy.ts already sent requests without a session cookie to /login, so no session here
+  // means the cookie's session was invalidated (permissions/password changed by an admin).
+  if (!session?.user) redirect("/login/expired");
 
   return (
     <>
