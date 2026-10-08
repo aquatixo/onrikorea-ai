@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useActionState } from "react";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import type { Brand, BrandStatus } from "@prisma/client";
@@ -33,7 +34,7 @@ export function BrandForm({ mode, brand, locale, action }: Props) {
   const router = useRouter();
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form onSubmit={submitWithoutReset(formAction)} className="space-y-5">
       {state.message && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {state.message}

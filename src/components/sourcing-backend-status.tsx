@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
+import { formatDateTime } from "@/lib/format-date";
 
 /**
  * Always-visible "where do things stand right now" card for one search backend --
@@ -54,7 +55,7 @@ export function SourcingBackendStatus({
         </p>
       )}
       <p className="text-[11px] text-muted-foreground">
-        {lastRunAt ? `${t.lastRunAt}: ${lastRunAt.toLocaleString(locale === "ko" ? "ko-KR" : "en-US")}` : t.noRunsToday}
+        {lastRunAt ? `${t.lastRunAt}: ${formatDateTime(lastRunAt, locale)}` : t.noRunsToday}
       </p>
     </div>
   );

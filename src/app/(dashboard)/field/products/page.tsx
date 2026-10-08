@@ -16,25 +16,19 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { PageSizeControl } from "@/components/page-size-control";
+import { productListHref } from "@/lib/store-visit/product-list-href";
 import { BrandSearch } from "@/components/brand-search";
 import { ClickableRow } from "@/components/field/clickable-row";
 import { StopPropagation } from "@/components/field/stop-propagation";
 import { DeleteProductButton } from "@/components/field/delete-product-button";
-import { getPageWindow, parsePageSize } from "@/lib/pagination";
+import { getPageWindow, parsePageSize, parsePage } from "@/lib/pagination";
 import type { Prisma } from "@prisma/client";
+import { formatDate } from "@/lib/format-date";
 
 export const dynamic = "force-dynamic";
 
-function formatDate(d: Date, locale: string) {
-  return d.toLocaleDateString(locale === "ko" ? "ko-KR" : "en-US", { year: "numeric", month: "short", day: "numeric" });
-}
-
 function pageHref(page: number, q: string, pageSize: number) {
-  const params = new URLSearchParams();
-  params.set("page", String(page));
-  if (q) params.set("q", q);
-  params.set("pageSize", String(pageSize));
-  return `/field/products?${params.toString()}`;
+  return productListHref({ page, q, pageSize });
 }
 
 export default async function FieldProductsPage(props: {
@@ -45,8 +39,7 @@ export default async function FieldProductsPage(props: {
   const { q: rawQ, page: rawPage, pageSize: rawPageSize } = await props.searchParams;
   const q = (rawQ ?? "").trim();
 
-  const parsedPage = Number.parseInt(rawPage ?? "1", 10);
-  const currentPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const currentPage = parsePage(rawPage);
   const pageSize = parsePageSize(rawPageSize);
 
   const where: Prisma.ProductWhereInput = q
@@ -145,7 +138,7 @@ export default async function FieldProductsPage(props: {
                             variant="ghost"
                             size="icon-sm"
                             nativeButton={false}
-                            render={<Link href={`/field/products/${p.id}/edit`}><Pencil className="size-4" /></Link>}
+                            render={<Link href={`/field/products/${p.id}/edit?${pageHref(currentPage, q, pageSize).split("?")[1]}`}><Pencil className="size-4" /></Link>}
                           />
                           <DeleteProductButton productId={p.id} locale={locale} />
                         </div>

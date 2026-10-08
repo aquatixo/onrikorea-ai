@@ -14,3 +14,14 @@ export function parsePageSize(raw: string | undefined): number {
   const n = Number.parseInt(raw ?? "", 10);
   return (PAGE_SIZE_OPTIONS as readonly number[]).includes(n) ? n : DEFAULT_PAGE_SIZE;
 }
+
+// Far past any real list (10,000 pages x 50 rows) but small enough that (page - 1) * pageSize
+// stays a valid database offset -- a hand-edited ?page=99999999999999999999 used to crash
+// the page with a database error instead of just showing an empty page.
+const MAX_PAGE = 10_000;
+
+/** Parses a `page` query param: a whole number from 1 to MAX_PAGE, else 1. */
+export function parsePage(raw: string | undefined): number {
+  const n = Number.parseInt(raw ?? "1", 10);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, MAX_PAGE) : 1;
+}

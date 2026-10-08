@@ -7,6 +7,7 @@ import type { SourcingProgress } from "@/components/sourcing-progress-panel";
 import { SourcingResultsTable } from "@/components/sourcing-results-table";
 import { DAILY_CANDIDATE_TARGET, DAILY_SEARCH_BUDGET } from "@/lib/brand-sourcing/daily-limits";
 import { Search, ListChecks } from "lucide-react";
+import { todayInAppTimeZone } from "@/lib/format-date";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +15,10 @@ export default async function BrandSourcingPage() {
   const locale = await getLocale();
   const t = getDictionary(locale);
 
-  // Local calendar date, matching python-sourcing/main.py's date.today() -- both run on
-  // the same machine, so local system date agrees between the two.
-  const now = new Date();
-  const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  // Today in Korea, matching python-sourcing/main.py's date.today() on the PC in Korea that
+  // runs it. The server's own clock is UTC on Vercel, which before 09:00 KST is still
+  // yesterday -- the usage card showed the previous day's numbers every morning.
+  const today = new Date(todayInAppTimeZone());
 
   // Separate queries on purpose: each button/progress panel only cares about the most
   // recent run for ITS OWN backend (Serper and Tavily run independently, see

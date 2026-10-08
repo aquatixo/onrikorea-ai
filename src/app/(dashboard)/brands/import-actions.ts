@@ -7,6 +7,7 @@ import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { parseBrandImportSheet, type ImportError } from "@/lib/brand-import/parse";
 import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
+import { MAX_UPLOAD_BYTES } from "@/lib/upload-limits";
 
 export type ImportResult = { success: true; count: number } | { success: false; errors: string[] };
 
@@ -47,6 +48,7 @@ export async function importBrandsFromExcel(formData: FormData): Promise<ImportR
   if (!(file instanceof File) || file.size === 0) {
     return { success: false, errors: [t.brandImport.noFileChosen] };
   }
+  if (file.size > MAX_UPLOAD_BYTES) return { success: false, errors: [t.common.fileTooLarge] };
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const parsed = parseBrandImportSheet(buffer);

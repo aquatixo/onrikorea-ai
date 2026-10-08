@@ -9,18 +9,10 @@ import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { BrandLog } from "@prisma/client";
+import { formatShortDateTime } from "@/lib/format-date";
 
 type LogWithAuthor = BrandLog & { createdBy: { name: string } | null };
 type CurrentUser = { id: string; role: "ADMIN" | "DEVELOPER" | "USER" } | null;
-
-function formatTimestamp(date: Date, locale: Locale) {
-  return date.toLocaleString(locale === "ko" ? "ko-KR" : "en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export function BrandLogItem({
   log,
@@ -99,7 +91,7 @@ export function BrandLogItem({
         <div className="rounded-2xl rounded-tl-sm bg-muted/60 px-3.5 py-2.5">
           <div className="mb-0.5 flex items-baseline gap-2">
             <span className="text-sm font-semibold">{authorName}</span>
-            <span className="text-[11px] text-muted-foreground">{formatTimestamp(log.createdAt, locale)}</span>
+            <span className="text-[11px] text-muted-foreground">{formatShortDateTime(log.createdAt, locale)}</span>
           </div>
           <p className="text-sm whitespace-pre-wrap text-foreground/90">{log.body}</p>
         </div>

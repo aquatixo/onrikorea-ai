@@ -9,12 +9,9 @@ import { getDictionary } from "@/lib/i18n/dictionary";
 import { Button } from "@/components/ui/button";
 import { DeleteItemButton } from "@/components/field/delete-item-button";
 import { PhotoLightbox } from "@/components/field/photo-lightbox";
+import { formatDate } from "@/lib/format-date";
 
 export const dynamic = "force-dynamic";
-
-function formatDate(d: Date, locale: string) {
-  return d.toLocaleDateString(locale === "ko" ? "ko-KR" : "en-US", { year: "numeric", month: "short", day: "numeric" });
-}
 
 export default async function StoreVisitItemDetailPage(props: { params: Promise<{ id: string; itemId: string }> }) {
   const { id, itemId } = await props.params;

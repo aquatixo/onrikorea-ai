@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useActionState } from "react";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PAGE_SECTIONS, type PageSection } from "@/lib/access-control";
@@ -46,7 +47,7 @@ export function UserForm({
   };
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form onSubmit={submitWithoutReset(formAction)} className="space-y-5">
       {state.message && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {state.message}

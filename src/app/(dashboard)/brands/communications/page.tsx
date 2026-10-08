@@ -18,7 +18,7 @@ import { db } from "@/lib/db";
 import { STATUS_STYLE } from "@/lib/brand-status";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
-import { getPageWindow, parsePageSize } from "@/lib/pagination";
+import { getPageWindow, parsePageSize, parsePage } from "@/lib/pagination";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -41,8 +41,7 @@ export default async function BrandCommunicationsPage(props: {
   const statusFilter = rawStatus === "REPLIED" || rawStatus === "CONTACTED" ? rawStatus : "ALL";
   const q = (rawQ ?? "").trim();
 
-  const parsedPage = Number.parseInt(rawPage ?? "1", 10);
-  const currentPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const currentPage = parsePage(rawPage);
   const pageSize = parsePageSize(rawPageSize);
 
   // "Actively tracked" is defined by having a progress log, not by status -- status

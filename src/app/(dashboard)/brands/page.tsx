@@ -28,7 +28,7 @@ import { db } from "@/lib/db";
 import { STATUS_STYLE } from "@/lib/brand-status";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
-import { getPageWindow, parsePageSize } from "@/lib/pagination";
+import { getPageWindow, parsePageSize, parsePage } from "@/lib/pagination";
 import type { Prisma } from "@prisma/client";
 
 function pageHref(page: number, q: string, pageSize: number) {
@@ -45,8 +45,7 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
   const searchParams = await props.searchParams;
 
   const rawPage = Array.isArray(searchParams.page) ? searchParams.page[0] : searchParams.page;
-  const parsedPage = Number.parseInt(rawPage ?? "1", 10);
-  const currentPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const currentPage = parsePage(rawPage);
 
   const rawQ = Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q;
   const q = (rawQ ?? "").trim();

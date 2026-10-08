@@ -11,10 +11,13 @@ import { canModifyContent } from "@/lib/auth/ownership-server";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
+import { MAX_UPLOAD_BYTES } from "@/lib/upload-limits";
 
 async function realImageFile(formData: FormData): Promise<File | null> {
   const value = formData.get("image");
-  return value instanceof File && value.size > 0 && (await isAllowedImageType(value)) ? value : null;
+  return value instanceof File && value.size > 0 && value.size <= MAX_UPLOAD_BYTES && (await isAllowedImageType(value))
+    ? value
+    : null;
 }
 
 export type StoreFormState = {

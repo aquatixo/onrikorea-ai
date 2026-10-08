@@ -8,12 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ClickableRow } from "@/components/field/clickable-row";
 import { STORE_VISIT_STATUS_STYLE } from "@/lib/field-status";
+import { formatDate } from "@/lib/format-date";
 
 export const dynamic = "force-dynamic";
-
-function formatDate(d: Date, locale: string) {
-  return d.toLocaleDateString(locale === "ko" ? "ko-KR" : "en-US", { year: "numeric", month: "short", day: "numeric" });
-}
 
 export default async function StoreVisitsPage() {
   const locale = await getLocale();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 import { User, Lock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { loginAction, type LoginState } from "@/app/login/actions";
@@ -12,7 +13,7 @@ export function LoginForm({ locale, callbackUrl }: { locale: Locale; callbackUrl
   const [state, formAction, isPending] = useActionState<LoginState, FormData>(boundAction, undefined);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form onSubmit={submitWithoutReset(formAction)} className="space-y-4">
       <div className="space-y-1.5">
         <label htmlFor="username" className="text-sm font-medium">
           {t.usernameLabel}

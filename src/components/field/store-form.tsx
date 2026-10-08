@@ -9,6 +9,7 @@ import { compressImage } from "@/lib/compress-image";
 import type { StoreFormState } from "@/app/(dashboard)/field/stores/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { Store } from "@prisma/client";
+import { MAX_UPLOAD_BYTES } from "@/lib/upload-limits";
 
 const initialState: StoreFormState = {};
 
@@ -27,6 +28,7 @@ export function StoreForm({
   const [state, formAction, isPending] = useActionState(action, initialState);
   const router = useRouter();
   const [isCompressing, setIsCompressing] = React.useState(false);
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
 
   // The image comes off the native file input, gets compressed client-side, then gets
   // handed to the Server Action manually -- useActionState's formAction is a plain
@@ -38,10 +40,15 @@ export function StoreForm({
     const rawFile = fileInput?.files?.[0];
 
     const formData = new FormData(form);
+    setUploadError(null);
     if (rawFile) {
       setIsCompressing(true);
       const compressed = await compressImage(rawFile);
       setIsCompressing(false);
+      if (compressed.size > MAX_UPLOAD_BYTES) {
+        setUploadError(getDictionary(locale).common.fileTooLarge);
+        return;
+      }
       formData.set("image", compressed);
     }
 
@@ -108,6 +115,7 @@ export function StoreForm({
           accept="image/*"
           className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-accent"
         />
+        {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
       </div>
 
       <div className="flex gap-3 pt-2">

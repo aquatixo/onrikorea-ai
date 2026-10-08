@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { importBrandsFromExcel } from "@/app/(dashboard)/brands/import-actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
+import { MAX_UPLOAD_BYTES } from "@/lib/upload-limits";
 
 export function ImportBrandsDialog({ locale }: { locale: Locale }) {
   const t = getDictionary(locale);
@@ -40,6 +41,10 @@ export function ImportBrandsDialog({ locale }: { locale: Locale }) {
     const file = fileInputRef.current?.files?.[0];
     if (!file) {
       setErrors([t.brandImport.noFileChosen]);
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setErrors([t.common.fileTooLarge]);
       return;
     }
     const formData = new FormData();

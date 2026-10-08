@@ -8,11 +8,13 @@ import { uploadStoreVisitPhoto } from "@/app/(dashboard)/field/store-visits/acti
 import { PHOTO_TYPE_VALUES } from "@/lib/field-status";
 import { compressImages } from "@/lib/compress-image";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
+import { MAX_UPLOAD_BYTES, totalBytes } from "@/lib/upload-limits";
 
 export function UploadStorePhotoForm({ storeVisitId, locale }: { storeVisitId: string; locale: Locale }) {
   const t = getDictionary(locale).field;
   const [isPending, startTransition] = useTransition();
   const [isCompressing, setIsCompressing] = React.useState(false);
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
   const formRef = React.useRef<HTMLFormElement>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -21,9 +23,14 @@ export function UploadStorePhotoForm({ storeVisitId, locale }: { storeVisitId: s
     const fileInput = form.elements.namedItem("photos") as HTMLInputElement | null;
     const rawFiles = fileInput?.files ? Array.from(fileInput.files) : [];
 
+    setUploadError(null);
     setIsCompressing(true);
     const compressed = await compressImages(rawFiles);
     setIsCompressing(false);
+    if (totalBytes(compressed) > MAX_UPLOAD_BYTES) {
+      setUploadError(getDictionary(locale).common.photosTooLarge);
+      return;
+    }
 
     const formData = new FormData(form);
     formData.delete("photos");
@@ -31,7 +38,11 @@ export function UploadStorePhotoForm({ storeVisitId, locale }: { storeVisitId: s
 
     startTransition(async () => {
       const result = await uploadStoreVisitPhoto(storeVisitId, formData);
-      if (result.error) return;
+      if (result.error) {
+        // "no-file" only happens when every pick was dropped as not-an-image.
+        setUploadError(result.error === "no-file" ? t.visits.noImageSelected : result.error);
+        return;
+      }
       formRef.current?.reset();
     });
   }
@@ -63,6 +74,7 @@ export function UploadStorePhotoForm({ storeVisitId, locale }: { storeVisitId: s
       <Button type="submit" size="sm" variant="outline" disabled={isPending || isCompressing}>
         <Upload className="size-3.5" /> {isPending || isCompressing ? t.visits.uploading : t.visits.upload}
       </Button>
+      {uploadError && <p className="basis-full text-xs text-destructive">{uploadError}</p>}
     </form>
   );
 }

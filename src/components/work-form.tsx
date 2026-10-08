@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,9 @@ import { AssigneeField } from "@/components/assignee-field";
 import { WorkColorField } from "@/components/work-color-field";
 import type { WorkFormState } from "@/app/(dashboard)/work/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
+import { toDateInputValue } from "@/lib/format-date";
+import { compressImage } from "@/lib/compress-image";
+import { MAX_UPLOAD_BYTES } from "@/lib/upload-limits";
 
 type Props = {
   locale: Locale;
@@ -34,11 +38,6 @@ type Props = {
 
 const initialState: WorkFormState = {};
 
-function toDateInputValue(d?: Date | null): string {
-  if (!d) return "";
-  return d.toISOString().slice(0, 10);
-}
-
 export function WorkForm({
   locale,
   action,
@@ -48,12 +47,50 @@ export function WorkForm({
   canSetSecure = false,
   defaultValues,
 }: Props) {
-  const t = getDictionary(locale).work.form;
+  const dict = getDictionary(locale);
+  const t = dict.work.form;
   const [state, formAction, isPending] = useActionState(action, initialState);
   const router = useRouter();
+  const [fileError, setFileError] = React.useState<string | null>(null);
+  const [isPreparingFile, setIsPreparingFile] = React.useState(false);
+
+  // Non-images can't be made smaller, so an oversized one is refused the moment it's picked.
+  // Oversized images are allowed through here: they get shrunk on submit (below).
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.currentTarget.files?.[0];
+    setFileError(null);
+    if (file && file.size > MAX_UPLOAD_BYTES && !file.type.startsWith("image/")) {
+      setFileError(dict.common.fileTooLarge);
+      e.currentTarget.value = "";
+    }
+  }
+
+  // Submitted by hand (not <form action>) so a validation error doesn't wipe the form --
+  // see lib/submit-without-reset.ts -- and so an oversized image attachment can be shrunk
+  // first. Images under the limit are left exactly as picked (a screenshot of a document
+  // should stay sharp); only ones over it are resized.
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+    setFileError(null);
+    const raw = formData.get("file");
+    if (raw instanceof File && raw.size > MAX_UPLOAD_BYTES) {
+      setIsPreparingFile(true);
+      const file = await compressImage(raw, { maxDimension: 2400, quality: 0.85 });
+      setIsPreparingFile(false);
+      if (file.size > MAX_UPLOAD_BYTES) {
+        setFileError(dict.common.fileTooLarge);
+        return;
+      }
+      formData.set("file", file);
+    }
+    React.startTransition(() => {
+      formAction(formData);
+    });
+  }
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5">
       {state.message && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {state.message}
@@ -119,6 +156,7 @@ export function WorkForm({
           label={t.startDateLabel}
           name="startDate"
           type="date"
+          error={state.errors?.startDate}
           defaultValue={toDateInputValue(defaultValues?.startDate)}
         />
         <Field
@@ -132,7 +170,7 @@ export function WorkForm({
 
       <div className="space-y-1.5">
         <label htmlFor="file" className="text-sm font-medium">
-          {t.fileLabel}
+          {t.fileLabel} <span className="text-xs font-normal text-muted-foreground">({dict.common.uploadLimitHint})</span>
         </label>
         {defaultValues?.fileUrl && (
           <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm">
@@ -149,13 +187,15 @@ export function WorkForm({
           id="file"
           name="file"
           type="file"
+          onChange={handleFileChange}
           className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-accent"
         />
+        {fileError && <p className="text-xs text-destructive">{fileError}</p>}
       </div>
 
       <div className="flex gap-3 pt-2">
-        <Button type="submit" disabled={isPending}>
-          {isPending ? t.creating : mode === "edit" ? t.saveChanges : t.createButton}
+        <Button type="submit" disabled={isPending || isPreparingFile}>
+          {isPending || isPreparingFile ? t.creating : mode === "edit" ? t.saveChanges : t.createButton}
         </Button>
         <Button type="button" variant="outline" onClick={() => router.back()}>
           {t.cancel}

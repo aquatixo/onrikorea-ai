@@ -1,4 +1,5 @@
 import { put, del } from "@vercel/blob";
+import { MAX_UPLOAD_BYTES } from "@/lib/upload-limits";
 
 // Blocks types that could execute as active content if someone opens the public blob
 // URL directly -- an SVG or HTML file uploaded as an "attachment"/"photo" would otherwise
@@ -71,6 +72,7 @@ async function attachmentContentType(file: File): Promise<string> {
 
 /** Uploads a work-item attachment to Vercel Blob. Requires BLOB_READ_WRITE_TOKEN to be set. */
 export async function uploadWorkAttachment(file: File): Promise<{ url: string; fileName: string }> {
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error("File too large.");
   const blob = await put(`work-attachments/${crypto.randomUUID()}-${file.name}`, file, {
     access: "public",
     addRandomSuffix: false,
@@ -93,6 +95,7 @@ export async function deleteWorkAttachment(url: string): Promise<void> {
  * detected type and extension, so the uploader's name and claimed type are never trusted.
  */
 export async function uploadFieldPhoto(file: File): Promise<{ url: string; fileName: string }> {
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error("File too large.");
   const kind = await detectImageType(file);
   if (!kind) throw new Error("Not an image file.");
   const blob = await put(`field-photos/${crypto.randomUUID()}.${kind.ext}`, file, {

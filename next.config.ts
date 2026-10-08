@@ -23,8 +23,11 @@ const contentSecurityPolicy = [
 const nextConfig: NextConfig = {
   experimental: {
     // Default Server Action body limit is 1MB -- too small for real work-item attachments.
+    // The app's own limit is 4MB per save (lib/upload-limits.ts, checked in the browser and
+    // in the actions); this sits just above it for the other form fields. Vercel cuts any
+    // request off at ~4.5MB regardless, so a higher number here never did anything.
     serverActions: {
-      bodySizeLimit: "10mb",
+      bodySizeLimit: "5mb",
     },
   },
   async headers() {

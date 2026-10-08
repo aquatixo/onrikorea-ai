@@ -14,13 +14,12 @@ import { WorkCommentForm } from "@/components/work-comment-form";
 import { WorkCommentItem } from "@/components/work-comment-item";
 import { DeleteWorkButton } from "@/components/work/delete-work-button";
 import { LiveRefresh } from "@/components/live-refresh";
+import { formatDate } from "@/lib/format-date";
 
 export const dynamic = "force-dynamic";
 
-function formatDate(d: Date | null, locale: string) {
-  return d
-    ? d.toLocaleDateString(locale === "ko" ? "ko-KR" : "en-US", { year: "numeric", month: "short", day: "numeric" })
-    : null;
+function formatOptionalDate(d: Date | null, locale: string) {
+  return d ? formatDate(d, locale) : null;
 }
 
 export default async function WorkDetailPage(props: {
@@ -56,7 +55,7 @@ export default async function WorkDetailPage(props: {
   const currentUser = session?.user ? { id: session.user.id, role: session.user.role } : null;
   const canModify = isOwnerOrAdmin(currentUser, item.createdById);
 
-  const dateRange = [formatDate(item.startDate, locale), formatDate(item.endDate, locale)]
+  const dateRange = [formatOptionalDate(item.startDate, locale), formatOptionalDate(item.endDate, locale)]
     .filter(Boolean)
     .join(" — ");
 

@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
-import { getPageWindow, parsePageSize } from "@/lib/pagination";
+import { getPageWindow, parsePageSize, parsePage } from "@/lib/pagination";
 import { WORK_STATUS_STYLE } from "@/lib/work-status";
 import { WorkSearch } from "@/components/work-search";
 import { PageSizeControl } from "@/components/page-size-control";
@@ -48,8 +48,7 @@ export default async function WorkPage(props: {
   const category = (searchParams.category ?? "").trim();
   const q = (searchParams.q ?? "").trim();
   const pageSize = parsePageSize(searchParams.pageSize);
-  const parsedPage = Number.parseInt(searchParams.page ?? "1", 10);
-  const currentPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const currentPage = parsePage(searchParams.page);
 
   const session = await auth();
   const isAdmin = session?.user?.role === "ADMIN";

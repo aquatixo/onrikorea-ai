@@ -9,6 +9,8 @@ import { compressImages } from "@/lib/compress-image";
 import type { ItemFormState } from "@/app/(dashboard)/field/store-visits/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { Product, StoreVisit, Store } from "@prisma/client";
+import { formatDate } from "@/lib/format-date";
+import { MAX_UPLOAD_BYTES, totalBytes } from "@/lib/upload-limits";
 
 const initialState: ItemFormState = {};
 
@@ -29,6 +31,7 @@ export function StoreVisitItemForm({
   const [state, formAction, isPending] = useActionState(action, initialState);
   const router = useRouter();
   const [isCompressing, setIsCompressing] = React.useState(false);
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
 
   // Photos come off the native file input, get compressed client-side, then get handed to
   // the Server Action manually -- useActionState's formAction is a plain function, so it's
@@ -39,9 +42,14 @@ export function StoreVisitItemForm({
     const fileInput = form.elements.namedItem("photos") as HTMLInputElement | null;
     const rawFiles = fileInput?.files ? Array.from(fileInput.files) : [];
 
+    setUploadError(null);
     setIsCompressing(true);
     const compressed = await compressImages(rawFiles);
     setIsCompressing(false);
+    if (totalBytes(compressed) > MAX_UPLOAD_BYTES) {
+      setUploadError(getDictionary(locale).common.photosTooLarge);
+      return;
+    }
 
     const formData = new FormData(form);
     formData.delete("photos");
@@ -76,7 +84,7 @@ export function StoreVisitItemForm({
             <option value="">{t.choosePlaceholder}</option>
             {visits.map((v) => (
               <option key={v.id} value={v.id}>
-                {v.store.name} · {new Date(v.visitDate).toLocaleDateString(locale === "ko" ? "ko-KR" : "en-US")}
+                {v.store.name} · {formatDate(v.visitDate, locale)}
               </option>
             ))}
           </select>
@@ -172,6 +180,7 @@ export function StoreVisitItemForm({
           multiple
           className="block text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-accent"
         />
+        {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
       </div>
 
       <div className="flex gap-3 pt-2">

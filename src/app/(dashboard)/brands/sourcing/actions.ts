@@ -10,9 +10,10 @@ import { getDictionary } from "@/lib/i18n/dictionary";
 
 export async function addSourcingCandidateToBrands(candidateId: string): Promise<{ id: string } | { error: string }> {
   if (!(await requireSection("brandSourcing"))) return { error: await noAccessMessage() };
+  const t = getDictionary(await getLocale()).sourcing;
   const candidate = await db.sourcingCandidate.findUnique({ where: { id: candidateId } });
-  if (!candidate) return { error: "Candidate not found." };
-  if (candidate.verdict === "reject") return { error: "This candidate was rejected and cannot be added." };
+  if (!candidate) return { error: t.candidateNotFound };
+  if (candidate.verdict === "reject") return { error: t.candidateRejected };
 
   // Same rule as adding a brand by hand (brands/actions.ts createBrand): no second brand
   // with the same name (case-insensitive) or the same website domain. The DB's own
@@ -29,7 +30,7 @@ export async function addSourcingCandidateToBrands(candidateId: string): Promise
     select: { name: true },
   });
   if (existing) {
-    return { error: getDictionary(await getLocale()).sourcing.alreadyInBrands(existing.name) };
+    return { error: t.alreadyInBrands(existing.name) };
   }
 
   const status: BrandStatus = candidate.verdict === "pass" ? "APPROVED" : "SCREENING";
@@ -62,7 +63,7 @@ export async function addSourcingCandidateToBrands(candidateId: string): Promise
     revalidatePath("/brands/sourcing");
     return { id: brand.id };
   } catch {
-    return { error: "Failed to save — a brand with this name may already exist." };
+    return { error: t.addFailed };
   }
 }
 

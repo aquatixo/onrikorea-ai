@@ -13,13 +13,15 @@ import { db } from "@/lib/db";
 import { STATUS_STYLE } from "@/lib/brand-status";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
+import { APP_TIME_ZONE } from "@/lib/format-date";
 
 export const dynamic = "force-dynamic";
 
-function formatDate(d: Date) {
-  return d.toLocaleString(undefined, {
+function formatDate(d: Date, locale: string) {
+  return d.toLocaleString(locale === "ko" ? "ko-KR" : "en-US", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: APP_TIME_ZONE,
   });
 }
 
@@ -63,8 +65,8 @@ export default async function BrandDetailPage(
     { label: t.detail.coldEmailSent, value: triState(brand.coldEmail) },
     { label: t.detail.replyReceived, value: yesNo(brand.reply) },
     { label: t.detail.notes, value: brand.notes ?? t.detail.dash },
-    { label: t.detail.created, value: formatDate(brand.createdAt) },
-    { label: t.detail.updated, value: formatDate(brand.updatedAt) },
+    { label: t.detail.created, value: formatDate(brand.createdAt, locale) },
+    { label: t.detail.updated, value: formatDate(brand.updatedAt, locale) },
   ];
 
   return (
@@ -183,7 +185,7 @@ export default async function BrandDetailPage(
             {brand.outreachLogs.map((log) => (
               <li key={log.id} className="flex items-center justify-between gap-3 py-2.5 text-sm first:pt-0 last:pb-0">
                 <span>{log.type.replaceAll("_", " ")}</span>
-                <span className="text-xs text-muted-foreground">{formatDate(log.createdAt)}</span>
+                <span className="text-xs text-muted-foreground">{formatDate(log.createdAt, locale)}</span>
               </li>
             ))}
           </ul>

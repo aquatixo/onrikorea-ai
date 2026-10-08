@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { SourcingCandidate } from "@prisma/client";
+import { formatDateTime } from "@/lib/format-date";
 
 const VERDICT_STYLE: Record<string, string> = {
   pass: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
@@ -40,6 +41,9 @@ export function SourcingResultsTable({
   const [selected, setSelected] = React.useState<Set<string>>(() => new Set());
   const [isPending, startTransition] = React.useTransition();
   const [summary, setSummary] = React.useState<string | null>(null);
+  // Why each skipped candidate wasn't added ("KASTNER — already in Brands as 'Kastner'"),
+  // so a skip can be checked instead of just counted.
+  const [skipped, setSkipped] = React.useState<{ name: string; reason: string }[]>([]);
   const headerCheckboxRef = React.useRef<HTMLInputElement>(null);
 
   const selectableCount = candidates.length;
@@ -72,10 +76,13 @@ export function SourcingResultsTable({
     if (!(await confirm({ description: t.confirmAddSelected(selected.size) }))) return;
 
     setSummary(null);
+    setSkipped([]);
     startTransition(async () => {
       const ids = Array.from(selected);
+      const nameById = new Map(candidates.map((c) => [c.id, c.name]));
       const { addedIds, errors } = await addSourcingCandidatesToBrands(ids);
       setSummary(t.bulkAddSummary(Object.keys(addedIds).length, Object.keys(errors).length));
+      setSkipped(Object.entries(errors).map(([id, reason]) => ({ name: nameById.get(id) ?? id, reason })));
       setSelected(new Set());
       router.refresh();
     });
@@ -89,6 +96,7 @@ export function SourcingResultsTable({
     if (!(await confirm({ description: t.confirmDeleteSelected(selected.size), destructive: true }))) return;
 
     setSummary(null);
+    setSkipped([]);
     startTransition(async () => {
       await deleteSourcingCandidates(Array.from(selected));
       setSelected(new Set());
@@ -104,7 +112,7 @@ export function SourcingResultsTable({
           <p className="text-sm font-medium">{t.resultsTitle(candidates.length)}</p>
           {lastRunAt && (
             <p className="text-xs text-muted-foreground">
-              {t.lastRunAt}: {lastRunAt.toLocaleString(locale === "ko" ? "ko-KR" : "en-US")}
+              {t.lastRunAt}: {formatDateTime(lastRunAt, locale)}
             </p>
           )}
         </div>
@@ -131,7 +139,20 @@ export function SourcingResultsTable({
           </Button>
         </div>
       </div>
-      {summary && <p className="text-xs text-muted-foreground">{summary}</p>}
+      {summary && (
+        <div className="text-xs text-muted-foreground">
+          <p>{summary}</p>
+          {skipped.length > 0 && (
+            <ul className="mt-1 list-inside list-disc space-y-0.5">
+              {skipped.map((s, i) => (
+                <li key={i}>
+                  <span className="font-medium text-foreground">{s.name}</span> — {s.reason}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         {/* Select + Name are frozen (sticky) on the left so you always know which candidate a

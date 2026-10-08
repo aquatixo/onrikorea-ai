@@ -10,18 +10,10 @@ import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { isOwnerOrAdmin } from "@/lib/auth/ownership";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { WorkComment } from "@prisma/client";
+import { formatShortDateTime } from "@/lib/format-date";
 
 type CommentWithReplies = WorkComment & { replies: WorkComment[] };
 type CurrentUser = { id: string; role: "ADMIN" | "DEVELOPER" | "USER" } | null;
-
-function formatTimestamp(date: Date, locale: Locale) {
-  return date.toLocaleString(locale === "ko" ? "ko-KR" : "en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function CommentActions({
   workItemId,
@@ -154,7 +146,7 @@ export function WorkCommentItem({
           <div className="rounded-2xl rounded-tl-sm bg-muted/60 px-3.5 py-2.5">
             <div className="mb-0.5 flex items-baseline gap-2">
               <span className="text-sm font-semibold">{comment.authorName}</span>
-              <span className="text-[11px] text-muted-foreground">{formatTimestamp(comment.createdAt, locale)}</span>
+              <span className="text-[11px] text-muted-foreground">{formatShortDateTime(comment.createdAt, locale)}</span>
             </div>
             <p className="text-sm whitespace-pre-wrap text-foreground/90">{comment.body}</p>
           </div>
@@ -195,7 +187,7 @@ export function WorkCommentItem({
                       <div className="mb-0.5 flex items-baseline gap-2">
                         <span className="text-xs font-semibold">{reply.authorName}</span>
                         <span className="text-[10px] text-muted-foreground">
-                          {formatTimestamp(reply.createdAt, locale)}
+                          {formatShortDateTime(reply.createdAt, locale)}
                         </span>
                       </div>
                       <p className="text-sm whitespace-pre-wrap text-foreground/90">{reply.body}</p>

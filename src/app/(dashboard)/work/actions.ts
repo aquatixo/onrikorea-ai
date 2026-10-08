@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { workFormSchema, workEditSchema, workCommentSchema } from "@/lib/validation/work";
-import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
+import { UNSAFE_INPUT_MESSAGE, isUnsafeInputError } from "@/lib/security/sanitize-input";
 import { uploadWorkAttachment, deleteWorkAttachment, isAllowedAttachmentType } from "@/lib/blob";
 import { canModifyContent } from "@/lib/auth/ownership-server";
 import { getLocale } from "@/lib/i18n/get-locale";
@@ -13,6 +13,7 @@ import { getDictionary } from "@/lib/i18n/dictionary";
 import { getUserName } from "@/lib/user/get-user-name";
 import type { WorkStatus } from "@prisma/client";
 import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
+import { MAX_UPLOAD_BYTES } from "@/lib/upload-limits";
 
 export type WorkFormState = {
   errors?: Partial<Record<string, string[]>>;
@@ -33,6 +34,9 @@ function localizeFieldErrors(
     if (field === "title") localized[field] = [t.titleRequired];
     if (field === "assigneeName") localized[field] = [t.assigneeRequired];
     if (field === "category") localized[field] = [t.categoryRequired];
+    if (field === "startDate" || field === "endDate") {
+      localized[field] = [messages.includes("Invalid date") ? t.invalidDate : t.endDateBeforeStart];
+    }
   }
   return localized;
 }
@@ -42,9 +46,15 @@ function realFile(formData: FormData, key: string): File | null {
   return value instanceof File && value.size > 0 && isAllowedAttachmentType(value) ? value : null;
 }
 
+/** WorkForm checks this in the browser already; repeated here for direct calls. */
+function isTooLarge(file: File | null): boolean {
+  return !!file && file.size > MAX_UPLOAD_BYTES;
+}
+
 export async function createWork(prevState: WorkFormState, formData: FormData): Promise<WorkFormState> {
   if (!(await requireSection("work"))) return { message: await noAccessMessage() };
-  const t = getDictionary(await getLocale()).work.form;
+  const dict = getDictionary(await getLocale());
+  const t = dict.work.form;
 
   const parsed = workFormSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -52,6 +62,7 @@ export async function createWork(prevState: WorkFormState, formData: FormData): 
   }
 
   const file = realFile(formData, "file");
+  if (isTooLarge(file)) return { message: dict.common.fileTooLarge };
   let fileUrl: string | undefined;
   let fileName: string | undefined;
   if (file) {
@@ -100,6 +111,7 @@ export async function updateWork(
   }
 
   const file = realFile(formData, "file");
+  if (isTooLarge(file)) return { message: dict.common.fileTooLarge };
   let fileUrl: string | null | undefined;
   let fileName: string | null | undefined;
 
@@ -182,7 +194,8 @@ export async function addWorkComment(input: {
   parentId?: string;
 }): Promise<{ success: true } | { error: string }> {
   if (!(await requireSection("work"))) return { error: await noAccessMessage() };
-  const t = getDictionary(await getLocale()).work.detail;
+  const dict = getDictionary(await getLocale());
+  const t = dict.work.detail;
 
   // Author always comes from the server-side name cookie, never from the client call --
   // so posting a comment always reflects whoever actually set their name in the sidebar,
@@ -192,8 +205,7 @@ export async function addWorkComment(input: {
 
   const parsed = workCommentSchema.safeParse({ ...input, authorName });
   if (!parsed.success) {
-    const fieldErrors = parsed.error.flatten().fieldErrors;
-    if (fieldErrors.body) return { error: t.bodyRequired };
+    if (isUnsafeInputError(parsed.error)) return { error: dict.common.unsafeContent };
     return { error: t.bodyRequired };
   }
 
@@ -223,13 +235,13 @@ export async function updateWorkComment(
 
   // Referential check -- this comment must actually belong to the work item the URL says it does.
   const existing = await db.workComment.findUnique({ where: { id: commentId }, select: { createdById: true, workItemId: true } });
-  if (!existing || existing.workItemId !== workItemId) return { error: t.bodyRequired };
+  if (!existing || existing.workItemId !== workItemId) return { error: dict.common.notFound };
   if (!(await canModifyContent(existing.createdById))) {
     return { error: dict.common.forbidden };
   }
 
   const parsed = workCommentSchema.shape.body.safeParse(body);
-  if (!parsed.success) return { error: t.bodyRequired };
+  if (!parsed.success) return { error: isUnsafeInputError(parsed.error) ? dict.common.unsafeContent : t.bodyRequired };
 
   await db.workComment.update({ where: { id: commentId }, data: { body: parsed.data } });
   revalidatePath(`/work/${workItemId}`);

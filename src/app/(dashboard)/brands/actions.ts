@@ -6,7 +6,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { extractDomain } from "@/lib/extract-domain";
 import { brandFormSchema, brandLogSchema } from "@/lib/validation/brand";
-import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
+import { UNSAFE_INPUT_MESSAGE, isUnsafeInputError } from "@/lib/security/sanitize-input";
 import { canModifyContent } from "@/lib/auth/ownership-server";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
@@ -133,7 +133,7 @@ export async function createBrandLog(brandId: string, body: string): Promise<{ s
   const t = dict.detail;
 
   const parsed = brandLogSchema.shape.body.safeParse(body);
-  if (!parsed.success) return { error: t.logBodyRequired };
+  if (!parsed.success) return { error: isUnsafeInputError(parsed.error) ? dict.common.unsafeContent : t.logBodyRequired };
 
   const session = await auth();
   await db.brandLog.create({
@@ -151,13 +151,13 @@ export async function updateBrandLog(logId: string, brandId: string, body: strin
 
   // Referential check -- this entry must actually belong to the brand the URL says it does.
   const existing = await db.brandLog.findUnique({ where: { id: logId }, select: { createdById: true, brandId: true } });
-  if (!existing || existing.brandId !== brandId) return { error: t.logBodyRequired };
+  if (!existing || existing.brandId !== brandId) return { error: dict.common.notFound };
   if (!(await canModifyContent(existing.createdById))) {
     return { error: dict.common.forbidden };
   }
 
   const parsed = brandLogSchema.shape.body.safeParse(body);
-  if (!parsed.success) return { error: t.logBodyRequired };
+  if (!parsed.success) return { error: isUnsafeInputError(parsed.error) ? dict.common.unsafeContent : t.logBodyRequired };
 
   await db.brandLog.update({ where: { id: logId }, data: { body: parsed.data } });
   revalidatePath(`/brands/${brandId}`);

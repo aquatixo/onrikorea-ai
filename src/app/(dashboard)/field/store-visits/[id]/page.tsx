@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/pagination";
 import { PageSizeControl } from "@/components/page-size-control";
 import { STORE_VISIT_STATUS_STYLE } from "@/lib/field-status";
-import { getPageWindow, parsePageSize } from "@/lib/pagination";
+import { getPageWindow, parsePageSize, parsePage } from "@/lib/pagination";
 import { VisitStatusControl } from "@/components/field/visit-status-control";
 import { DeleteVisitButton } from "@/components/field/delete-visit-button";
 import { DeleteItemButton } from "@/components/field/delete-item-button";
@@ -26,12 +26,9 @@ import { ClickableTr } from "@/components/field/clickable-tr";
 import { StopPropagation } from "@/components/field/stop-propagation";
 import { UploadStorePhotoForm } from "@/components/field/upload-store-photo-form";
 import { PhotoLightbox } from "@/components/field/photo-lightbox";
+import { formatDate } from "@/lib/format-date";
 
 export const dynamic = "force-dynamic";
-
-function formatDate(d: Date, locale: string) {
-  return d.toLocaleDateString(locale === "ko" ? "ko-KR" : "en-US", { year: "numeric", month: "short", day: "numeric" });
-}
 
 function pageHref(id: string, page: number, pageSize: number) {
   const params = new URLSearchParams();
@@ -49,8 +46,7 @@ export default async function StoreVisitDetailPage(props: {
   const locale = await getLocale();
   const t = getDictionary(locale).field;
 
-  const parsedPage = Number.parseInt(rawPage ?? "1", 10);
-  const currentPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const currentPage = parsePage(rawPage);
   const pageSize = parsePageSize(rawPageSize);
 
   const visit = await db.storeVisit.findUnique({

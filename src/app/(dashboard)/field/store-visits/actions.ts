@@ -6,7 +6,8 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { storeVisitFormSchema, productFormSchema } from "@/lib/validation/field";
 import { UNSAFE_INPUT_MESSAGE } from "@/lib/security/sanitize-input";
-import { uploadFieldPhoto, deleteFieldPhoto, isAllowedImageType } from "@/lib/blob";
+import { uploadFieldPhoto, deleteFieldPhoto } from "@/lib/blob";
+import { attachItemPhotos, getPhotoFiles } from "@/lib/store-visit/item-photos";
 import { canModifyContent } from "@/lib/auth/ownership-server";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
@@ -113,12 +114,6 @@ export type ItemFormState = {
   message?: string;
 };
 
-async function getPhotoFiles(formData: FormData): Promise<File[]> {
-  const files = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
-  const real = await Promise.all(files.map((f) => isAllowedImageType(f)));
-  return files.filter((_, i) => real[i]);
-}
-
 function localizeItemErrors(
   fieldErrors: Partial<Record<string, string[]>>,
   t: ReturnType<typeof getDictionary>["field"]
@@ -170,21 +165,7 @@ export async function addStoreVisitItem(
     },
   });
 
-  const files = await getPhotoFiles(formData);
-  if (files.length > 0) {
-    const photoType = (formData.get("photoType") as string) || "PRODUCT";
-    const uploaded = await Promise.all(files.map((f) => uploadFieldPhoto(f)));
-    await db.storeVisitPhoto.createMany({
-      data: uploaded.map((u) => ({
-        storeVisitId,
-        storeVisitItemId: item.id,
-        photoType: photoType as StoreVisitPhotoType,
-        fileUrl: u.url,
-        fileName: u.fileName,
-        createdById: session?.user?.id,
-      })),
-    });
-  }
+  await attachItemPhotos(formData, storeVisitId, item.id, session?.user?.id);
 
   redirect(`/field/store-visits/${storeVisitId}`);
 }
@@ -235,21 +216,7 @@ export async function updateStoreVisitItem(
     },
   });
 
-  const files = await getPhotoFiles(formData);
-  if (files.length > 0) {
-    const photoType = (formData.get("photoType") as string) || "PRODUCT";
-    const uploaded = await Promise.all(files.map((f) => uploadFieldPhoto(f)));
-    await db.storeVisitPhoto.createMany({
-      data: uploaded.map((u) => ({
-        storeVisitId,
-        storeVisitItemId: itemId,
-        photoType: photoType as StoreVisitPhotoType,
-        fileUrl: u.url,
-        fileName: u.fileName,
-        createdById: session?.user?.id,
-      })),
-    });
-  }
+  await attachItemPhotos(formData, storeVisitId, itemId, session?.user?.id);
 
   redirect(`/field/store-visits/${storeVisitId}/items/${itemId}`);
 }

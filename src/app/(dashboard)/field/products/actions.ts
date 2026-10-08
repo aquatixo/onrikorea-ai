@@ -9,6 +9,8 @@ import { canModifyContent } from "@/lib/auth/ownership-server";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
+import { attachItemPhotos } from "@/lib/store-visit/item-photos";
+import { productListHref } from "@/lib/store-visit/product-list-href";
 
 export type ProductFormState = {
   errors?: Partial<Record<string, string[]>>;
@@ -45,12 +47,14 @@ export async function createProduct(prevState: ProductFormState, formData: FormD
   }
 
   const session = await auth();
-  await db.product.create({ data: { storeVisitId, ...parsed.data, createdById: session?.user?.id } });
+  const product = await db.product.create({ data: { storeVisitId, ...parsed.data, createdById: session?.user?.id } });
+  await attachItemPhotos(formData, storeVisitId, product.id, session?.user?.id);
   redirect("/field/products");
 }
 
 export async function updateProduct(
   id: string,
+  listHref: string,
   prevState: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
@@ -58,7 +62,7 @@ export async function updateProduct(
   const dict = getDictionary(await getLocale());
   const t = dict.field;
 
-  const target = await db.product.findUnique({ where: { id }, select: { createdById: true } });
+  const target = await db.product.findUnique({ where: { id }, select: { createdById: true, storeVisitId: true } });
   if (!target) return { message: t.fixErrors };
   if (!(await canModifyContent(target.createdById))) {
     return { message: dict.common.forbidden };
@@ -70,7 +74,11 @@ export async function updateProduct(
   }
 
   await db.product.update({ where: { id }, data: parsed.data });
-  redirect("/field/products");
+  const session = await auth();
+  await attachItemPhotos(formData, target.storeVisitId, id, session?.user?.id);
+  // listHref comes back from the client (bound action args aren't tamper-proof), so it's
+  // rebuilt from its own query params -- the redirect can only ever land on the Products list.
+  redirect(productListHref(Object.fromEntries(new URL(listHref, "http://x").searchParams)));
 }
 
 export async function deleteProduct(id: string): Promise<{ error?: string }> {

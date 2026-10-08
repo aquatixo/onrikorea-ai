@@ -1,17 +1,20 @@
 "use client";
 
 import { useActionState } from "react";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import type { StoreVisitFormState } from "@/app/(dashboard)/field/store-visits/actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import type { Store, StoreVisit } from "@prisma/client";
+import { toDateInputValue, todayInAppTimeZone } from "@/lib/format-date";
 
 const initialState: StoreVisitFormState = {};
 
-function toDateInputValue(d?: Date): string {
-  if (!d) return new Date().toISOString().slice(0, 10);
-  return new Date(d).toISOString().slice(0, 10);
+// A new visit defaults to today in Korea -- toISOString() alone is the UTC date, which
+// before 09:00 KST is still yesterday.
+function visitDateInputValue(d?: Date): string {
+  return d ? toDateInputValue(d) : todayInAppTimeZone();
 }
 
 export function StoreVisitForm({
@@ -34,7 +37,7 @@ export function StoreVisitForm({
   const router = useRouter();
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form onSubmit={submitWithoutReset(formAction)} className="space-y-5">
       {state.message && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {state.message}
@@ -76,7 +79,7 @@ export function StoreVisitForm({
           name="visitDate"
           type="date"
           required
-          defaultValue={toDateInputValue(visit?.visitDate)}
+          defaultValue={visitDateInputValue(visit?.visitDate)}
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
         />
         {state.errors?.visitDate && <p className="text-xs text-destructive">{state.errors.visitDate[0]}</p>}
