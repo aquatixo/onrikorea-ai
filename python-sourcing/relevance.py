@@ -29,6 +29,9 @@ _FOOD_STEMS = (
     "liquirizia", "lakritz", "regaliz", "réglisse", "reglisse", "lakrids", "salmiak",
     # German
     "bonbon", "gebäck", "gebaeck", "lebkuchen", "konditor", "bäcker", "baecker", "süßwaren",
+    # German candy words a lollipop/fruit-gum maker uses instead of "Bonbon" twice over
+    # (a real "Bonbons und Lutscher" maker was dropped with only one food term)
+    "lutscher", "lolli", "fruchtgummi", "weingummi", "zuckerwaren", "kaubonbon", "drops",
     "suesswaren", "schokolade", "keks", "plätzchen", "stollen", "praline", "kaffee", "honig",
     # French
     "confiserie", "pâtisserie", "patisserie", "gâteau", "gateau", "chocolat", "sablé",

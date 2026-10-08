@@ -443,9 +443,12 @@ _RESELLER_WORDS = re.compile(
     # A wholesaler/distributor NAMED as such ("Jakob Distler Süßwarengroßhandel") -- the
     # middleman, not the maker. As a LINK on a maker's site these same words mean the
     # opposite (the maker's own trade channel); site_profile only applies this to names.
-    r"gro(ß|ss)handel|\bgrossiste|\bingrosso\b|\bmayorista\b|\bwholesalers?\b|"
+    r"gro(ß|ss)handel|gro(ß|ss)h[äa]ndler|wiederverk[äa]ufer|\bgrossiste|\bingrosso\b|\bmayorista\b|\bwholesalers?\b|"
     r"\bdistributors?\b|\bdistribuidora\b|\bdistribuzione\b|cash\s*&\s*carry|"
-    r"\bimporters?\b|\bimportateur|\bimportatore",
+    r"\bimporters?\b|\bimportateur|\bimportatore|\bimporteur|"
+    # supplier / B2B partner wording in a name or site title: a trader's self-description
+    # ("Candies Supplier - Proveedor de Dulces", "Le Terroir » B2B-Partner für Feinkost")
+    r"\bsuppliers?\b|\bproveedor(es)?\b|\bfornitor[ei]\b|\bfournisseurs?\b|\bb2b[\s-]partner",
     re.I,
 )
 

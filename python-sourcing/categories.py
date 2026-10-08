@@ -82,7 +82,6 @@ BUCKETS = [
             {"q": "nougat de Montélimar fabrique artisanale -recette", "category": "캔디/컨펙셔너리"},
             {"q": "canelé bordelais fabrique artisanale -recette", "category": "베이킹"},
             {"q": "pâte de fruit confiserie artisanale française -recette", "category": "젤리/구미"},
-            {"q": "torréfacteur artisanal maison familiale française -recette", "category": "커피/차"},
             {"q": '"depuis 18" biscuiterie confiserie France', "category": "비스킷/쿠키/케이크"},
             # PDO/PGI/수상 -- 여러 품목을 한꺼번에 나열하는 리스트형 쿼리라 단일 카테고리로 못 좁힘.
             # kind="roster": 생산자 명단 페이지를 겨냥하는 쿼리 -- 기본값("discovery")과 달리
@@ -127,7 +126,6 @@ BUCKETS = [
             {"q": "Dresdner Stollen Bäckerei Familienbetrieb -Rezept", "category": "베이킹"},
             {"q": "Springerle Konditorei Familienbetrieb Schwaben -Rezept", "category": "비스킷/쿠키/케이크"},
             {"q": "Bonbonkocherei Manufaktur handgemacht -Rezept", "category": "캔디/컨펙셔너리"},
-            {"q": "Kaffeerösterei Familienbetrieb Deutschland -Rezept", "category": "커피/차"},
             {"q": "Tiroler Lebkuchen Konditorei Familienbetrieb -Rezept", "category": "비스킷/쿠키/케이크"},
             {"q": "Zwetschgenmännla Manufaktur Nürnberg -Rezept", "category": "캔디/컨펙셔너리"},
             {"q": "Brause Manufaktur Süßwaren -Rezept", "category": "캔디/컨펙셔너리"},

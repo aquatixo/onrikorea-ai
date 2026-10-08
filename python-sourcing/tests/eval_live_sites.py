@@ -1,4 +1,4 @@
-"""Live evaluation of site_profile.judge against REAL candidate sites from past runs.
+﻿"""Live evaluation of site_profile.judge against REAL candidate sites from past runs.
 
 Network required (fetches each site), but NO search API calls -- costs no credits. Run
 this after any change to site_profile.py / relevance.py / name_filter.py instead of doing
@@ -48,6 +48,9 @@ SITES = [
     ("junk", "Fine Scottish Hampers", "https://finescottishhampers.com/"),
     ("junk", "Olde Colony Bakery Benne Wafers", "https://www.mastgeneralstore.com/"),
     ("junk", "Jakob Distler Süßwarengroßhandel in Nürnberg", "https://jakob-distler.de/"),
+    ("junk", "Süßwaren Großhändler Albrecht Wiederverkäufer", "https://suesswaren-grosshaendler.de/"),
+    ("junk", "Le Terroir", "https://le-terroir.com/"),
+    ("junk", "Candies Supplier", "https://candiessupplier.com/"),
     # --- junk: real maker but a one-page micro business (fresh cakes to order) ---
     ("junk", "POPTY CARAS HANDMADE CAKES from Pembrokeshire, Wales", "https://www.poptycara.co.uk/"),
     # --- junk: portal / tourism guide / city magazine (title says so) ---
@@ -58,6 +61,14 @@ SITES = [
     ("junk", "Bäckerei & Konditorei Holtkamp in Essen", "https://baeckereiholtkamp.de/"),
     ("junk", "RepasPAN", "https://repaspan.es/"),
     ("junk", "Popty Bach Y Wlad", "https://poptybachywlad.co.uk/"),
+    # --- junk: product lines the company does not handle (coffee, tea, honey, pasta) ---
+    ("junk", "Thiele Tee", "https://www.thiele-tee.de/"),
+    ("junk", "Rustichella d'Abruzzo", "https://www.rustichella.it/"),
+    ("junk", "Röstzeit", "https://roestzeit.de/"),
+    ("junk", "Westhoff Kaffeerösterei", "https://www.westhoff.de/"),
+    ("junk", "ETTLI Kaffee", "https://ettli.de/"),
+    ("junk", "Joerges", "https://www.kaffee-joerges.de/"),
+    ("junk", "Cafés Henri", "https://www.cafeshenri.fr/"),
     # --- junk: seed companies (Ark of Taste roster) ---
     ("junk", "Adaptive Seeds", "https://adaptiveseeds.com/"),
     ("junk", "Baker Creek Heirloom Seeds", "https://www.rareseeds.com/"),
@@ -68,12 +79,12 @@ SITES = [
     ("exporter", "Amarelli", "https://www.amarelli.it/"),
     ("exporter", "Dolfin", "https://www.dolfin.be/"),
     ("exporter", "Konditorei Zauner", "https://www.zauner.at/"),
-    ("exporter", "Thiele Tee", "https://www.thiele-tee.de/"),
+
     ("exporter", "Lebkuchen-Schmidt", "https://www.lebkuchen-schmidt.com/"),
     ("exporter", "Dillon Candy Company", "https://dilloncandy.com/"),
     ("exporter", "Kägi", "https://www.kaegi.com/"),
     ("exporter", "Biscottificio Collu", "https://www.biscottificiocollu.com/"),
-    ("exporter", "Rustichella d'Abruzzo", "https://www.rustichella.it/"),
+
     # --- producer: real makers seen in runs (reported, not scored) ---
     ("producer", "Shriver's", "https://shrivers.com/"),
     ("producer", "New Orleans Famous Praline Company", "https://neworleansfamouspraline.com/"),
@@ -103,10 +114,27 @@ SITES = [
     ("producer", "BRIEUC", "https://www.brieuc.bzh/"),
     ("producer", "Wiener Lebkuchen", "https://wiener-lebkuchen.com/"),
     ("producer", "Maison Fruidoraix", "https://fruidoraix.com/"),
+    ("producer", "F.R.T.B.", "https://frtb.it/"),
+    ("producer", "Ruth Hunt Candy Co.", "https://www.ruthhuntcandy.com/"),
+    ("producer", "Johnsons Toffees", "https://www.johnsonstoffees.com/"),
+    ("producer", "Amy Smiths Fudge", "https://amysmiths.co.uk/"),
+    ("producer", "The Real Candy Co", "https://www.therealcandyco.co.uk/"),
+    ("producer", "Giordano Cioccolato", "https://www.giordanocioccolato.it/"),
+    ("producer", "Ziccat", "https://www.ziccat.it/"),
+    ("producer", "Cioccolato Menicucci", "https://www.cioccolatomenicucci.it/"),
+    ("producer", "Chocolat Encuentro", "https://www.chocolatencuentro.com/"),
+    ("producer", "ILE DE RE CHOCOLATS", "https://iledere-chocolats.com/"),
+    ("producer", "Hanse-Bonbon GmbH", "https://www.hansebonbon.de/"),
+    ("producer", "Küfa Bonbons und Lutscher", "https://kuefa-bonbons.de/"),
+    ("producer", "Farmhouse Fudge", "https://farmhousefudge.store/"),
+    ("producer", "Fesey Schokoladenmanufaktur", "https://www.fesey.de/"),
+    ("producer", "Turrones Jose Garrigos", "https://turronesjgarrigos.com/"),
+    ("producer", "Stefan Vogler GmbH", "https://www.stefan-vogler.com/"),
+    ("producer", "Arndt's Fudgery LLC", "https://fudgery.biz/"),
     ("producer", "Bonbon Müller", "https://bonbon-mueller.de/"),
     ("producer", "Bonbonmann", "https://bonbonmann.de/"),
-    ("producer", "Röstzeit", "https://roestzeit.de/"),
-    ("producer", "Westhoff Kaffeerösterei", "https://www.westhoff.de/"),
+
+
 ]
 
 

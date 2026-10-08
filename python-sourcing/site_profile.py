@@ -117,6 +117,25 @@ _SHELF_WORDS = re.compile(
 _MIN_FRESH_HITS = 3
 _MAX_FRESH_RATIO = 0.3
 
+# Product lines the company does not handle (coffee, tea, honey, pasta -- as of 2026-10).
+# Dropped only when they OUTWEIGH the target lines: honey is a nougat/praline ingredient
+# and "café" shows up on many pâtisserie sites, so a mere mention must not drop a maker.
+_OFF_TARGET_WORDS = re.compile(
+    r"coffee|kaffee|espresso|r[öo]sterei|roaster|roastery|torr[ée]fact|torrefaz|tostador|"
+    # French "thé" only WITH the accent -- th[ée] also matched English "the" (99 hits on
+    # one cookie bakery's homepage, which then read as a tea site).
+    r"\bcaf[ée]s?\b|\btea\b|\btee\b|\bthés?\b|matcha|honey|honig|\bmiel\b|miele|pasta|pastificio",
+    re.I,
+)
+_TARGET_WORDS = re.compile(
+    r"biscuit|cookie|bonbon|candy|candies|chocolat|schokolade|caramel|karamell|toffee|fudge|praline|"
+    r"nougat|turr[oó]n|torrone|lebkuchen|stollen|wafer|waffel|shortbread|confiserie|calisson|"
+    r"liquirizia|lakritz|licorice|liquorice|crackers?|keks|gebäck|biscott|cantucci|taffy|brittle|"
+    r"marzipan|dragée|dragee|confett|せんべい|煎餅|菓子",
+    re.I,
+)
+_MIN_OFF_TARGET_HITS = 5
+
 # Shop selling OTHER makers' products (marketplace, deli, gift-box assembler).
 _RETAILER_MARKERS = re.compile(
     r"\b(shop\s+by\s+brand|our\s+brands|all\s+brands|brands\s+we\s+(stock|carry)|"
@@ -299,6 +318,8 @@ def build_profile(url: str) -> dict:
         "food": check_food_relevance(full_text),
         "selfTitle": _self_title(soup),
         "freshHits": len(_FRESH_WORDS.findall(full_text)),
+        "offTargetHits": len(_OFF_TARGET_WORDS.findall(full_text)),
+        "targetHits": len(_TARGET_WORDS.findall(full_text)),
         "shelfHits": len(_SHELF_WORDS.findall(full_text)),
     }
 
@@ -316,8 +337,11 @@ def judge(profile: dict, name: str, url: str) -> tuple[bool, str, str]:
         # Only the title/meta description to go on, so all three must be stated outright.
         if profile["thinPublisher"]:
             return False, "publisher_site", "본문이 거의 없고 제목/설명이 언론형"
-        if looks_like_reseller(profile.get("siteName") or "") or looks_like_reseller(name):
+        if looks_like_reseller(profile.get("selfTitle") or "") or looks_like_reseller(name):
             return False, "reseller_site", "이름이 도매상/유통업자/선물세트형"
+        thin_off = len(_OFF_TARGET_WORDS.findall(profile["fullText"]))
+        if thin_off and thin_off >= len(_TARGET_WORDS.findall(profile["fullText"])):
+            return False, "off_target_category", "취급하지 않는 품목(커피·차·꿀·파스타) 위주 (제목/설명 기준)"
         if not (profile["thinFood"] and profile["thinProducer"] and profile["thinTrade"]):
             return False, "unverifiable_site", "본문이 거의 없고 제목/설명에 식품·제조·도매 근거가 다 있지 않음"
         if not has_latin_letters(name) and name_on_site(name, profile["fullText"]) is False:
@@ -327,13 +351,16 @@ def judge(profile: dict, name: str, url: str) -> tuple[bool, str, str]:
         return False, "publisher_site", f"언론/블로그 사이트 (JSON-LD {profile['publisherTypes']})"
     if profile["publisherHits"] >= 2 or profile["dateStamps"] >= 6:
         return False, "publisher_site", f"언론/블로그형 사이트 (출판 용어 {profile['publisherHits']}, 날짜 {profile['dateStamps']})"
-    if looks_like_reseller(profile.get("siteName") or "") or looks_like_reseller(name) or profile["retailerHits"] >= 2:
+    if looks_like_reseller(profile.get("selfTitle") or "") or looks_like_reseller(name) or profile["retailerHits"] >= 2:
         return False, "reseller_site", f"재판매/편집숍형 사이트 (신호 {profile['retailerHits']})"
     food_ok, food_why = profile["food"]
     if food_ok is not True:
         return False, "not_food_site", food_why
     if not has_latin_letters(name) and name_on_site(name, profile["fullText"]) is False:
         return False, "name_not_on_site", "사이트 본문에 후보 이름이 없음"
+    off, target = profile["offTargetHits"], profile["targetHits"]
+    if off >= _MIN_OFF_TARGET_HITS and off >= target:
+        return False, "off_target_category", f"취급하지 않는 품목(커피·차·꿀·파스타) 위주 ({off} vs 과자류 {target})"
     fresh, shelf = profile["freshHits"], profile["shelfHits"]
     if fresh >= _MIN_FRESH_HITS and fresh / max(shelf, 1) >= _MAX_FRESH_RATIO:
         return False, "fresh_bakery", f"신선 빵·케이크 위주 (빵 단어 {fresh} vs 보존식품 단어 {shelf}) — 수입 불가 품목"

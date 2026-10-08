@@ -39,7 +39,7 @@ COOKIE_BANNER_GARDEN = pad(
 )
 
 from bs4 import BeautifulSoup
-from site_profile import _internal_links
+from site_profile import _OFF_TARGET_WORDS, _internal_links
 
 _BAD_LINKS_HTML = '<a href="http://[broken">x</a><a href="/about-us">About</a><a href="https://other.com/">ext</a>'
 
@@ -47,6 +47,8 @@ from country_guess import guess_country_from_text
 from name_filter import domain_matches_name, looks_like_reseller, pick_brand_name, strip_shop_words
 
 CASES = [
+    ("English 'the' is not counted as French 'thé' (tea)", len(_OFF_TARGET_WORDS.findall("The Bakery History of the Benne Wafer, the oldest")), 0),
+    ("French 'thé' still counts as tea", len(_OFF_TARGET_WORDS.findall("salon de thé, thés verts")), 2),
     ("a malformed href is skipped, not raised (would abort the run)", [h for _, h in _internal_links(BeautifulSoup(_BAD_LINKS_HTML, "html.parser"), "https://maker.example/")], ["https://maker.example/about-us"]),
     # name correction -- every case below is a real (current name, site's own name, url) from a run
     ("keeps 'La Maison Guella' over the site's long SEO title", pick_brand_name("La Maison Guella", "Biscuiterie La Maison Guella - Cancale Saint-Malo Dinard Dinan", "https://www.lamaisonguella.com/"), "La Maison Guella"),
@@ -61,6 +63,10 @@ CASES = [
     ("a normal bakery is not a reseller", looks_like_reseller("Welsh Cottage Cakes"), False),
     ("a confectionery wholesaler named as such is a reseller", looks_like_reseller("Jakob Distler Süßwarengroßhandel in Nürnberg"), True),
     ("an Italian 'ingrosso' is a reseller", looks_like_reseller("Dolciaria Rossi Ingrosso"), True),
+    ("'Großhändler' in a name is a reseller (real miss)", looks_like_reseller("Süßwaren Großhändler Albrecht Wiederverkäufer"), True),
+    ("a 'Supplier / Proveedor' title is a trader (real miss)", looks_like_reseller("Candies Supplier - Proveedor de Dulces y Caramelos"), True),
+    ("a 'B2B-Partner für Feinkost' title is a trader (real miss)", looks_like_reseller("Le Terroir » B2B-Partner Für Französische Feinkost"), True),
+    ("a chocolatier's title is not a trader", looks_like_reseller("Chocolat Encuentro - Chocolatier bean to bar d'exception à Lille"), False),
     ("a maker describing its own wholesale channel is NOT a reseller", looks_like_reseller("Southern Candy Wholesale Manufacturer"), False),
     ("a hamper name is not a plausible brand name", is_plausible_brand_name("Fine Scottish Hampers"), False),
     ("'Lambertz Online' is checked for duplicates as 'Lambertz'", strip_shop_words("Lambertz Online"), "Lambertz"),

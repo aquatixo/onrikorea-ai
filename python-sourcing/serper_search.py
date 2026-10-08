@@ -24,14 +24,17 @@ from config import SERPER_API_KEY
 _ENDPOINT = "https://google.serper.dev/search"
 
 
-def search(query: str, count: int = 8) -> list[dict]:
+def search(query: str, count: int = 8, page: int = 1) -> list[dict]:
     if not SERPER_API_KEY:
         raise RuntimeError("SERPER_API_KEY is not set in .env")
 
+    body = {"q": query, "num": min(count, 20)}
+    if page > 1:
+        body["page"] = page
     response = requests.post(
         _ENDPOINT,
         headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},
-        json={"q": query, "num": min(count, 20)},
+        json=body,
         timeout=20,
     )
     response.raise_for_status()

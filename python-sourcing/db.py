@@ -173,6 +173,15 @@ def is_query_retired(conn, backend: str, lane_code: str, query_text: str) -> boo
         return bool(row and row[0])
 
 
+def get_lane_ledger(conn, backend: str, lane_code: str) -> list[dict]:
+    with conn.cursor() as cur:
+        cur.execute(
+            'SELECT "queryText", "timesRun", "newCandidates", retired FROM "SourcingQueryLedger" WHERE backend = %s AND "laneCode" = %s',
+            (backend, lane_code),
+        )
+        return [{"queryText": r[0], "timesRun": r[1], "newCandidates": r[2], "retired": r[3]} for r in cur.fetchall()]
+
+
 def record_query_result(conn, backend: str, lane_code: str, query_text: str, results_count: int, new_candidates: int) -> bool:
     """Upserts this query's ledger row and returns whether it's now retired (2
     consecutive zero-new-candidate runs)."""

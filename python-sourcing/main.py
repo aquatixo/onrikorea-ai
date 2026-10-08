@@ -1,4 +1,4 @@
-﻿"""
+"""
 Evidence-only brand sourcing engine -- no LLM anywhere in this file.
 
 What this replaces from the Claude pipeline: the discovery searches and the mechanical
@@ -75,6 +75,7 @@ from country_guess import guess_country_from_domain
 from evaluate_client import evaluate_candidate
 from roster_harvest import harvest_names
 from brand_resolve import resolve_site
+from query_generator import next_query
 from db import (
     get_connection,
     create_sourcing_run,
@@ -87,6 +88,7 @@ from db import (
     is_query_retired,
     record_query_result,
     add_search_usage,
+    get_lane_ledger,
 )
 from config import (
     DAILY_CANDIDATE_TARGET_SERPER,
@@ -104,7 +106,8 @@ def methodology_label(bucket: dict) -> str:
     "Japan") -- this prefixes the backend that actually found it (e.g. "Serper ·
     Japan") for display in the results table's methodology column, without needing
     categories.py itself to know anything about which backend is running."""
-    return f"{BACKEND.capitalize()} · {bucket['label']}"
+    suffix = " (자동)" if bucket.get("dynamic") else ""
+    return f"{BACKEND.capitalize()} · {bucket['label']}{suffix}"
 
 
 def similarity(a: str, b: str) -> float:
@@ -380,27 +383,45 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
             candidate = {**candidate, "website": f"{final.scheme}://{final.netloc}/"}
 
         better_name = resolved_name(profile, candidate["name"], candidate["website"])
-        if better_name != candidate["name"]:
+        renamed = better_name != candidate["name"]
+        if renamed:
             reason_parts.append(f"이름을 사이트 자체 표기로 보정: '{candidate['name']}' -> '{better_name}'")
             candidate = {**candidate, "name": better_name}
 
         # A .com site gets the QUERY's country by default, which is only an intent -- the
         # site's own text overrules it when it clearly says otherwise.
         site_country = profile.get("country")
-        if site_country and not guess_country_from_domain(candidate["website"]) and site_country != bucket.get("country"):
+        country_changed = bool(
+            site_country and not guess_country_from_domain(candidate["website"]) and site_country != bucket.get("country")
+        )
+        if renamed or country_changed:
+            # The duplicate check ran on the search-result name; a corrected name can match
+            # a brand that one missed (real case: "Chocolaterie Monbana" -> "monbana", an
+            # existing brand, only got a low-confidence hint and reached the review list).
             try:
                 re_eval = evaluate_candidate(
                     {
-                        "name": candidate["name"],
+                        "name": strip_shop_words(candidate["name"]),
                         "website": candidate["website"],
                         "sku": bucket["category"],
                         "methodology": methodology_label(bucket),
-                        "country": site_country,
+                        "country": site_country if country_changed else (guess_country_from_domain(candidate["website"]) or bucket.get("country")),
                     }
                 )
-                pre_evaluation = {**pre_evaluation, "normalized": re_eval["normalized"]}
             except Exception:
-                pass
+                re_eval = None
+            if re_eval:
+                if country_changed:
+                    pre_evaluation = {**pre_evaluation, "normalized": re_eval["normalized"]}
+                certain = [d for d in re_eval["duplicates"] if d.get("matchType") == "exact" or d.get("confidence") == "high"]
+                if renamed and certain:
+                    d = certain[0]
+                    label = "existing brand" if d.get("source") == "brand" else "a previously found sourcing candidate"
+                    print(f"  - {candidate['name']} -> skipped after rename (duplicate of {label}: {d['name']})")
+                    progress.duplicates_skipped += 1
+                    progress.duplicate_names.append(f"{candidate['name']} (dup of {label}: {d['name']})")
+                    progress.push()
+                    return False, search_calls
 
         korea = check_korea_presence(candidate["name"])
         search_calls += KOREA_CALLS_PER_CHECK
@@ -454,9 +475,15 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
         verdict = "flag"
 
     if verdict == "reject":
+        # A rejected candidate (multinational parent, known-excluded brand, official Korean
+        # distributor already in place, ...) is not something to review -- it used to be
+        # listed anyway, so "Mars México" and "Grupo Ferrero" showed up as candidates.
         progress.rejected += 1
-    else:
-        progress.flagged += 1
+        progress.filter_drops["rejected_rule"] = progress.filter_drops.get("rejected_rule", 0) + 1
+        print(f"  - {candidate['name']} -> dropped (rejected: {' | '.join(p for p in reason_parts if p)[:120]})")
+        progress.push()
+        return False, search_calls
+    progress.flagged += 1
 
     evidence = [candidate["website"]] if candidate["website"] else []
     evidence += [h["url"] for h in korea["topHits"][:3]]
@@ -492,8 +519,9 @@ def process_discovery_query(conn, run_id: str, bucket: dict, query_text: str, pr
     # word appended vs 2 without (the plain "family-owned artisan" queries mostly return
     # walk-in shops that are then dropped for having no wholesale/export channel).
     search_text = f"{query_text} {bucket['tradeTerm']}" if bucket.get("tradeTerm") else query_text
+    page = bucket.get("page", 1)
     try:
-        results = search(search_text, count=8)
+        results = search(search_text, count=8, page=page) if page > 1 else search(search_text, count=8)
     except Exception as e:
         print(f"  [warn] search failed for '{query_text}': {e}", file=sys.stderr)
         progress.errors += 1
@@ -710,7 +738,9 @@ def main():
     # reactivated later without re-authoring them.
     lanes_by_label = {b["label"]: b for b in BUCKETS if b.get("enabled", True)}
     lane_states = {label: get_lane_state(conn, BACKEND, label) for label in lanes_by_label}
-    active = [label for label, state in lane_states.items() if not state["exhausted"]]
+    # Every enabled lane takes part: one whose hand-written queries ran out continues with
+    # generated ones, and is only dropped from this run once the generator is out too.
+    active = list(lane_states)
 
     stopped_by = None
 
@@ -738,19 +768,30 @@ def main():
             while state["cursor"] < len(queries) and is_query_retired(conn, BACKEND, label, queries[state["cursor"]]["q"]):
                 state["cursor"] += 1
 
-            if state["cursor"] >= len(queries):
-                state["exhausted"] = True
-                save_lane_state(conn, BACKEND, label, state["cursor"], True, state["totalNewBrands"])
-                active.remove(label)
-                continue
+            if state["cursor"] < len(queries):
+                query_item = queries[state["cursor"]]
+                dynamic = False
+                ledger_text = query_item["q"]
+            else:
+                # Hand-written queries used up -> generated combinations (query_generator.py).
+                # Paging needs Serper; Tavily has no result-page parameter.
+                dyn = next_query(label, get_lane_ledger(conn, BACKEND, label), allow_paging=(BACKEND == "serper"))
+                if dyn is None:
+                    state["exhausted"] = True
+                    save_lane_state(conn, BACKEND, label, state["cursor"], True, state["totalNewBrands"])
+                    active.remove(label)
+                    continue
+                query_item = {"q": dyn["text"], "category": dyn["category"], "page": dyn["page"]}
+                dynamic = True
+                ledger_text = dyn["key"]
 
-            query_item = queries[state["cursor"]]
             query_text = query_item["q"]
-            print(f"\n=== {label} :: {query_text} ===")
+            page = query_item.get("page", 1)
+            print(f"\n=== {label} :: {query_text}" + (f" (page {page})" if page > 1 else "") + (" [auto]" if dynamic else "") + " ===")
             # bucket["category"] is read by process_candidate -- override it per-query
             # instead of threading a new parameter through process_one_query/
             # process_candidate's signatures just for this.
-            query_bucket = {**bucket, "category": query_item["category"]}
+            query_bucket = {**bucket, "category": query_item["category"], "page": page, "dynamic": dynamic}
             kind = query_item.get("kind", "discovery")
             korea_before = progress.korea_checked
             calls, new_count, results_count = process_one_query(conn, run_id, query_bucket, query_text, kind, progress)
@@ -762,9 +803,10 @@ def main():
 
             search_used += calls
             candidates_out += new_count
-            record_query_result(conn, BACKEND, label, query_text, results_count, new_count)
+            record_query_result(conn, BACKEND, label, ledger_text, results_count, new_count)
 
-            state["cursor"] += 1
+            if not dynamic:
+                state["cursor"] += 1
             state["totalNewBrands"] += new_count
             save_lane_state(conn, BACKEND, label, state["cursor"], False, state["totalNewBrands"])
             update_daily_budget(conn, BACKEND, today, search_used, candidates_out)
