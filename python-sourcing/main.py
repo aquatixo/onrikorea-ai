@@ -52,6 +52,7 @@ if BACKEND not in ("serper", "tavily"):
     sys.exit(1)
 
 from categories import BUCKETS, FOCUS_LANES
+from search_errors import SearchAuthError
 
 # Optional 3rd arg: a focus run ("japan") spends the backend's SAME daily budget on only
 # that focus's lanes (categories.FOCUS_LANES) instead of every country. Focus-only lanes
@@ -548,6 +549,8 @@ def process_discovery_query(conn, run_id: str, bucket: dict, query_text: str, pr
     page = bucket.get("page", 1)
     try:
         results = search(search_text, count=8, page=page) if page > 1 else search(search_text, count=8)
+    except SearchAuthError:
+        raise  # no key / no credits: the run stops here (see search_errors.py)
     except Exception as e:
         print(f"  [warn] search failed for '{query_text}': {e}", file=sys.stderr)
         progress.errors += 1
@@ -634,6 +637,8 @@ def process_roster_query(conn, run_id: str, bucket: dict, query_text: str, progr
 
     try:
         results = search(query_text, count=8)
+    except SearchAuthError:
+        raise  # no key / no credits: the run stops here (see search_errors.py)
     except Exception as e:
         print(f"  [warn] search failed for '{query_text}': {e}", file=sys.stderr)
         progress.errors += 1
@@ -750,6 +755,17 @@ def main():
     if run_id is None:
         run_id = create_sourcing_run(conn, BACKEND)
     print(f"Sourcing run {run_id} (backend: {BACKEND}" + (f", focus: {FOCUS}" if FOCUS else "") + ")")
+
+    # Fail before touching the budget/ledger/lane state when a key this run needs is
+    # missing (the run buttons already refuse to start then -- this covers a manual run).
+    # The Korea check always uses Serper, so a Tavily run needs both keys.
+    from config import SERPER_API_KEY, TAVILY_API_KEY
+
+    missing = [k for k, v in (("SERPER_API_KEY", SERPER_API_KEY), ("TAVILY_API_KEY", TAVILY_API_KEY)) if not v]
+    if BACKEND == "serper":
+        missing = [k for k in missing if k == "SERPER_API_KEY"]
+    if missing:
+        raise SearchAuthError(f"{', '.join(missing)}가 .env에 없습니다")
 
     today = date.today()
     budget_state = get_or_create_daily_budget(conn, BACKEND, today)
@@ -876,7 +892,9 @@ if __name__ == "__main__":
                 update_run_progress(
                     fallback_conn,
                     fallback_run_id,
-                    {"stage": "error", "message": f"{type(e).__name__}: {e}"},
+                    # A key/credit problem is shown as-is (it's the whole story); anything
+                    # else keeps its exception type for debugging.
+                    {"stage": "error", "message": str(e) if isinstance(e, SearchAuthError) else f"{type(e).__name__}: {e}"},
                     status="error",
                 )
                 fallback_conn.close()

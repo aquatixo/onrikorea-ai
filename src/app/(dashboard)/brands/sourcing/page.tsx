@@ -8,6 +8,7 @@ import { SourcingResultsTable } from "@/components/sourcing-results-table";
 import { DAILY_CANDIDATE_TARGET, DAILY_SEARCH_BUDGET } from "@/lib/brand-sourcing/daily-limits";
 import { Search, ListChecks } from "lucide-react";
 import { todayInAppTimeZone } from "@/lib/format-date";
+import { missingSourcingKeys } from "@/lib/brand-sourcing/required-keys";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +92,7 @@ export default async function BrandSourcingPage() {
             backend="serper"
             label={t.sourcing.runPythonButtonServer}
             japanLabel={t.sourcing.runJapanFocusSerper}
+            missingKeys={missingSourcingKeys("serper")}
             latestRun={
               latestSerperRun
                 ? {
@@ -106,6 +108,7 @@ export default async function BrandSourcingPage() {
             backend="tavily"
             label={t.sourcing.runPythonButtonTavily}
             japanLabel={t.sourcing.runJapanFocusTavily}
+            missingKeys={missingSourcingKeys("tavily")}
             latestRun={
               latestTavilyRun
                 ? {

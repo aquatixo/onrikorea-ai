@@ -14,6 +14,7 @@ export function RunPythonSourcingButton({
   backend,
   label,
   japanLabel,
+  missingKeys,
   latestRun,
 }: {
   locale: Locale;
@@ -22,6 +23,9 @@ export function RunPythonSourcingButton({
   // The "일본 집중" run for the same backend. It shares the backend's daily budget, so
   // only one of the two can run at a time -- a running one replaces both buttons.
   japanLabel: string;
+  // Search API keys this backend needs that aren't set (names only) -- non-empty means
+  // the buttons are disabled with an explanation instead of starting a doomed run.
+  missingKeys: string[];
   latestRun: LatestRunInfo;
 }) {
   const t = getDictionary(locale);
@@ -57,13 +61,16 @@ export function RunPythonSourcingButton({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" onClick={() => handleStart()} disabled={isStarting}>
+        <Button variant="outline" onClick={() => handleStart()} disabled={isStarting || missingKeys.length > 0}>
           {isStarting ? t.sourcing.runningPython : label}
         </Button>
-        <Button variant="outline" onClick={() => handleStart("japan")} disabled={isStarting}>
+        <Button variant="outline" onClick={() => handleStart("japan")} disabled={isStarting || missingKeys.length > 0}>
           {japanLabel}
         </Button>
       </div>
+      {missingKeys.length > 0 && (
+        <p className="text-xs text-muted-foreground">{t.sourcing.missingKeys(missingKeys.join(", "))}</p>
+      )}
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );

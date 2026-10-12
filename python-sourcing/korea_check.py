@@ -16,6 +16,7 @@ import re
 from urllib.parse import urlparse
 
 from serper_search import search
+from search_errors import SearchAuthError
 from name_filter import has_latin_letters
 
 KOREA_QUERY_TEMPLATES = [
@@ -76,6 +77,8 @@ def check_korea_presence(brand_name: str) -> dict:
         query = template.format(name=brand_name)
         try:
             results = search(query, count=3)
+        except SearchAuthError:
+            raise  # no key / no credits: stop the run, don't record "no Korea evidence"
         except Exception:
             results = []
         for r in results:

@@ -5,6 +5,9 @@ import path from "path";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
+import { missingSourcingKeys } from "@/lib/brand-sourcing/required-keys";
+import { getLocale } from "@/lib/i18n/get-locale";
+import { getDictionary } from "@/lib/i18n/dictionary";
 
 /**
  * Starts the Python evidence-only sourcing engine as a local subprocess and returns
@@ -25,6 +28,11 @@ export async function startPythonBrandSourcing(
   // Both are passed straight to a spawned process -- accept only the known values.
   if (backend !== "serper" && backend !== "tavily") return { error: "Unknown backend." };
   if (focus !== undefined && focus !== "japan") return { error: "Unknown focus." };
+  // The page already disables the buttons then; this covers a stale page or a direct call.
+  const missing = missingSourcingKeys(backend);
+  if (missing.length > 0) {
+    return { error: getDictionary(await getLocale()).sourcing.missingKeys(missing.join(", ")) };
+  }
   const run = await db.sourcingRun.create({ data: { status: "running", backend } });
   const scriptDir = path.join(process.cwd(), "python-sourcing");
 

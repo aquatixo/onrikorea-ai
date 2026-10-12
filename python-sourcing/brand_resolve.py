@@ -11,6 +11,7 @@ body, a trade show, a PDO consortium -- already vouched for its existence by lis
 it), so the question domain_matches_name asks is exactly the right one to ask.
 """
 
+from search_errors import SearchAuthError
 from name_filter import (
     is_blocked_domain,
     is_article_page,
@@ -34,6 +35,8 @@ def resolve_site(name: str, country: str | None, search_fn) -> dict:
         search_calls += 1
         try:
             results = search_fn(query, count=5)
+        except SearchAuthError:
+            raise
         except Exception:
             results = []
         if not results:

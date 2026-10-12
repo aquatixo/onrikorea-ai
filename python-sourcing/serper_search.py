@@ -20,13 +20,14 @@ tavily_search.py/gemini_search.py, so main.py and korea_check.py need only an im
 import requests
 
 from config import SERPER_API_KEY
+from search_errors import SearchAuthError
 
 _ENDPOINT = "https://google.serper.dev/search"
 
 
 def search(query: str, count: int = 8, page: int = 1) -> list[dict]:
     if not SERPER_API_KEY:
-        raise RuntimeError("SERPER_API_KEY is not set in .env")
+        raise SearchAuthError("SERPER_API_KEY가 .env에 없습니다")
 
     body = {"q": query, "num": min(count, 20)}
     if page > 1:
@@ -37,6 +38,10 @@ def search(query: str, count: int = 8, page: int = 1) -> list[dict]:
         json=body,
         timeout=20,
     )
+    if response.status_code in (401, 403):
+        raise SearchAuthError(f"Serper가 API 키를 거부했습니다 (HTTP {response.status_code}) — .env의 SERPER_API_KEY를 확인하세요")
+    if response.status_code in (400, 402) and "credit" in response.text.lower():
+        raise SearchAuthError(f"Serper 크레딧이 소진되었습니다 (HTTP {response.status_code})")
     response.raise_for_status()
     organic = response.json().get("organic", [])
     return [

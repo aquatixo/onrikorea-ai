@@ -15,6 +15,9 @@ beyond picking which module to import.
 import re
 
 from tavily import TavilyClient
+from tavily.errors import ForbiddenError, InvalidAPIKeyError, MissingAPIKeyError, UsageLimitExceededError
+
+from search_errors import SearchAuthError
 from config import TAVILY_API_KEY
 from name_filter import NON_BRAND_DOMAINS
 
@@ -45,7 +48,7 @@ _MAX_EXCLUDE_DOMAINS = 150
 def _get_client() -> TavilyClient:
     global _client
     if not TAVILY_API_KEY:
-        raise RuntimeError("TAVILY_API_KEY is not set in .env")
+        raise SearchAuthError("TAVILY_API_KEY가 .env에 없습니다")
     if _client is None:
         _client = TavilyClient(TAVILY_API_KEY)
     return _client
@@ -53,12 +56,17 @@ def _get_client() -> TavilyClient:
 
 def search(query: str, count: int = 8) -> list[dict]:
     clean_query = _GOOGLE_EXCLUDE_OPERATOR.sub("", query).strip()
-    response = _get_client().search(
-        query=clean_query,
-        search_depth="basic",
-        max_results=min(count, 20),
-        exclude_domains=list(NON_BRAND_DOMAINS)[:_MAX_EXCLUDE_DOMAINS],
-    )
+    try:
+        response = _get_client().search(
+            query=clean_query,
+            search_depth="basic",
+            max_results=min(count, 20),
+            exclude_domains=list(NON_BRAND_DOMAINS)[:_MAX_EXCLUDE_DOMAINS],
+        )
+    except (InvalidAPIKeyError, MissingAPIKeyError, ForbiddenError) as e:
+        raise SearchAuthError(f"Tavily가 API 키를 거부했습니다 — .env의 TAVILY_API_KEY를 확인하세요 ({e})") from e
+    except UsageLimitExceededError as e:
+        raise SearchAuthError(f"Tavily 사용 한도가 소진되었습니다 ({e})") from e
     results = response.get("results", [])
     return [
         {"title": r.get("title", ""), "url": r.get("url", ""), "description": r.get("content", "")}
