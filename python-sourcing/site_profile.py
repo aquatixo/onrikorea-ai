@@ -20,12 +20,49 @@ import requests
 from bs4 import BeautifulSoup
 
 from country_guess import guess_country_from_domain, guess_country_from_text
-from name_filter import has_latin_letters, looks_like_reseller, pick_brand_name
-from relevance import check_food_relevance, has_food_words, name_on_site
+from name_filter import has_latin_letters, japanese_site_name, looks_like_reseller, pick_brand_name
+from relevance import check_food_relevance, check_group_relevance, has_food_words, has_group_words, name_on_site
 from site_scrape import HEADERS, _extract_site_name, _is_parked, extract_founded_year, has_export_signal
 
 MIN_READABLE_CHARS = 400
 _MIN_SITE_CHARS = 2000
+_JP_TITLE = re.compile(r"[぀-ヿ一-鿿]")
+
+# Japan-focus beauty/care lanes: what the company wants vs. what it never handles (user,
+# 2026-10-12). Wanted: ReFa-type face/body rollers, gua sha, facial/body beauty devices;
+# ReNu-type contact-lens and eye care. Never: hair dryers/irons, combs and brushes
+# (incl. makeup brushes -- the first run returned almost only Kumano brush workshops),
+# tweezers / eyebrow scissors / razors, simple masks, wound ointment. A site is dropped
+# when the never-handled words outnumber the wanted ones.
+_GROUP_TARGET_WORDS = {
+    "beauty": re.compile(
+        r"ローラー|かっさ|美顔|美容機器|美容器|EMS|リフト|小顔|フェイスケア|ボディケア|マイクロカレント|ラジオ波|"
+        r"rollers?|gua\s?sha|beauty\s+device",
+        re.I,
+    ),
+    "care": re.compile(r"コンタクト|レンズ|洗浄液|保存液|洗眼|目薬|点眼|contact\s+lens", re.I),
+}
+_GROUP_EXCLUDED_WORDS = {
+    "beauty": re.compile(
+        r"ドライヤー|ヘアアイロン|ストレートアイロン|カールアイロン|ブラシ|筆|櫛|くし|コーム|毛抜き|ピンセット|"
+        r"眉ハサミ|眉はさみ|カミソリ|剃刀|シェーバー|マスク|軟膏|絆創膏|"
+        r"hair\s?dryers?|straighteners?|curling\s+irons?|brush(?:es)?|combs?|tweezers|razors?|masks?",
+        re.I,
+    ),
+    "care": re.compile(r"軟膏|傷薬|きず|絆創膏|マスク|湿布|ointment|bandages?|masks?", re.I),
+}
+_MIN_EXCLUDED_HITS = 5
+# OEM / contract manufacturing: a factory that makes products for other companies' brands
+# is not a candidate (user, 2026-10-12). Real brand makers measured 0-7 mentions
+# (竹宝堂 23 does OEM on the side, but brushes are out anyway); OEM factories 28-40, and
+# usually say it in the page title ("洋菓子のOEM製造【名月製菓】").
+# Not \bOEM\b: in "洋菓子のOEM製造" the kana before it is a word character, so no boundary.
+_OEM_WORDS = re.compile(r"(?<![A-Za-z])OEM(?![A-Za-z])|受託製造|受託加工|ＯＥＭ", re.I)
+_MIN_OEM_HITS = 15
+
+# A beauty/care product company says it develops or makes its products in different words
+# than a food maker ("開発", "メーカー", "製造販売元", "日本製").
+_DEVICE_MAKER_MARKERS = re.compile(r"開発|研究|メーカー|製品|製造販売|自社ブランド|特許|日本製|made\s+in\s+japan|our\s+products", re.I)
 _PAGE_TEXT_CAP = 6000
 _MAX_ABOUT_PAGES = 2
 _MAX_TRADE_PAGES = 2
@@ -49,7 +86,10 @@ _TRADE_LINK = re.compile(
     r"ingrosso|rivendit|esportaz|"
     r"mayorista|distribuidor|profesionales|exportaci|"
     r"revenda|grossista|"
-    r"卸|業務用|法人|海外",
+    # Japanese makers rarely say 卸 outright: "お取引" (trade enquiries), "取扱店/販売店"
+    # (stockist list), "代理店" (agents), "輸出" (export), "OEM" all mean a B2B channel.
+    # Not 特定商取引法 (the legal-notice page every Japanese web shop must have).
+    r"卸|業務用|法人|海外|(?<!特定商)取引|取扱店|取り扱い店|販売店|代理店|輸出|\bOEM\b|問屋",
     re.I,
 )
 
@@ -60,7 +100,7 @@ _TRADE_LINK = re.compile(
 _SUPPLIER_GRADE = re.compile(
     r"\bIFS\s*(food|certif)|\bBRC(GS)?\b|FSSC\s*22000|ISO\s*22000|"
     r"stabiliment[oi]\s+produttiv|production\s+(plant|facilit)|produktionsst[äa]tte|"
-    r"\busines?\s+de\s+production|planta\s+de\s+producci[oó]n|自社工場",
+    r"\busines?\s+de\s+production|planta\s+de\s+producci[oó]n|自社工場|HACCP|工場見学",
     re.I,
 )
 
@@ -104,14 +144,17 @@ _DIRECTORY_TITLE = re.compile(
 _FRESH_WORDS = re.compile(
     r"\b(brot|brote|brötchen|bread|breads|baguettes?|quiches?|sandwich\w*|pan|panes|panader\w*|"
     r"boulangerie|pains?|pane|focaccia|sourdough|sauerteig|semmel\w*|"
-    r"tartas?|torten?|sponges?|cream\s+cakes?|wedding\s+cakes?|hochzeitstorte\w*)\b",
+    r"tartas?|torten?|sponges?|cream\s+cakes?|wedding\s+cakes?|hochzeitstorte\w*)\b|"
+    # Japanese fresh sweets (no \b: CJK has no word boundary inside a sentence).
+    r"生菓子|要冷蔵|生クリーム|大福|団子|だんご|食パン|当日中",
     re.I,
 )
 _SHELF_WORDS = re.compile(
     r"biscuit|cookie|bonbon|candy|candies|chocolat|schokolade|caramel|karamell|toffee|fudge|praline|"
     r"nougat|turr[oó]n|torrone|lebkuchen|stollen|wafer|waffel|shortbread|kaffee|coffee|espresso|"
     r"\btea\b|\btee\b|honey|honig|pasta|confiserie|calisson|liquirizia|lakritz|crackers?|"
-    r"keks|gebäck|biscott|cantucci|taffy|brittle|せんべい|煎餅|菓子|marmelad|confiture|\bjam\b",
+    r"keks|gebäck|biscott|cantucci|taffy|brittle|せんべい|煎餅|菓子|marmelad|confiture|\bjam\b|"
+    r"キャンディ|グミ|ビスケット|カステラ|八ッ橋|おかき|あられ|かりんとう|羊羹|クッキー|チョコ|焼菓子|米菓",
     re.I,
 )
 _MIN_FRESH_HITS = 3
@@ -124,14 +167,17 @@ _OFF_TARGET_WORDS = re.compile(
     r"coffee|kaffee|espresso|r[öo]sterei|roaster|roastery|torr[ée]fact|torrefaz|tostador|"
     # French "thé" only WITH the accent -- th[ée] also matched English "the" (99 hits on
     # one cookie bakery's homepage, which then read as a tea site).
-    r"\bcaf[ée]s?\b|\btea\b|\btee\b|\bthés?\b|matcha|honey|honig|\bmiel\b|miele|pasta|pastificio",
+    r"\bcaf[ée]s?\b|\btea\b|\btee\b|\bthés?\b|matcha|honey|honig|\bmiel\b|miele|pasta|pastificio|"
+    # Japanese. Not 抹茶: it's a flavour all over wagashi, not a tea business on its own.
+    r"コーヒー|珈琲|紅茶|緑茶|日本茶|煎茶|蜂蜜|はちみつ|パスタ",
     re.I,
 )
 _TARGET_WORDS = re.compile(
     r"biscuit|cookie|bonbon|candy|candies|chocolat|schokolade|caramel|karamell|toffee|fudge|praline|"
     r"nougat|turr[oó]n|torrone|lebkuchen|stollen|wafer|waffel|shortbread|confiserie|calisson|"
     r"liquirizia|lakritz|licorice|liquorice|crackers?|keks|gebäck|biscott|cantucci|taffy|brittle|"
-    r"marzipan|dragée|dragee|confett|せんべい|煎餅|菓子",
+    r"marzipan|dragée|dragee|confett|せんべい|煎餅|菓子|"
+    r"キャンディ|グミ|ビスケット|カステラ|八ッ橋|おかき|あられ|かりんとう|羊羹|クッキー|チョコ|焼菓子|米菓",
     re.I,
 )
 _MIN_OFF_TARGET_HITS = 5
@@ -155,7 +201,7 @@ _PRODUCER_MARKERS = re.compile(
     r"fatt[oi]\s+a\s+mano|produzione|artigian\w*|laboratorio|pasticceria|torronificio|biscottificio|dal\s+\d{4}|"
     r"hecho\s+a\s+mano|elaboraci[oó]n|elaboramos|obrador|artesan\w*|confiter[ií]a|pasteler[ií]a|desde\s+\d{4}|"
     r"fabrico|f[aá]brica|"
-    r"創業|製造|手作り|自社工場|老舗)",
+    r"創業|製造|手作り|自社工場|老舗|製菓|本舗|本舖|総本家|総本店|菓子司|菓子處|菓子処|職人|製法|自社製|工場)",
     re.I,
 )
 
@@ -174,6 +220,12 @@ def _get(url: str, timeout: int = 8) -> requests.Response | None:
         except (requests.Timeout, requests.ConnectionError):
             resp = requests.get(url, headers=HEADERS, timeout=15)
         resp.raise_for_status()
+        # A text/html response with no charset in its Content-Type makes requests fall
+        # back to ISO-8859-1, which turned every UTF-8 Japanese page (fukusaya, kanro,
+        # toraya...) into mojibake -- zero food words, so real makers read as "not a food
+        # site". Detect the encoding from the bytes instead in that case.
+        if "charset" not in resp.headers.get("Content-Type", "").lower():
+            resp.encoding = resp.apparent_encoding or resp.encoding
         return resp
     except requests.RequestException:
         return None
@@ -274,6 +326,7 @@ def build_profile(url: str) -> dict:
             "thinTrade": has_export_signal(thin) or bool(_TRADE_LINK.search(meta)),
             "thinPublisher": bool(_PUBLISHER_MARKERS.search(thin)),
             "selfTitle": _self_title(soup),
+            "pageTitle": soup.title.string.strip() if soup.title and soup.title.string else "",
         }
 
     links = _internal_links(soup, home.url)
@@ -317,6 +370,7 @@ def build_profile(url: str) -> dict:
         "trade": trade_evidence,
         "food": check_food_relevance(full_text),
         "selfTitle": _self_title(soup),
+        "pageTitle": soup.title.string.strip() if soup.title and soup.title.string else "",
         "freshHits": len(_FRESH_WORDS.findall(full_text)),
         "offTargetHits": len(_OFF_TARGET_WORDS.findall(full_text)),
         "targetHits": len(_TARGET_WORDS.findall(full_text)),
@@ -324,8 +378,49 @@ def build_profile(url: str) -> dict:
     }
 
 
-def judge(profile: dict, name: str, url: str) -> tuple[bool, str, str]:
-    """(keep, reason_code, human_reason). reason_code doubles as the progress filter-drop key."""
+def _japanese_middleman(text: str) -> tuple[str, str] | None:
+    """A Japanese site that sells, lists or supplies OTHER makers' products (or makes the
+    machines), not its own. Each rule is the wording one kind of middleman can't avoid,
+    measured on a real Japan-focus run (2026-10-12) against the makers it kept:
+      goooods.com (B2B marketplace): 仕入れ x29 with 掲載/バイヤー -- a maker like 名月製菓
+        also says 仕入れ x18 (it sells to shops) but never 掲載/バイヤー.
+      food-oem.com (OEM directory): 掲載 x95 -- makers 0-3.
+      miyata-net (trading co.): 総合商社. wave-b2b: 卸通販 (wholesale web shop).
+      masaki-ya (wholesaler, "800 makers, 30,000 items"): メーカー様 + 小売店 x8 + バイヤー x19.
+      contactlife (lens web shop): 処方箋 x7. masdac (food machinery): 食品機械 x11."""
+    n = text.count
+    if n("卸通販"):
+        return "reseller_site", "도매 통판 사이트 (卸通販) — 다른 업체 상품을 파는 곳"
+    if n("総合商社"):
+        return "reseller_site", "식품 종합상사 (総合商社) — 제조사가 아님"
+    if n("掲載") >= 10:
+        return "publisher_site", f"업체 목록·디렉토리 사이트 (掲載 {n('掲載')}회)"
+    if n("仕入れ") >= 10 and (n("掲載") >= 5 or n("バイヤー") >= 5 or n("登録無料")):
+        return "reseller_site", f"B2B 도매 마켓플레이스 (仕入れ {n('仕入れ')}회)"
+    if n("メーカー様") and n("小売店") >= 5 and n("バイヤー") >= 5:
+        return "reseller_site", "여러 제조사 상품을 모아 파는 도매상 (メーカー様/小売店/バイヤー)"
+    if n("処方箋") >= 3:
+        return "reseller_site", "콘택트렌즈 통판(소매) 사이트 (処方箋)"
+    # j-maeda.co.jp (2nd run): "国内外の幅広い製菓原材料や機械を取り扱う企業" -- an ingredient
+    # and machinery trader, not a confectioner.
+    if n("製菓原材料") and n("機械") and n("取り扱"):
+        return "reseller_site", "제과 원료·기계 취급 상사 (製菓原材料/機械) — 제조사가 아님"
+    if n("食品機械") >= 3:
+        return "not_a_producer", "식품 기계 제조사 (食品機械) — 식품 제조사가 아님"
+    return None
+
+
+def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool, str, str]:
+    """(keep, reason_code, human_reason). reason_code doubles as the progress filter-drop key.
+
+    group: "food" (every normal lane) or "beauty"/"care" (Japan-focus lanes) -- picks which
+    product words the site must be about; the publisher/reseller/producer/trade checks
+    are the same for every group."""
+    food = group == "food"
+    # Says it makes its products: the producer words, or for beauty/care the maker words.
+    makes = profile.get("producerHits", 0) > 0 or (
+        not food and bool(_DEVICE_MAKER_MARKERS.search(profile.get("fullText", "")))
+    )
     if not profile.get("readable"):
         return False, "unverifiable_site", profile.get("why", "")
     if profile.get("parked"):
@@ -340,36 +435,58 @@ def judge(profile: dict, name: str, url: str) -> tuple[bool, str, str]:
         if looks_like_reseller(profile.get("selfTitle") or "") or looks_like_reseller(name):
             return False, "reseller_site", "이름이 도매상/유통업자/선물세트형"
         thin_off = len(_OFF_TARGET_WORDS.findall(profile["fullText"]))
-        if thin_off and thin_off >= len(_TARGET_WORDS.findall(profile["fullText"])):
+        if food and thin_off and thin_off >= len(_TARGET_WORDS.findall(profile["fullText"])):
             return False, "off_target_category", "취급하지 않는 품목(커피·차·꿀·파스타) 위주 (제목/설명 기준)"
-        if not (profile["thinFood"] and profile["thinProducer"] and profile["thinTrade"]):
-            return False, "unverifiable_site", "본문이 거의 없고 제목/설명에 식품·제조·도매 근거가 다 있지 않음"
+        on_topic = profile["thinFood"] if food else has_group_words(profile["fullText"], group)
+        if not (on_topic and profile["thinProducer"] and profile["thinTrade"]):
+            return False, "unverifiable_site", "본문이 거의 없고 제목/설명에 제품·제조·도매 근거가 다 있지 않음"
         if not has_latin_letters(name) and name_on_site(name, profile["fullText"]) is False:
             return False, "name_not_on_site", "사이트 제목/설명에 후보 이름이 없음"
         return True, "ok", "JS 사이트라 본문 대신 제목/설명으로 판정: 식품·제조·도매 모두 명시"
+    # Strict producer words only: a review listicle (my-best) is full of "メーカー".
     if profile["publisherTypes"] and not profile["producerHits"]:
         return False, "publisher_site", f"언론/블로그 사이트 (JSON-LD {profile['publisherTypes']})"
-    if profile["publisherHits"] >= 2 or profile["dateStamps"] >= 6:
+    # Dated lists alone only mean "publisher" when nothing says the site makes anything:
+    # every Japanese company homepage carries a dated お知らせ (news) list -- 井筒八ッ橋本舗
+    # had 173 dates and was read as a blog.
+    if profile["publisherHits"] >= 2 or (profile["dateStamps"] >= 6 and not makes):
         return False, "publisher_site", f"언론/블로그형 사이트 (출판 용어 {profile['publisherHits']}, 날짜 {profile['dateStamps']})"
     if looks_like_reseller(profile.get("selfTitle") or "") or looks_like_reseller(name) or profile["retailerHits"] >= 2:
         return False, "reseller_site", f"재판매/편집숍형 사이트 (신호 {profile['retailerHits']})"
-    food_ok, food_why = profile["food"]
+    middleman = _japanese_middleman(profile["fullText"])
+    if middleman:
+        return False, middleman[0], middleman[1]
+    oem = len(_OEM_WORDS.findall(profile["fullText"]))
+    if oem >= _MIN_OEM_HITS or _OEM_WORDS.search(profile.get("pageTitle") or ""):
+        return False, "oem_maker", f"OEM·위탁생산 공장 (언급 {oem}회) — 자체 브랜드가 아니라 다른 회사 제품을 만드는 곳"
+    food_ok, food_why = profile["food"] if food else check_group_relevance(profile["fullText"], group)
     if food_ok is not True:
-        return False, "not_food_site", food_why
+        return False, "not_food_site" if food else "off_topic_site", food_why
     if not has_latin_letters(name) and name_on_site(name, profile["fullText"]) is False:
         return False, "name_not_on_site", "사이트 본문에 후보 이름이 없음"
+    if not food:
+        excluded = _GROUP_EXCLUDED_WORDS[group].findall(profile["fullText"])
+        wanted = len(_GROUP_TARGET_WORDS[group].findall(profile["fullText"]))
+        # 2:1 so a device brand that also sells a few combs or sheet masks (ヤーマン, アクシージア)
+        # stays, while a hair-appliance / brush / comb house (SALONIA, 熊野筆, uka) goes.
+        if len(excluded) >= _MIN_EXCLUDED_HITS and len(excluded) > 2 * wanted:
+            top = max(set(excluded), key=excluded.count)
+            return False, "excluded_item", (
+                f"취급하지 않는 품목 위주 ('{top}' 등 {len(excluded)}회 vs 취급 품목 {wanted}회) — "
+                "빗·브러시·화장붓·족집게·면도칼·마스크·연고·드라이어류 제외"
+            )
     off, target = profile["offTargetHits"], profile["targetHits"]
-    if off >= _MIN_OFF_TARGET_HITS and off >= target:
+    if food and off >= _MIN_OFF_TARGET_HITS and off >= target:
         return False, "off_target_category", f"취급하지 않는 품목(커피·차·꿀·파스타) 위주 ({off} vs 과자류 {target})"
     fresh, shelf = profile["freshHits"], profile["shelfHits"]
-    if fresh >= _MIN_FRESH_HITS and fresh / max(shelf, 1) >= _MAX_FRESH_RATIO:
+    if food and fresh >= _MIN_FRESH_HITS and fresh / max(shelf, 1) >= _MAX_FRESH_RATIO:
         return False, "fresh_bakery", f"신선 빵·케이크 위주 (빵 단어 {fresh} vs 보존식품 단어 {shelf}) — 수입 불가 품목"
     # A one-page website is a micro business (home kitchen, single shop), not an importable
     # supplier. Measured across every site kept in tests/eval_live_sites.py: the one
     # one-pager (a farmhouse cake maker, 1,257 chars total) vs. 3,225+ for all others.
     if len(profile["fullText"]) < _MIN_SITE_CHARS:
         return False, "micro_site", f"사이트가 한 페이지 수준으로 작음 ({len(profile['fullText'])}자) — 초소형 업체 추정"
-    if profile["producerHits"] == 0:
+    if not makes:
         return False, "not_a_producer", "직접 만든다는 표현(수제, 제조, since 등)이 사이트에 없음"
     if not profile["trade"]:
         return False, "no_export_signal", "도매/수출/거래처 링크나 문구가 없음 (동네 가게 추정)"
@@ -377,4 +494,17 @@ def judge(profile: dict, name: str, url: str) -> tuple[bool, str, str]:
 
 
 def resolved_name(profile: dict, name: str, url: str) -> str:
+    # A Japanese site names itself in its <title> (株式会社晃祐堂, 【名月製菓】...) --
+    # pick_brand_name only reads Latin-letter names, see japanese_site_name.
+    title = profile.get("pageTitle") or ""
+    jp = japanese_site_name(title, profile.get("siteName"))
+    if jp:
+        return jp
+    # Last resort for a Japanese title with no name-shaped piece: a non-Latin name that the
+    # title doesn't even contain is a search-title fragment ("大口注文" for お菓子屋ニャンライズ),
+    # and a Japanese title starts with the shop's own name.
+    if _JP_TITLE.search(title) and not has_latin_letters(name) and name not in title:
+        first = re.split(r"[\s　｜|【】]", title.strip())[0]
+        if 2 <= len(first) <= 20:
+            return first
     return pick_brand_name(name, profile.get("siteName"), url)

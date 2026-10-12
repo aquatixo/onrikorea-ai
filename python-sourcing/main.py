@@ -31,6 +31,7 @@ already created so the UI can start polling immediately; running it bare from a 
 for manual testing still works, and creates its own run.)
 """
 
+import os
 import sys
 import time
 from datetime import date
@@ -50,7 +51,15 @@ if BACKEND not in ("serper", "tavily"):
     print(f"[fatal] unknown backend '{BACKEND}' -- expected 'serper' or 'tavily'", file=sys.stderr)
     sys.exit(1)
 
-from categories import BUCKETS
+from categories import BUCKETS, FOCUS_LANES
+
+# Optional 3rd arg: a focus run ("japan") spends the backend's SAME daily budget on only
+# that focus's lanes (categories.FOCUS_LANES) instead of every country. Focus-only lanes
+# (e.g. Japan Beauty / Japan Care) never run in a normal run.
+FOCUS = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None
+if FOCUS is not None and FOCUS not in FOCUS_LANES:
+    print(f"[fatal] unknown focus '{FOCUS}' -- expected one of {sorted(FOCUS_LANES)}", file=sys.stderr)
+    sys.exit(1)
 
 if BACKEND == "tavily":
     from tavily_search import search
@@ -66,7 +75,7 @@ from name_filter import (
     strip_shop_words,
 )
 from site_profile import build_profile, judge, resolved_name
-from korea_check import KOREA_QUERY_TEMPLATES, check_korea_presence, classify_korea_status
+from korea_check import KOREA_QUERY_TEMPLATES, check_korea_presence, classify_korea_status, korea_search_name
 
 KOREA_CALLS_PER_CHECK = len(KOREA_QUERY_TEMPLATES)
 from brand_rules import category_signal, ownership_signal, known_parent_in_name
@@ -98,6 +107,10 @@ from config import (
 )
 
 DAILY_SEARCH_BUDGET = DAILY_SEARCH_BUDGET_TAVILY if BACKEND == "tavily" else DAILY_SEARCH_BUDGET_SERPER
+# One-off extra searches for a single manual run (e.g. re-testing after a fix on a day the
+# budget is already used up): SOURCING_EXTRA_SEARCH_BUDGET=40 python main.py ... Never set
+# by the app's run buttons, so the normal daily cap is unchanged.
+DAILY_SEARCH_BUDGET += int(os.environ.get("SOURCING_EXTRA_SEARCH_BUDGET", "0") or 0)
 DAILY_CANDIDATE_TARGET = DAILY_CANDIDATE_TARGET_TAVILY if BACKEND == "tavily" else DAILY_CANDIDATE_TARGET_SERPER
 
 
@@ -107,7 +120,8 @@ def methodology_label(bucket: dict) -> str:
     Japan") for display in the results table's methodology column, without needing
     categories.py itself to know anything about which backend is running."""
     suffix = " (자동)" if bucket.get("dynamic") else ""
-    return f"{BACKEND.capitalize()} · {bucket['label']}{suffix}"
+    focus = " · 집중" if FOCUS else ""
+    return f"{BACKEND.capitalize()}{focus} · {bucket['label']}{suffix}"
 
 
 def similarity(a: str, b: str) -> float:
@@ -189,6 +203,7 @@ class Progress:
         payload = {
             "stage": self.stage,
             "backend": BACKEND,
+            "focus": FOCUS,
             "target": {"candidatesOut": self.candidates_out, "target": DAILY_CANDIDATE_TARGET},
             "budget": {"searchUsed": self.search_used, "budget": DAILY_SEARCH_BUDGET},
             "stoppedBy": self.stopped_by,
@@ -365,7 +380,7 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
             print(f"  [warn] site profile failed for '{candidate['website']}': {e}", file=sys.stderr)
             profile = {"readable": False, "why": f"사이트 분석 오류 ({type(e).__name__})"}
         progress.website_scraped += 1
-        keep, drop_code, why = judge(profile, candidate["name"], candidate["website"] or "")
+        keep, drop_code, why = judge(profile, candidate["name"], candidate["website"] or "", bucket.get("group", "food"))
         if not keep:
             print(f"  - {candidate['name']} -> dropped ({drop_code}: {why})")
             progress.filter_drops[drop_code] = progress.filter_drops.get(drop_code, 0) + 1
@@ -423,12 +438,23 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
                     progress.push()
                     return False, search_calls
 
-        korea = check_korea_presence(candidate["name"])
+        korea_name = korea_search_name(candidate["name"], candidate["website"])
+        # The registry check before the crawl only saw the search-result name
+        # ("ヤーマン公式通販サイト"); the corrected name or the domain name can match it
+        # (ヤーマン / "ya man"). Free, and it saves the 2-search Korea check.
+        known_after = known_excluded_brand(candidate["name"]) or known_excluded_brand(korea_name)
+        if known_after:
+            registry, known_reason = known_after
+            print(f"  - {candidate['name']} -> dropped (known_excluded: {registry} — {known_reason})")
+            progress.filter_drops["known_excluded"] = progress.filter_drops.get("known_excluded", 0) + 1
+            progress.push()
+            return False, search_calls
+        korea = check_korea_presence(korea_name)
         search_calls += KOREA_CALLS_PER_CHECK
         # Classify against ALL hits, not just the capped topHits display list -- a brand's
         # own (non-Korean) site usually ranks first and could push the one real Korean
         # marketplace hit out of the display cap. See check_korea_presence.
-        korea_status, korea_reason = classify_korea_status(korea["hits"], candidate["name"])
+        korea_status, korea_reason = classify_korea_status(korea["hits"], korea_name)
         progress.korea_checked += 1
         progress.push()
 
@@ -723,7 +749,7 @@ def main():
     conn = get_connection()
     if run_id is None:
         run_id = create_sourcing_run(conn, BACKEND)
-    print(f"Sourcing run {run_id} (backend: {BACKEND})")
+    print(f"Sourcing run {run_id} (backend: {BACKEND}" + (f", focus: {FOCUS}" if FOCUS else "") + ")")
 
     today = date.today()
     budget_state = get_or_create_daily_budget(conn, BACKEND, today)
@@ -736,7 +762,11 @@ def main():
     # A bucket with "enabled": False (e.g. Awards -- see categories.py) is skipped
     # entirely rather than removed, so its hand-picked queries/lane-state survive to be
     # reactivated later without re-authoring them.
-    lanes_by_label = {b["label"]: b for b in BUCKETS if b.get("enabled", True)}
+    if FOCUS:
+        focus_labels = FOCUS_LANES[FOCUS]
+        lanes_by_label = {b["label"]: b for b in BUCKETS if b.get("enabled", True) and b["label"] in focus_labels}
+    else:
+        lanes_by_label = {b["label"]: b for b in BUCKETS if b.get("enabled", True) and not b.get("focusOnly")}
     lane_states = {label: get_lane_state(conn, BACKEND, label) for label in lanes_by_label}
     # Every enabled lane takes part: one whose hand-written queries ran out continues with
     # generated ones, and is only dropped from this run once the generator is out too.

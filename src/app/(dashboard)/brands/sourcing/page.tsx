@@ -90,6 +90,7 @@ export default async function BrandSourcingPage() {
             locale={locale}
             backend="serper"
             label={t.sourcing.runPythonButtonServer}
+            japanLabel={t.sourcing.runJapanFocusSerper}
             latestRun={
               latestSerperRun
                 ? {
@@ -104,6 +105,7 @@ export default async function BrandSourcingPage() {
             locale={locale}
             backend="tavily"
             label={t.sourcing.runPythonButtonTavily}
+            japanLabel={t.sourcing.runJapanFocusTavily}
             latestRun={
               latestTavilyRun
                 ? {

@@ -15,15 +15,23 @@ import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
  * Local-only by design (see chat history): this spawns a real Python process, which
  * only works wherever `npm run dev` is actually running, not on the deployed Vercel site.
  */
+export type SourcingFocus = "japan";
+
 export async function startPythonBrandSourcing(
-  backend: "serper" | "tavily" = "serper"
+  backend: "serper" | "tavily" = "serper",
+  focus?: SourcingFocus
 ): Promise<{ runId: string } | { error: string }> {
   if (!(await requireSection("brandSourcing"))) return { error: await noAccessMessage() };
+  // Both are passed straight to a spawned process -- accept only the known values.
+  if (backend !== "serper" && backend !== "tavily") return { error: "Unknown backend." };
+  if (focus !== undefined && focus !== "japan") return { error: "Unknown focus." };
   const run = await db.sourcingRun.create({ data: { status: "running", backend } });
   const scriptDir = path.join(process.cwd(), "python-sourcing");
 
   try {
-    const child = spawn("python", ["main.py", run.id, backend], {
+    // main.py's optional 3rd argument: a focus run uses the same daily budget on only
+    // that focus's lanes (python-sourcing/categories.py FOCUS_LANES).
+    const child = spawn("python", ["main.py", run.id, backend, ...(focus ? [focus] : [])], {
       cwd: scriptDir,
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"],
@@ -39,7 +47,7 @@ export async function startPythonBrandSourcing(
     let stderrTail = "";
     let stdoutTail = "";
     const MAX_TAIL = 4000;
-    const tag = `[sourcing:${backend} ${run.id.slice(0, 8)}]`;
+    const tag = `[sourcing:${backend}${focus ? `:${focus}` : ""} ${run.id.slice(0, 8)}]`;
     child.stderr?.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
       stderrTail = (stderrTail + text).slice(-MAX_TAIL);

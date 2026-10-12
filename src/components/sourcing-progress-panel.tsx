@@ -10,6 +10,7 @@ import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 export type SourcingProgress = {
   stage?: string;
+  focus?: string | null;
   target?: { candidatesOut: number; target: number };
   budget?: { searchUsed: number; budget: number };
   stoppedBy?: "target" | "budget" | "exhausted" | null;
@@ -91,6 +92,11 @@ export function SourcingProgressPanel({
             <span className={cn("size-1.5 rounded-full bg-current", status === "running" && "animate-pulse")} />
             {t.statusLabel[status as keyof typeof t.statusLabel] ?? status}
           </span>
+          {progress?.focus === "japan" && (
+            <span className="ml-1.5 inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+              {t.japanFocusBadge}
+            </span>
+          )}
         </div>
         {status === "running" && (
           <Button variant="outline" size="sm" onClick={handleStop} disabled={isStopping}>

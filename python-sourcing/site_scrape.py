@@ -146,7 +146,9 @@ _EXPORT_KEYWORDS = re.compile(
     r"\bstockists?\b|trade\s+(account|enquir|inquir|customer|sales)|\bfor\s+retailers\b|"  # English trade
     r"gesch[äa]ftskunden|wiederverk[äa]ufer|fachhandel|gastronomie|horeca|foodservice|"  # German / food service
     r"grossista|revendedor|exporta[cç][aã]o|"  # Portuguese
-    r"卸売|卸販売|業務用|海外|輸出",  # Japanese
+    # Japanese. 百貨店 = sold through department stores nationwide (how 井筒八ッ橋本舗,
+    # 榮太樓, 六花亭 reach shoppers outside their own shops) -- a real distribution channel.
+    r"卸売|卸販売|業務用|海外|輸出|お取引|取扱店|取扱い店|販売店|代理店|百貨店",
     re.I,
 )
 

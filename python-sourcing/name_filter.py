@@ -809,3 +809,72 @@ URL_FILTERS = [
     ("adult_content", lambda r: is_adult_content(r["title"], r["url"], r.get("description", ""))),
     ("portal_page", lambda r: is_portal_page(r.get("description", ""))),
 ]
+
+
+# --- Japanese sites: the company/shop name from the page's own title ---------------------
+# pick_brand_name only trusts Latin-letter site names, so a Japanese site kept whatever
+# fragment the search-result title split produced -- a real Japan-focus run stored "販売",
+# "生産", "会社概要", "大口注文" as brand names. A Japanese site's <title> almost always
+# carries the company or shop name in one of a few shapes, read in this order:
+#   1. a company-form name:  株式会社晃祐堂 / マルト製菓株式会社 / 若尾製菓（株）
+#   2. a bracketed name:     洋菓子のOEM製造【名月製菓】  (not 【公式】-type labels)
+#   3. a title piece that ends like a maker/shop name: 竹宝堂, たんばや製菓, 長崎 和泉屋
+_JP_CHARS = re.compile(r"[぀-ヿ一-鿿]")
+_JP_STOP = r"\s｜|【】\[\]()（）「」『』・、,。:：!！?？"
+_JP_CORP_BEFORE = re.compile(rf"(?:株式会社|有限会社|合同会社)\s*([^{_JP_STOP}]{{2,20}})")
+_JP_CORP_AFTER = re.compile(rf"([^{_JP_STOP}]{{2,20}}?)\s*(?:株式会社|有限会社|合同会社|（株）|\(株\)|㈱)")
+_JP_BRACKET = re.compile(r"【([^】]{2,20})】")
+_JP_LABEL = re.compile(r"^(公式|公式サイト|公式通販|公式オンラインショップ|オンラインショップ|通販|重要|お知らせ|新着|NEW)$", re.I)
+_JP_MAKER_END = re.compile(r"(製菓|本舗|本舖|総本家|総本店|本店|堂|屋|や|庵|亭|舗|工房|製作所|産業|菓子店|菓子司)$")
+_JP_TAIL = re.compile(r"\s*(公式オンラインショップ|オンラインショップ|公式通販サイト|公式通販|通販サイト|公式サイト|オフィシャルサイト|公式|official\s*site)\s*$", re.I)
+
+
+def _clean_jp(name: str) -> str:
+    name = re.sub(r"[\s　]+", " ", name).strip(" -–—|｜")
+    return _JP_TAIL.sub("", name).strip()
+
+
+def japanese_site_name(title: str | None, site_name: str | None) -> str | None:
+    """The company/shop name a Japanese site gives itself, or None (non-Japanese title, or
+    nothing name-shaped). See the comment block above for the shapes it reads."""
+    sources = [t for t in (title, site_name) if t and _JP_CHARS.search(t)]
+    for text in sources:
+        for pattern in (_JP_CORP_BEFORE, _JP_CORP_AFTER):
+            m = pattern.search(text)
+            if m and not _JP_LABEL.match(m.group(1).strip()):
+                return _clean_jp(m.group(1))
+        for inner in _JP_BRACKET.findall(text):
+            inner = inner.strip()
+            if not _JP_LABEL.match(inner) and _JP_MAKER_END.search(inner):
+                return _clean_jp(inner)
+        no_reading = re.sub(r"[（(][^）)]*[）)]", " ", text)  # 巖手屋（いわてや） -> 巖手屋
+        pieces = [_clean_jp(_JP_BRACKET.sub(" ", p)) for p in re.split(r"[｜|]|\s[-–—]\s", no_reading)]
+        for p in pieces:
+            # The name is the first word in the piece that ends like a name: drops a leading
+            # "創業元禄二年" / "南部せんべい乃" / "長崎" and a trailing "-しあわせをつくるお菓子".
+            # A "<product>の<name>" word keeps only the name ("えびせんべいの桂新堂" -> 桂新堂).
+            for word in re.split(r"[\s\-–—]+", p):
+                word = word.split("の")[-1] if "の" in word else word
+                if 2 <= len(word) <= 20 and _JP_MAKER_END.search(word) and word not in _GENERIC_CATEGORY_WORDS_NON_LATIN:
+                    return word
+        # 4. Brand names with no maker ending (ヤーマン, メニコン, シード, モロゾフ) open the
+        #    title: "ヤーマン公式通販サイト | ...", "コンタクトレンズのメニコン",
+        #    "【公式】コンタクトレンズのシード「SEED」", "洋菓子のモロゾフ:チョコレート...".
+        first = next((p for p in pieces if p), "")
+        first = re.split(r"[\s:：]", re.sub(r"「[^」]*」", "", first))[0]
+        first = _clean_jp(first.split("の")[-1] if "の" in first else first)
+        if (
+            2 <= len(first) <= 12
+            and first not in _GENERIC_CATEGORY_WORDS_NON_LATIN
+            and first not in _JP_PAGE_WORDS
+            and not re.search(r"おすすめ|ランキング|比較|まとめ", first)
+        ):
+            return first
+    return None
+
+
+# Page/section names a title can open with -- never a company name.
+_JP_PAGE_WORDS = {
+    "会社概要", "会社案内", "企業情報", "お問い合わせ", "トップページ", "フロントページ", "ホーム",
+    "商品一覧", "新着情報", "お知らせ", "オンラインストア", "オンラインショップ", "採用情報",
+}

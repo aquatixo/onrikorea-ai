@@ -57,29 +57,36 @@ export function ExpandableText({ text }: { text: string }) {
     );
   }
 
+  // Only the chevron is a <button>: text inside a button can't be drag-selected, so a long
+  // name used to be impossible to copy. Clicking the text still toggles, unless the click
+  // was the end of a drag that selected some of it.
+  function toggle(e: React.MouseEvent) {
+    // Stops the click from bubbling up to a clickable row (e.g. the Brands list row,
+    // which navigates to the brand's detail page on any click) -- expanding or selecting
+    // text should never accidentally trigger navigation.
+    e.stopPropagation();
+    if (window.getSelection()?.toString()) return;
+    setExpanded((v) => !v);
+  }
+
   return (
-    <button
-      type="button"
-      onClick={(e) => {
-        // Stops the click from bubbling up to a clickable row (e.g. the Brands list row,
-        // which navigates to the brand's detail page on any click) -- expanding text
-        // should never accidentally trigger navigation.
-        e.stopPropagation();
-        setExpanded((v) => !v);
-      }}
-      className="flex w-full items-start gap-1 text-left"
-    >
-      {expanded ? (
-        <ChevronDown className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-      ) : (
-        <ChevronRight className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-      )}
+    <div className="flex w-full items-start gap-1 text-left">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={expanded}
+        aria-label={text}
+        className="mt-0.5 shrink-0 rounded text-muted-foreground hover:text-foreground"
+      >
+        {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+      </button>
       <span
         ref={attachRef}
-        className={cn("min-w-0 flex-1", expanded ? "whitespace-normal break-words" : "truncate")}
+        onClick={toggle}
+        className={cn("min-w-0 flex-1 cursor-pointer", expanded ? "whitespace-normal break-words" : "truncate")}
       >
         {text}
       </span>
-    </button>
+    </div>
   );
 }

@@ -53,7 +53,11 @@ BUCKETS = [
         # Left out entirely on the "Awards" bucket below, which genuinely spans multiple
         # countries -- a fallback there would be an actual guess, not a known fact.
         "country": "Japan",
-        "tradeTerm": "卸",
+        # Was "卸" (wholesale) -- appended to every Japan query, it pulled wholesalers, B2B
+        # marketplaces and OEM factories (first Japan-focus run, 2026-10-12: 11 of 22
+        # candidates). "公式" (official) pulls each maker's own brand site instead; the
+        # trade channel is still required by site_profile.judge.
+        "tradeTerm": "公式",
         "queries": [
             {"q": "traditional Japanese wagashi", "category": "스낵/과자"},
             # 2026-10-06: 일반명사 쿼리 5개(heritage/candy snack maker, 菓子店, 和菓子, 食品メーカー 菓子)는 삭제 -- 구인구직·OEM 디렉터리만 반환해 검색 크레딧만 소모함. 아래 품목명 쿼리는 유지.
@@ -232,4 +236,47 @@ BUCKETS = [
             {"q": "Speciality and Fine Food Fair exhibitor list producers", "category": "혼합", "kind": "roster"},
         ],
     },
+    # --- Japan-focus-only lanes (focusOnly) -------------------------------------------
+    # Requested 2026-10-12: alongside Japanese confectionery, look for ReFa-style beauty
+    # tools (rollers, gua sha, scalp brushes, makeup brushes -- NOT hair dryers/irons) and
+    # ReNu-style personal care (contact-lens care, eye care). They run only in a Japan
+    # focus run ("일본 집중" buttons), never in a normal run, and use the same daily
+    # budget. "group" makes site_profile.judge check beauty/care words instead of food,
+    # and drop hair-appliance sites. Korean SKU labels: 뷰티 도구/기기, 생활/헬스케어.
+    # Regulatory note for review: lens-care solutions are 의료기기/의약외품 in Korea.
+    {
+        "label": "Japan Beauty",
+        "country": "Japan",
+        "group": "beauty",
+        "focusOnly": True,
+        "queries": [
+            # "ブランド 公式", not "メーカー": maker/manufacturer queries returned OEM
+            # factories and brush workshops (first run: 6 of 6 beauty results were Kumano
+            # makeup-brush makers). Brushes/combs are out of scope (user, 2026-10-12).
+            {"q": "美顔ローラー ブランド 公式", "category": "뷰티 도구/기기"},
+            {"q": "美顔器 ブランド 公式 日本", "category": "뷰티 도구/기기"},
+            {"q": "EMS 美顔器 ブランド 公式", "category": "뷰티 도구/기기"},
+            {"q": "マイクロカレント 美顔器 ブランド", "category": "뷰티 도구/기기"},
+            {"q": "かっさ 美容 ブランド 公式", "category": "뷰티 도구/기기"},
+            {"q": "ボディローラー 美容 ブランド 公式", "category": "뷰티 도구/기기"},
+        ],
+    },
+    {
+        "label": "Japan Care",
+        "country": "Japan",
+        "group": "care",
+        "focusOnly": True,
+        "queries": [
+            {"q": "コンタクトレンズ 洗浄液 ブランド 公式", "category": "생활/헬스케어"},
+            {"q": "コンタクトレンズ ケア用品 製造販売元", "category": "생활/헬스케어"},
+            {"q": "ハードコンタクトレンズ ケア用品 公式", "category": "생활/헬스케어"},
+            {"q": "洗眼液 ブランド 公式", "category": "생활/헬스케어"},
+        ],
+    },
 ]
+
+# Which lanes a focus run uses (main.py's 3rd argument). The plain "Japan" lane is shared
+# with normal runs -- same query ledger, so learning carries over both ways.
+FOCUS_LANES = {
+    "japan": ["Japan", "Japan Beauty", "Japan Care"],
+}

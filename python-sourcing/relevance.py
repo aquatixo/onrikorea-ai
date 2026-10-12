@@ -45,6 +45,11 @@ _FOOD_STEMS = (
     # Japanese / Korean
     "菓子", "和菓子", "洋菓子", "せんべい", "煎餅", "饅頭", "羊羹", "チョコ", "クッキー", "ケーキ",
     "飴", "あめ", "まんじゅう", "과자", "쿠키", "초콜릿",
+    # Japanese candy/snack makers that never say 菓子 on the homepage (kanro.co.jp lists
+    # キャンディ/グミ; fukusaya says カステラ) -- measured on tests/eval_japan_sites.py.
+    "キャンディ", "キャンデー", "グミ", "ビスケット", "ラムネ", "カステラ", "八ッ橋", "八つ橋",
+    "おかき", "あられ", "かりんとう", "金平糖", "こんぺいとう", "落雁", "最中", "甘納豆",
+    "豆菓子", "和三盆", "米菓", "えびせん", "焼菓子", "焼き菓子", "バウムクーヘン", "銘菓", "スイーツ",
 )
 
 # Whole-word, case-insensitive: short or collision-prone terms.
@@ -150,3 +155,49 @@ def check_food_relevance(text: str | None, extra_text: str = "") -> tuple[bool |
     if food_hits < 2 * nonfood_hits:
         return False, f"식품 단어보다 비식품 단어가 더 많음 (식품 {food_hits} vs 비식품 {nonfood_hits})"
     return True, f"식품 관련 단어 {food_hits}회/{len(food_terms)}종"
+
+
+# Non-food product groups, used only by the Japan-focus run's beauty/care lanes
+# (categories.py "group"). Same idea as the food check: the candidate's own site must
+# actually be about that kind of product, so a listicle or an unrelated company drops out.
+_GROUP_STEMS = {
+    # ReFa-style beauty tools and devices: rollers, gua sha, scalp brushes, facial devices.
+    "beauty": (
+        "美顔", "美容", "ローラー", "スキンケア", "ヘアケア", "頭皮", "スカルプ", "ブラシ", "かっさ",
+        "マッサージ", "フェイス", "ボディ", "エステ", "ゲルマニウム", "リフト", "小顔", "くし", "櫛",
+        "化粧", "コスメ", "メイク", "筆", "beauty", "skincare", "skin care", "facial", "roller",
+        "scalp", "massage", "gua sha", "brush", "comb", "makeup", "cosmetic",
+    ),
+    # ReNu-style personal care: contact lens care and eye care.
+    "care": (
+        "コンタクトレンズ", "レンズケア", "ケア用品", "洗浄液", "保存液", "洗浄", "すすぎ", "消毒",
+        "目薬", "点眼", "洗眼", "アイケア", "目もと", "眼", "医薬部外品", "ドラッグストア",
+        "contact lens", "lens care", "eye care", "solution", "disinfect",
+    ),
+}
+GROUP_LABELS = {"beauty": "뷰티", "care": "생활·헬스케어"}
+_MIN_GROUP_DENSITY_PER_1K = 0.3
+
+
+def check_group_relevance(text: str | None, group: str) -> tuple[bool | None, str]:
+    """check_food_relevance for a non-food group ("beauty" / "care")."""
+    stems = _GROUP_STEMS[group]
+    label = GROUP_LABELS[group]
+    if not text or len(text) < _MIN_TEXT_LEN:
+        return None, "페이지 본문이 짧아 판정 불가"
+    cleaned = _COOKIE_BANNER.sub(" ", text).lower()
+    hits, terms = _count_stems(cleaned, tuple(s.lower() for s in stems))
+    if hits < _MIN_FOOD_HITS or len(terms) < _MIN_DISTINCT_FOOD_TERMS:
+        return False, f"{label} 관련 단어가 거의 없음 (hits={hits}, terms={len(terms)})"
+    # Lower bar than food: a beauty/care maker's site also carries its other lines (Leda:
+    # medical devices, jewelry, supplements -- 0.5 per 1k), and review/listicle portals are
+    # already dropped earlier as publishers.
+    density = hits * 1000 / max(len(cleaned), 1)
+    if density < _MIN_GROUP_DENSITY_PER_1K:
+        return False, f"{label} 단어 밀도가 낮음 (1000자당 {density:.1f}회) -- 블로그/매거진형 사이트로 추정"
+    return True, f"{label} 관련 단어 {hits}회/{len(terms)}종"
+
+
+def has_group_words(text: str, group: str) -> bool:
+    lowered = (text or "").lower()
+    return any(s.lower() in lowered for s in _GROUP_STEMS[group])

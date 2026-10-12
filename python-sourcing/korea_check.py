@@ -51,6 +51,25 @@ def _is_korea_retail_hit(url: str) -> bool:
     return any(host == d or host.endswith("." + d) for d in _KOREA_RETAIL_DOMAINS)
 
 
+_DOMAIN_ALIAS = re.compile(r"^[a-z][a-z-]{3,}$")
+
+
+def korea_search_name(brand_name: str, website: str | None) -> str:
+    """The name to look the brand up by on Korean shops. Korean listings write a Japanese
+    brand in Latin letters or Hangul, never in kanji/kana ("巖手屋" is sold as "Iwateya" /
+    "이와테야"), so a name with no Latin letters is searched by its own domain's name
+    instead (iwateya.co.jp -> "iwateya"). Same number of searches either way; falls back
+    to the original name when the domain isn't a usable word (too short, digits)."""
+    if has_latin_letters(brand_name) or not website:
+        return brand_name
+    try:
+        host = urlparse(website).netloc.lower().removeprefix("www.")
+    except ValueError:
+        return brand_name
+    stem = host.split(".")[0]
+    return stem.replace("-", " ") if _DOMAIN_ALIAS.match(stem) else brand_name
+
+
 def check_korea_presence(brand_name: str) -> dict:
     hits = []
     for template in KOREA_QUERY_TEMPLATES:
