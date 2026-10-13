@@ -36,7 +36,8 @@ export default async function BrandSourcingPage() {
   const [latestSerperRun, latestTavilyRun, candidates, serperBudget, tavilyBudget] = await Promise.all([
     db.sourcingRun.findFirst({ where: { backend: "serper" }, orderBy: { createdAt: "desc" } }),
     db.sourcingRun.findFirst({ where: { backend: "tavily" }, orderBy: { createdAt: "desc" } }),
-    db.sourcingCandidate.findMany({ orderBy: [{ verdict: "asc" }, { name: "asc" }] }),
+    // In the order they were found -- run by run, newest at the bottom (user, 2026-10-13).
+    db.sourcingCandidate.findMany({ orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
     db.sourcingDailyBudget.findUnique({ where: { backend_runDate: { backend: "serper", runDate: today } } }),
     db.sourcingDailyBudget.findUnique({ where: { backend_runDate: { backend: "tavily", runDate: today } } }),
   ]);

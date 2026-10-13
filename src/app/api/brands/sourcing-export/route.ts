@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   // matches what the review table on screen shows, now that daily runs accumulate
   // candidates over several days instead of one run replacing the last.
   const candidates = await db.sourcingCandidate.findMany({
-    orderBy: [{ verdict: "asc" }, { name: "asc" }],
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }], // same order as the review table
   });
 
   // Same column layout as the main Brands export (No/Methodology/Name/.../Cold Email/Reply)

@@ -21,6 +21,7 @@ import {
 import { BrandRow } from "@/components/brand-row";
 import { BrandSearch } from "@/components/brand-search";
 import { BrandExportMenu } from "@/components/brand-export-menu";
+import { BrandSelectAllHead, BrandSelectCell } from "@/components/brand-select-checkbox";
 import { ImportBrandsDialog } from "@/components/import-brands-dialog";
 import { PageSizeControl } from "@/components/page-size-control";
 import { Badge } from "@/components/ui/badge";
@@ -100,11 +101,7 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
               </Link>
             }
           />
-          <BrandExportMenu
-            downloadAllLabel={t.brands.downloadAll}
-            downloadPageLabel={t.brands.downloadPage}
-            ariaLabel={t.brands.downloadAria}
-          />
+          <BrandExportMenu locale={locale} />
         </div>
       </div>
 
@@ -113,6 +110,7 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
+                <BrandSelectAllHead ids={brands.map((b) => b.id)} label={t.brands.selectAllOnPage} />
                 <TableHead>{t.brands.colNo}</TableHead>
                 <TableHead>{t.brands.colMethodology}</TableHead>
                 <TableHead>{t.brands.colName}</TableHead>
@@ -126,7 +124,7 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
             <TableBody>
               {brands.length === 0 && (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
                     {t.brands.noFound}
                   </TableCell>
                 </TableRow>
@@ -136,6 +134,7 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
                   key={brand.id}
                   href={`/brands/${brand.id}?returnTo=${encodeURIComponent(pageHref(currentPage, q, pageSize))}`}
                 >
+                  <BrandSelectCell id={brand.id} label={brand.name} />
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {brand.sourceNo ?? "—"}
                   </TableCell>
