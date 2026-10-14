@@ -47,8 +47,11 @@ export default async function BrandCommunicationsPage(props: {
   // "Actively tracked" is defined by having a progress log, not by status -- status
   // alone would also match brands from months-old outreach that are no longer being
   // worked, since it's never reset once set (see BrandLog's schema comment).
+  // Dropped brands are ones the team gave up on, so they leave this page even though
+  // their log history stays on the brand itself.
   const where: Prisma.BrandWhereInput = {
     logs: { some: {} },
+    status: { not: "DROPPED" },
     ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
     ...(q
       ? {

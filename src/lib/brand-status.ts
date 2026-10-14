@@ -8,4 +8,5 @@ export const STATUS_STYLE: Record<BrandStatus, string> = {
   REPLIED: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   REJECTED: "bg-destructive/10 text-destructive",
   ONBOARDED: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  DROPPED: "bg-muted text-muted-foreground line-through",
 };

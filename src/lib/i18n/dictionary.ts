@@ -277,6 +277,7 @@ export const dictionaries = {
       REPLIED: "REPLIED",
       REJECTED: "REJECTED",
       ONBOARDED: "ONBOARDED",
+      DROPPED: "DROPPED",
     } satisfies Record<BrandStatus, string>,
     // Shown only in the brand edit form's status dropdown, in parentheses next to the
     // status name -- CONTACTED/REPLIED map to the Communication Status page's
@@ -285,6 +286,7 @@ export const dictionaries = {
     statusHint: {
       CONTACTED: "Communication status: awaiting reply",
       REPLIED: "Communication status: in conversation",
+      DROPPED: "hidden from Communication status",
     } as Partial<Record<BrandStatus, string>>,
     brandImport: {
       trigger: "Insert Data (Excel)",
@@ -948,10 +950,12 @@ export const dictionaries = {
       REPLIED: "회신옴",
       REJECTED: "거절됨",
       ONBOARDED: "온보딩완료",
+      DROPPED: "드랍",
     } satisfies Record<BrandStatus, string>,
     statusHint: {
       CONTACTED: "소통 현황: 답변 대기",
       REPLIED: "소통 현황: 소통 중",
+      DROPPED: "소통 현황에서 숨김",
     } as Partial<Record<BrandStatus, string>>,
     brandImport: {
       trigger: "데이터 삽입 (엑셀)",

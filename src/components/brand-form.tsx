@@ -17,6 +17,7 @@ const STATUS_OPTIONS: BrandStatus[] = [
   "REPLIED",
   "REJECTED",
   "ONBOARDED",
+  "DROPPED",
 ];
 
 type Props = {
