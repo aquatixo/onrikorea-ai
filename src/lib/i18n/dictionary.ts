@@ -113,6 +113,10 @@ export const dictionaries = {
       colWebsite: "Website",
       colStatus: "Status",
       colLatest: "Latest note",
+      colLog: "Progress log",
+      overview: "At a glance",
+      listView: "List view",
+      groupOther: "Other",
     },
     exportHeaders: [
       "No",
@@ -786,6 +790,10 @@ export const dictionaries = {
       colWebsite: "웹사이트",
       colStatus: "상태",
       colLatest: "최근 기록",
+      colLog: "진행 기록",
+      overview: "한눈에 보기",
+      listView: "목록 보기",
+      groupOther: "기타",
     },
     exportHeaders: [
       "No",

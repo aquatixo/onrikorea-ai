@@ -39,6 +39,14 @@ export function formatDateTime(d: Date | string, locale: Locale | string): strin
   return new Date(d).toLocaleString(tag(locale), { timeZone: APP_TIME_ZONE });
 }
 
+/** "9/28" in Korea time, the way the team writes dates in their notes -- for compact timelines. */
+export function formatMonthDay(d: Date | string): string {
+  const [month, day] = new Date(d)
+    .toLocaleDateString("en-US", { month: "numeric", day: "numeric", timeZone: APP_TIME_ZONE })
+    .split("/");
+  return `${month}/${day}`;
+}
+
 /** Today's date in Korea as "YYYY-MM-DD" (en-CA formats dates that way). */
 export function todayInAppTimeZone(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE });
