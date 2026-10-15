@@ -12,7 +12,7 @@ type OverviewBrand = Brand & { logs: BrandLog[] };
 /**
  * "한눈에 보기": every tracked brand on one page with its whole progress log, grouped the
  * way the team's old Excel sheet was -- in conversation first, then awaiting reply, then
- * everything else. A row opens the brand like the paged list does, except right after
+ * everything else, brands by name within each group. A row opens the brand like the paged list does, except right after
  * selecting text in it, so the log can still be copied.
  */
 export function CommunicationsOverview({

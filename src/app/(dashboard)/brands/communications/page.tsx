@@ -77,20 +77,20 @@ export default async function BrandCommunicationsPage(props: {
       : {}),
   };
 
-  // Sorted by most-recently-active first, which Prisma can't express as an orderBy on a
-  // relation aggregate -- the matching set is small (brands actively worked, not the
-  // full 1000+ list), so fetching it whole and sorting/paginating in JS is simpler and
-  // cheap at this scale. The overview needs every log (oldest first, read as a timeline);
-  // the paged list only shows the latest one.
+  // Brand name order -- A-Z then 가나다 -- in both views, the way the team's old sheet was
+  // read, so a brand doesn't jump around every time someone adds a note. Sorted in JS
+  // rather than by the database so case and accents don't split the order ("en" puts
+  // Latin before Hangul; "ko" would do the reverse); the matching set is small (brands
+  // actively worked, not the full 1000+ list), so fetching it whole and paginating in JS
+  // is cheap. The overview needs every log (oldest first, read as a timeline); the paged
+  // list only shows the latest one.
   const matched = await db.brand.findMany({
     where,
     include: overview
       ? { logs: { orderBy: { createdAt: "asc" } } }
       : { logs: { orderBy: { createdAt: "desc" }, take: 1 } },
   });
-  const lastActive = (b: (typeof matched)[number]) =>
-    (overview ? b.logs[b.logs.length - 1] : b.logs[0])?.createdAt.getTime() ?? 0;
-  matched.sort((a, b) => lastActive(b) - lastActive(a));
+  matched.sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base", numeric: true }));
 
   const total = matched.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
