@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { extractDomain } from "@/lib/extract-domain";
+import { nextSourceNo } from "@/lib/brand-source-no";
 import { brandFormSchema, brandLogSchema } from "@/lib/validation/brand";
 import { UNSAFE_INPUT_MESSAGE, isUnsafeInputError } from "@/lib/security/sanitize-input";
 import { canModifyContent } from "@/lib/auth/ownership-server";
@@ -63,7 +64,12 @@ export async function createBrand(
 
   const session = await auth();
   const brand = await db.brand.create({
-    data: { ...data, websiteDomain: extractDomain(data.website), createdById: session?.user?.id },
+    data: {
+      ...data,
+      sourceNo: await nextSourceNo(),
+      websiteDomain: extractDomain(data.website),
+      createdById: session?.user?.id,
+    },
   });
 
   redirect(`/brands/${brand.id}`);

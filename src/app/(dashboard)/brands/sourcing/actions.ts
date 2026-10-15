@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { nextSourceNo } from "@/lib/brand-source-no";
 import { extractDomain } from "@/lib/extract-domain";
 import type { BrandStatus } from "@prisma/client";
 import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
@@ -36,10 +37,7 @@ export async function addSourcingCandidateToBrands(candidateId: string): Promise
   const status: BrandStatus = candidate.verdict === "pass" ? "APPROVED" : "SCREENING";
 
   try {
-    // sourceNo is the running "No" column everyone actually reads down the Brands list --
-    // a brand added from sourcing needs the next number in that same sequence, not a blank.
-    const { _max } = await db.brand.aggregate({ _max: { sourceNo: true } });
-    const sourceNo = (_max.sourceNo ?? 0) + 1;
+    const sourceNo = await nextSourceNo();
 
     const brand = await db.brand.create({
       data: {
