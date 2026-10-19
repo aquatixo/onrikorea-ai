@@ -127,6 +127,10 @@ BUCKETS = [
         # 마스터 독일 46건 -- 대도시/대형 브랜드 편중 추정, 지방 특산으로 한정
         "label": "Germany",
         "country": "Germany",
+        # DISABLED 2026-10-19 (user): German brand names read as unfamiliar to Korean
+        # shoppers, so German brands are not wanted for now. Kept, not deleted, so it can be
+        # switched back on -- its query history and lane state stay in the DB.
+        "enabled": False,
         # Was "Großhandel" (wholesaler) -- like 卸 for Japan, it pulled wholesalers rather than
         # makers, and the word in a result's title also tripped name_filter.looks_like_reseller.
         # "Händler werden" (become a dealer) is how a maker titles its own dealer page. Not
