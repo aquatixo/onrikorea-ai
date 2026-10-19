@@ -25,13 +25,19 @@ from search_errors import SearchAuthError
 _ENDPOINT = "https://google.serper.dev/search"
 
 
-def search(query: str, count: int = 8, page: int = 1) -> list[dict]:
+def search(query: str, count: int = 8, page: int = 1, gl: str | None = None, hl: str | None = None) -> list[dict]:
+    """gl/hl: Google's country/language for the results ("kr"/"ko" for the Korea check --
+    without them Korean queries ran against US Google and missed Naver/Coupang listings)."""
     if not SERPER_API_KEY:
         raise SearchAuthError("SERPER_API_KEY가 .env에 없습니다")
 
     body = {"q": query, "num": min(count, 20)}
     if page > 1:
         body["page"] = page
+    if gl:
+        body["gl"] = gl
+    if hl:
+        body["hl"] = hl
     response = requests.post(
         _ENDPOINT,
         headers={"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"},

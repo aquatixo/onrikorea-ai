@@ -25,7 +25,14 @@ KOREA_QUERY_TEMPLATES = [
 ]
 
 # 조건 A 핵심 문구 -- 이미 공식/독점 총판이 있다는 명시적 신호. 이게 있으면 하드 제외.
-_OFFICIAL_PHRASES = re.compile(r"공식\s*수입원|정식\s*수입원|공식\s*총판|독점\s*총판|공식\s*수입사")
+# 2026-10-19 리뷰: "공식수입원/공식총판"만 보던 시절엔 쿠팡·네이버의 흔한 표기("정식수입",
+# "독점수입", "공식 판매처", "브랜드관", "공식스토어")를 못 알아봐서, 이미 들어와 있는
+# 브랜드가 "병행수입 → 우선 후보"로 올라올 수 있었다. "총판 모집"(총판을 구한다)은 반대 뜻.
+_OFFICIAL_PHRASES = re.compile(
+    r"(?:공식|정식|독점)\s*(?:수입|유통|총판|판매처|판매원|대리점)|"
+    r"(?:한국|국내)\s*(?:공식\s*)?총판(?!\s*모집)|"
+    r"공식\s*(?:스토어|몰|샵|쇼핑몰)|브랜드관"
+)
 
 # A hit only counts as Korea-market evidence if it actually lives on a Korean retail/
 # marketplace domain -- without this, "{name} 쿠팡" (name + "Coupang") returns whatever
@@ -42,10 +49,17 @@ _KOREA_RETAIL_DOMAINS = {
 }
 
 
+# Blogs, cafés, Q&A and news on a Korean domain are people writing ABOUT a product (a
+# travel blog, a news item), not a shop selling it -- they used to count as sales evidence.
+_NOT_A_SHOP_LABELS = {"blog", "cafe", "kin", "post", "news", "in"}
+
+
 def _is_korea_retail_hit(url: str) -> bool:
     try:
         host = urlparse(url).netloc.lower().removeprefix("www.")
     except Exception:
+        return False
+    if _NOT_A_SHOP_LABELS & set(host.split(".")[:-2] or [host.split(".")[0]]):
         return False
     if host.endswith(".kr"):
         return True
@@ -73,13 +87,18 @@ def korea_search_name(brand_name: str, website: str | None) -> str:
 
 def check_korea_presence(brand_name: str) -> dict:
     hits = []
+    failed = 0
     for template in KOREA_QUERY_TEMPLATES:
         query = template.format(name=brand_name)
         try:
-            results = search(query, count=3)
+            # Korean Google, in Korean -- without gl/hl these ran against US Google.
+            results = search(query, count=3, gl="kr", hl="ko")
         except SearchAuthError:
             raise  # no key / no credits: stop the run, don't record "no Korea evidence"
         except Exception:
+            # A failed search is "couldn't check", not "found nothing" -- counted so
+            # classify_korea_status can say so instead of reporting no evidence.
+            failed += 1
             results = []
         for r in results:
             hits.append({"query": query, **r})
@@ -92,10 +111,10 @@ def check_korea_presence(brand_name: str) -> dict:
     # pushing a real Coupang listing further down), it silently never reached
     # classification at all.
     korea_hits = [h for h in hits if _is_korea_retail_hit(h.get("url", ""))]
-    return {"hitCount": len(korea_hits), "hits": hits, "topHits": hits[:5]}
+    return {"hitCount": len(korea_hits), "hits": hits, "topHits": hits[:5], "failed": failed}
 
 
-def classify_korea_status(hits: list[dict], brand_name: str) -> tuple[str, str]:
+def classify_korea_status(hits: list[dict], brand_name: str, failed: int = 0) -> tuple[str, str]:
     """조건 A: "한국에서 검색이 되느냐"가 아니라 "지금 독점 총판 자리가 비어 있느냐"를 판정한다.
     공식/독점 총판 문구가 나오면 하드 제외. 마켓플레이스 판매 정황만 있고 공식 표기가
     없으면 -- 병행수입/구매대행 추정으로, 제외가 아니라 오히려 우선 후보로 취급한다
@@ -153,7 +172,14 @@ def classify_korea_status(hits: list[dict], brand_name: str) -> tuple[str, str]:
     # candidate's own (non-Korean) site, or an unrelated page, counted the same as a
     # real Coupang listing. Only a hit on an actual Korean retail/marketplace domain
     # (or any .kr site) counts toward the threshold below; see _is_korea_retail_hit.
-    korea_hits = [h for h in hits if _is_korea_retail_hit(h.get("url", ""))]
+    #
+    # And the hit has to be ABOUT this brand -- an unrelated Coupang category page for the
+    # same two search words used to count too, and three of those made "우선 후보".
+    korea_hits = [
+        h
+        for h in hits
+        if _is_korea_retail_hit(h.get("url", "")) and name_hit(f"{h.get('title', '')} {h.get('description', '')}")
+    ]
 
     if len(korea_hits) >= 3:
         return (
@@ -167,7 +193,13 @@ def classify_korea_status(hits: list[dict], brand_name: str) -> tuple[str, str]:
             "소수의 판매 정황이 발견됐으나 공식 총판 표기는 없음 (제외 아님)",
         )
 
+    if failed >= len(KOREA_QUERY_TEMPLATES):
+        return (
+            "check_failed",
+            "한국 유통 검색이 오류로 실패함 — 확인 못 함, 직접 검색 필요",
+        )
     return (
         "no_evidence_found",
-        "한국 유통 관련 근거를 찾지 못함 — 유통이 없다는 증명은 아님, 검토 필요",
+        "한국 유통 관련 근거를 찾지 못함 — 유통이 없다는 증명은 아님, 검토 필요"
+        + (" (검색 일부 실패)" if failed else ""),
     )

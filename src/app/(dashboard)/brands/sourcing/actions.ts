@@ -10,7 +10,8 @@ import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 
 export async function addSourcingCandidateToBrands(candidateId: string): Promise<{ id: string } | { error: string }> {
-  if (!(await requireSection("brandSourcing"))) return { error: await noAccessMessage() };
+  const session = await requireSection("brandSourcing");
+  if (!session) return { error: await noAccessMessage() };
   const t = getDictionary(await getLocale()).sourcing;
   const candidate = await db.sourcingCandidate.findUnique({ where: { id: candidateId } });
   if (!candidate) return { error: t.candidateNotFound };
@@ -51,6 +52,9 @@ export async function addSourcingCandidateToBrands(candidateId: string): Promise
         websiteDomain: domain,
         status,
         notes: candidate.reason,
+        // Owner = whoever added it, same as a brand created by hand -- without it only an
+        // ADMIN could edit or delete it afterwards (src/lib/auth/ownership.ts).
+        createdById: session.user?.id,
       },
     });
     // The review list now shows every pending SourcingCandidate across every run (not

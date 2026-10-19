@@ -12,15 +12,18 @@ specific compound term instead (e.g. "milk products" / "dairy", not bare "milk")
 import re
 
 CATEGORY_EXCLUDE_PATTERNS = {
-    "alcohol": r"\b(brewery|distiller|winery|whisky|whiskey|vodka|gin|rum|liqueur)\b",
+    # category_signal lowercases the text first, so every pattern here is lowercase, and a
+    # stem that must match longer words ends in \w* -- "anchov\b" never matched "anchovies",
+    # and an uppercase "OEM" never matched anything at all.
+    "alcohol": r"\b(brewery|distill\w*|winery|whisky|whiskey|vodka|gin|rum|liqueur)\b",
     "dairy": r"\b(dairy|creamery|cheesemaker|yoghurt|yogurt|milk products)\b",
     "sauce": r"\b(sauce|ketchup|mustard|mayonnaise|marmalade|jam|chutney|pickle|relish)\b",
     # conservas (Spanish for canned goods) and jamón/jamon (ham) -- called out by name
     # in the parallel Claude-pipeline handoff doc as real seafood/fresh-meat risks in
     # Spanish-language buckets that plain English keywords never would have caught.
-    "seafood": r"\b(seafood|canned fish|tuna|sardine|anchov|conservas)\b",
+    "seafood": r"\b(seafood|canned fish|tuna|sardine|anchov\w*|conservas)\b",
     "fresh": r"\b(butcher|charcuterie|fresh produce|greengrocer|abattoir|jam[oó]n|hamon)\b",
-    "oem_b2b": r"\b(private label|contract manufactur|OEM|ODM|co-?pack|ingredient supplier|foodservice only)\b",
+    "oem_b2b": r"\b(private label|contract manufactur\w*|oem|odm|co-?pack\w*|ingredient supplier|foodservice only)\b",
     "raw": r"\b(flour mill|milling company|bulk grain|commodity sugar)\b",
 }
 

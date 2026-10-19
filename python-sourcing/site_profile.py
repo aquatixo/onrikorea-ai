@@ -22,6 +22,7 @@ from bs4 import BeautifulSoup
 from country_guess import guess_country_from_domain, guess_country_from_text
 from name_filter import has_latin_letters, japanese_site_name, looks_like_reseller, pick_brand_name
 from relevance import check_food_relevance, check_group_relevance, has_food_words, has_group_words, name_on_site
+from shelf_life import MIN_SHELF_LIFE_MONTHS, chilled_hits, shelf_life_months
 from site_scrape import HEADERS, _extract_site_name, _is_parked, extract_founded_year, has_export_signal
 
 MIN_READABLE_CHARS = 400
@@ -36,7 +37,9 @@ _JP_TITLE = re.compile(r"[぀-ヿ一-鿿]")
 # when the never-handled words outnumber the wanted ones.
 _GROUP_TARGET_WORDS = {
     "beauty": re.compile(
-        r"ローラー|かっさ|美顔|美容機器|美容器|EMS|リフト|小顔|フェイスケア|ボディケア|マイクロカレント|ラジオ波|"
+        # EMS case-sensitive and standalone: with re.I it also matched "items", "systems".
+        r"ローラー|かっさ|美顔|美容機器|美容器|(?<![A-Za-z])(?-i:EMS)(?![A-Za-z])|リフト|小顔|フェイスケア|ボディケア|"
+        r"マイクロカレント|ラジオ波|"
         r"rollers?|gua\s?sha|beauty\s+device",
         re.I,
     ),
@@ -44,9 +47,12 @@ _GROUP_TARGET_WORDS = {
 }
 _GROUP_EXCLUDED_WORDS = {
     "beauty": re.compile(
-        r"ドライヤー|ヘアアイロン|ストレートアイロン|カールアイロン|ブラシ|筆|櫛|くし|コーム|毛抜き|ピンセット|"
-        r"眉ハサミ|眉はさみ|カミソリ|剃刀|シェーバー|マスク|軟膏|絆創膏|"
-        r"hair\s?dryers?|straighteners?|curling\s+irons?|brush(?:es)?|combs?|tweezers|razors?|masks?",
+        # Not くし (inside 明るくし/小さくし), not a bare 筆 (筆者/執筆), not "comb" inside
+        # "combination skin", and not an LED/EMS face mask -- that is a beauty device.
+        r"ドライヤー|ヘアアイロン|ストレートアイロン|カールアイロン|ブラシ|化粧筆|メイク筆|櫛|コーム|毛抜き|ピンセット|"
+        r"眉ハサミ|眉はさみ|カミソリ|剃刀|シェーバー|(?<!LED)(?<!EMS)(?<!美顔)マスク|軟膏|絆創膏|"
+        r"hair\s?dryers?|straighteners?|curling\s+irons?|brush(?:es)?|\bcombs?\b|tweezers|razors?|"
+        r"(?<!led\s)(?<!ems\s)\bmasks?\b",
         re.I,
     ),
     "care": re.compile(r"軟膏|傷薬|きず|絆創膏|マスク|湿布|ointment|bandages?|masks?", re.I),
@@ -112,8 +118,11 @@ _PUBLISHER_MARKERS = re.compile(
     r"latest\s+news|breaking\s+news|news\s*&\s*analysis|op-?ed|columnists?|"
     r"recipes?\s+(index|by|archive)|travel\s+guide|itinerar(y|ies)|"
     r"redaktion|chefredaktion|rédaction|redazione|redacci[oó]n)\b|"
-    # Japanese directory/listing sites ("掲載お申し込み" = apply to be listed, "メーカーを探す")
-    r"掲載|を探す",
+    # Japanese listing sites only by what a maker never says: "掲載お申し込み" (apply to be
+    # listed), "掲載企業" (listed companies). Bare 掲載/を探す were here and rejected real
+    # makers -- メディア掲載 (press coverage) + 店舗を探す (store finder) is on most JP maker
+    # homepages. Directories are also caught by _japanese_middleman (掲載 >= 10).
+    r"掲載(?:お申し?込み|申込|企業|社数|料)",
     re.I,
 )
 _DATE_STAMP = re.compile(
@@ -142,21 +151,31 @@ _DIRECTORY_TITLE = re.compile(
 # bread bakeries 0.46-4.0 (Holtkamp, RepasPAN, Popty Bach Y Wlad) vs. 0.08 for a
 # cookie-led bakery that also mentions breads, 0.00 for the confectioners/roasters.
 _FRESH_WORDS = re.compile(
-    r"\b(brot|brote|brötchen|bread|breads|baguettes?|quiches?|sandwich\w*|pan|panes|panader\w*|"
-    r"boulangerie|pains?|pane|focaccia|sourdough|sauerteig|semmel\w*|"
-    r"tartas?|torten?|sponges?|cream\s+cakes?|wedding\s+cakes?|hochzeitstorte\w*)\b|"
+    # Not "sandwich biscuits" (shelf-stable), not "pain d'épices" (gingerbread), and no bare
+    # English "pan"/"pains" ("pan-European", "Peter Pan", "great pains" all counted as bread).
+    r"\b(brot|brote|brötchen|bread|breads|baguettes?|quiches?|sandwich(?!\s+(?:biscuits?|cookies?|wafers?))\w*|"
+    r"panes|pan\s+(?:de|artesano|casero)|panader\w*|"
+    r"boulangerie|pains?(?!\s+d['’]\s?[ée]pices)|pane|focaccia|sourdough|sauerteig|semmel\w*|"
+    r"tartas?|torten?|sponges?|cream\s+cakes?|wedding\s+cakes?|hochzeitstorte\w*|"
+    r"macarons?|tiramis[uù]|cheesecakes?)\b|"
     # Japanese fresh sweets (no \b: CJK has no word boundary inside a sentence).
-    r"生菓子|要冷蔵|生クリーム|大福|団子|だんご|食パン|当日中",
+    r"生菓子|要冷蔵|生クリーム|大福|団子|だんご|食パン|当日中|カステラ|生八ッ橋|生八つ橋",
     re.I,
 )
+# What a shelf-stable confectioner talks about: the target lines minus the short-lived
+# ones (カステラ, Stollen). Coffee/tea/honey/pasta/jam used to be in here too, which made a
+# bakery that also sells coffee and jam look shelf-stable.
 _SHELF_WORDS = re.compile(
     r"biscuit|cookie|bonbon|candy|candies|chocolat|schokolade|caramel|karamell|toffee|fudge|praline|"
-    r"nougat|turr[oó]n|torrone|lebkuchen|stollen|wafer|waffel|shortbread|kaffee|coffee|espresso|"
-    r"\btea\b|\btee\b|honey|honig|pasta|confiserie|calisson|liquirizia|lakritz|crackers?|"
-    r"keks|gebäck|biscott|cantucci|taffy|brittle|せんべい|煎餅|菓子|marmelad|confiture|\bjam\b|"
-    r"キャンディ|グミ|ビスケット|カステラ|八ッ橋|おかき|あられ|かりんとう|羊羹|クッキー|チョコ|焼菓子|米菓",
+    r"nougat|turr[oó]n|torrone|lebkuchen|wafer|waffel|shortbread|confiserie|calisson|liquirizia|lakritz|"
+    r"licorice|liquorice|crackers?|keks|gebäck|biscott|cantucci|taffy|brittle|marzipan|dragée|dragee|"
+    r"せんべい|煎餅|菓子|キャンディ|グミ|ビスケット|おかき|あられ|かりんとう|羊羹|クッキー|チョコ|焼菓子|米菓|"
+    r"金平糖|ラムネ|飴",
     re.I,
 )
+# Kept cold / frozen (see shelf_life.chilled_hits) outweighing shelf-stable wording.
+_MIN_CHILLED_HITS = 3
+_MAX_CHILLED_RATIO = 0.3
 _MIN_FRESH_HITS = 3
 _MAX_FRESH_RATIO = 0.3
 
@@ -167,7 +186,13 @@ _OFF_TARGET_WORDS = re.compile(
     r"coffee|kaffee|espresso|r[öo]sterei|roaster|roastery|torr[ée]fact|torrefaz|tostador|"
     # French "thé" only WITH the accent -- th[ée] also matched English "the" (99 hits on
     # one cookie bakery's homepage, which then read as a tea site).
-    r"\bcaf[ée]s?\b|\btea\b|\btee\b|\bthés?\b|matcha|honey|honig|\bmiel\b|miele|pasta|pastificio|"
+    r"\bcaf[ée]s?\b|\btea\b|\btee\b|\bthés?\b|matcha|honey|honig|\bmiel\b|miele|pastificio|"
+    # Not almond paste ("pasta di mandorle", "pasta reale"), shortcrust ("pasta frolla") or
+    # Spanish tea biscuits ("pastas de té") -- confectioners were dropped as pasta makers.
+    r"\bpasta\b(?!\s+(?:di\s+mandorl|reale|frolla|di\s+pistacchi|de\s+almendra))|"
+    # Beekeepers: honey, propolis and royal jelly with a few honey sweets on the side
+    # (Imkergut, 2026-10-19 run) -- a honey business, not a confectioner.
+    r"imkerei|\bimker\b|propolis|gel[ée]e\s+royale|royal\s+jelly|beekeep\w*|apicoltur\w*|apicultur\w*|"
     # Japanese. Not 抹茶: it's a flavour all over wagashi, not a tea business on its own.
     r"コーヒー|珈琲|紅茶|緑茶|日本茶|煎茶|蜂蜜|はちみつ|パスタ",
     re.I,
@@ -182,10 +207,22 @@ _TARGET_WORDS = re.compile(
 )
 _MIN_OFF_TARGET_HITS = 5
 
-# Shop selling OTHER makers' products (marketplace, deli, gift-box assembler).
+# Shop selling OTHER makers' products (marketplace, deli, gift-box assembler). Strong
+# markers count on any site; the weak ones only when the site never says it makes
+# anything -- a chocolatier sells "gift boxes and Christmas hampers" of its own chocolate,
+# and a maker with several product lines has "our brands".
 _RETAILER_MARKERS = re.compile(
-    r"\b(shop\s+by\s+brand|our\s+brands|all\s+brands|brands\s+we\s+(stock|carry)|"
-    r"marketplace|we\s+stock|hampers?|gift\s+(boxes|baskets)|"
+    r"\b(shop\s+by\s+brand|all\s+brands|brands\s+we\s+(stock|carry)|marketplace)\b",
+    re.I,
+)
+# A distributor describing itself (judged on a JS site's title + meta description only).
+_THIN_DISTRIBUTOR = re.compile(
+    r"\bsundries\b|\bwholesale\s+(?:candy|candies|snacks?|confectionery|groceries|foods?)\b|"
+    r"\bdistributeurs?\s+de\b|\bwholesalers?\b|\bdistributors?\s+of\b",
+    re.I,
+)
+_WEAK_RETAILER_MARKERS = re.compile(
+    r"\b(our\s+brands|we\s+stock|hampers?|gift\s+(boxes|baskets)|"
     r"unsere\s+marken|nos\s+marques|i\s+nostri\s+marchi|nuestras\s+marcas)\b",
     re.I,
 )
@@ -325,6 +362,7 @@ def build_profile(url: str) -> dict:
             "thinProducer": bool(_PRODUCER_MARKERS.search(thin)),
             "thinTrade": has_export_signal(thin) or bool(_TRADE_LINK.search(meta)),
             "thinPublisher": bool(_PUBLISHER_MARKERS.search(thin)),
+            "shelfLifeMonths": shelf_life_months(thin),
             "selfTitle": _self_title(soup),
             "pageTitle": soup.title.string.strip() if soup.title and soup.title.string else "",
         }
@@ -340,6 +378,10 @@ def build_profile(url: str) -> dict:
     full_text = " ".join(texts)
 
     types = _jsonld_types(soup)
+    producer_hits = len({m.group(0).lower() for m in _PRODUCER_MARKERS.finditer(full_text)})
+    retailer_hits = len({m.group(0).lower() for m in _RETAILER_MARKERS.finditer(full_text)})
+    if not producer_hits:
+        retailer_hits += len({m.group(0).lower() for m in _WEAK_RETAILER_MARKERS.finditer(full_text)})
     trade_evidence = None
     if trade_links:
         t, h = trade_links[0]
@@ -365,8 +407,8 @@ def build_profile(url: str) -> dict:
         "publisherTypes": sorted(types & _PUBLISHER_TYPES),
         "publisherHits": len({m.group(0).lower() for m in _PUBLISHER_MARKERS.finditer(home_text)}),
         "dateStamps": len(_DATE_STAMP.findall(home_text)),
-        "retailerHits": len({m.group(0).lower() for m in _RETAILER_MARKERS.finditer(full_text)}),
-        "producerHits": len({m.group(0).lower() for m in _PRODUCER_MARKERS.finditer(full_text)}),
+        "retailerHits": retailer_hits,
+        "producerHits": producer_hits,
         "trade": trade_evidence,
         "food": check_food_relevance(full_text),
         "selfTitle": _self_title(soup),
@@ -375,6 +417,8 @@ def build_profile(url: str) -> dict:
         "offTargetHits": len(_OFF_TARGET_WORDS.findall(full_text)),
         "targetHits": len(_TARGET_WORDS.findall(full_text)),
         "shelfHits": len(_SHELF_WORDS.findall(full_text)),
+        "chilledHits": chilled_hits(full_text),
+        "shelfLifeMonths": shelf_life_months(full_text),
     }
 
 
@@ -434,15 +478,26 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
             return False, "publisher_site", "본문이 거의 없고 제목/설명이 언론형"
         if looks_like_reseller(profile.get("selfTitle") or "") or looks_like_reseller(name):
             return False, "reseller_site", "이름이 도매상/유통업자/선물세트형"
+        # The description is this site's whole self-introduction here, so a distributor's
+        # wording in it counts like a title ("Wholesale candy, snacks, and sundries").
+        distributor = _THIN_DISTRIBUTOR.search(profile["fullText"])
+        if distributor:
+            return False, "reseller_site", f"제목/설명이 도매·유통업체형 ('{distributor.group(0)}')"
         thin_off = len(_OFF_TARGET_WORDS.findall(profile["fullText"]))
-        if food and thin_off and thin_off >= len(_TARGET_WORDS.findall(profile["fullText"])):
+        thin_target = len(_TARGET_WORDS.findall(profile["fullText"]))
+        # One "miel" next to one "nougat" is a honey-nougat maker ("Nougat au miel de
+        # Provence"), not a honey business -- a tie only counts from two hits up.
+        if food and (thin_off > thin_target or (thin_off >= 2 and thin_off >= thin_target)):
             return False, "off_target_category", "취급하지 않는 품목(커피·차·꿀·파스타) 위주 (제목/설명 기준)"
         on_topic = profile["thinFood"] if food else has_group_words(profile["fullText"], group)
         if not (on_topic and profile["thinProducer"] and profile["thinTrade"]):
             return False, "unverifiable_site", "본문이 거의 없고 제목/설명에 제품·제조·도매 근거가 다 있지 않음"
         if not has_latin_letters(name) and name_on_site(name, profile["fullText"]) is False:
             return False, "name_not_on_site", "사이트 제목/설명에 후보 이름이 없음"
-        return True, "ok", "JS 사이트라 본문 대신 제목/설명으로 판정: 식품·제조·도매 모두 명시"
+        short = _short_shelf_life(profile) if food else None
+        if short:
+            return False, "shelf_life_short", short
+        return True, "ok", "JS 사이트라 본문 대신 제목/설명으로 판정: 식품·제조·도매 모두 명시" + _shelf_note(profile)
     # Strict producer words only: a review listicle (my-best) is full of "メーカー".
     if profile["publisherTypes"] and not profile["producerHits"]:
         return False, "publisher_site", f"언론/블로그 사이트 (JSON-LD {profile['publisherTypes']})"
@@ -481,6 +536,19 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
     fresh, shelf = profile["freshHits"], profile["shelfHits"]
     if food and fresh >= _MIN_FRESH_HITS and fresh / max(shelf, 1) >= _MAX_FRESH_RATIO:
         return False, "fresh_bakery", f"신선 빵·케이크 위주 (빵 단어 {fresh} vs 보존식품 단어 {shelf}) — 수입 불가 품목"
+    short = _short_shelf_life(profile) if food else None
+    if short:
+        return False, "shelf_life_short", short
+    chilled = profile.get("chilledHits", 0)
+    if (
+        food
+        and profile.get("shelfLifeMonths") is None
+        and chilled >= _MIN_CHILLED_HITS
+        and chilled / max(shelf, 1) >= _MAX_CHILLED_RATIO
+    ):
+        return False, "chilled_frozen", (
+            f"냉장·냉동 제품 위주 (냉장/냉동 표현 {chilled} vs 보존식품 단어 {shelf}) — 유통기한 12개월 미달 추정"
+        )
     # A one-page website is a micro business (home kitchen, single shop), not an importable
     # supplier. Measured across every site kept in tests/eval_live_sites.py: the one
     # one-pager (a farmhouse cake maker, 1,257 chars total) vs. 3,225+ for all others.
@@ -490,7 +558,20 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
         return False, "not_a_producer", "직접 만든다는 표현(수제, 제조, since 등)이 사이트에 없음"
     if not profile["trade"]:
         return False, "no_export_signal", "도매/수출/거래처 링크나 문구가 없음 (동네 가게 추정)"
-    return True, "ok", f"{profile['trade']}; 생산자 신호 {profile['producerHits']}종; {food_why}"
+    return True, "ok", f"{profile['trade']}; 생산자 신호 {profile['producerHits']}종; {food_why}" + _shelf_note(profile)
+
+
+def _short_shelf_life(profile: dict) -> str | None:
+    """The site itself states a shelf life, and even its longest one is under 12 months."""
+    months = profile.get("shelfLifeMonths")
+    if months is not None and months < MIN_SHELF_LIFE_MONTHS:
+        return f"사이트에 표기된 유통기한이 최대 {months}개월 — {MIN_SHELF_LIFE_MONTHS}개월 미만이라 수입 불가"
+    return None
+
+
+def _shelf_note(profile: dict) -> str:
+    months = profile.get("shelfLifeMonths")
+    return f"; 유통기한 {months}개월 표기 (사이트)" if months is not None else ""
 
 
 def resolved_name(profile: dict, name: str, url: str) -> str:

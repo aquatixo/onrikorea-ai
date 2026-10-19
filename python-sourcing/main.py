@@ -77,6 +77,7 @@ from name_filter import (
 )
 from site_profile import build_profile, judge, resolved_name
 from korea_check import KOREA_QUERY_TEMPLATES, check_korea_presence, classify_korea_status, korea_search_name
+from shelf_life import MIN_SHELF_LIFE_MONTHS, search_shelf_life
 
 KOREA_CALLS_PER_CHECK = len(KOREA_QUERY_TEMPLATES)
 from brand_rules import category_signal, ownership_signal, known_parent_in_name
@@ -167,6 +168,9 @@ class Progress:
         self.stopped_by: str | None = None
         self.website_scraped = 0
         self.korea_checked = 0
+        # Searches that always go to Serper whatever the run's backend (Korea check,
+        # shelf-life lookup) -- a Tavily run adds these to Serper's daily usage too.
+        self.serper_calls = 0
         self.rejected = 0
         self.flagged = 0
         self.errors = 0
@@ -361,6 +365,7 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
         reason_parts.append(f"기배제 브랜드 등록부 일치 ({registry}): {known_reason}")
 
     site_info: dict = {}
+    shelf_evidence = None
     korea = {"hitCount": 0, "hits": [], "topHits": []}
     korea_status, korea_reason = "no_evidence_found", None
 
@@ -452,10 +457,11 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
             return False, search_calls
         korea = check_korea_presence(korea_name)
         search_calls += KOREA_CALLS_PER_CHECK
+        progress.serper_calls += KOREA_CALLS_PER_CHECK
         # Classify against ALL hits, not just the capped topHits display list -- a brand's
         # own (non-Korean) site usually ranks first and could push the one real Korean
         # marketplace hit out of the display cap. See check_korea_presence.
-        korea_status, korea_reason = classify_korea_status(korea["hits"], korea_name)
+        korea_status, korea_reason = classify_korea_status(korea["hits"], korea_name, korea.get("failed", 0))
         progress.korea_checked += 1
         progress.push()
 
@@ -490,6 +496,32 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
         if korea_status == "parallel_import":
             reason_parts.append("우선 후보: 수요는 검증됐고 총판 자리는 비어있는 것으로 추정됨")
 
+        # Shelf life >= 12 months (user, 2026-10-15). The site's own statement was already
+        # judged in site_profile.judge; when it states none, ask Google once (1 search, only
+        # for candidates still standing). Not found is a note, never a reject.
+        if verdict != "reject" and bucket.get("group", "food") == "food" and profile.get("shelfLifeMonths") is None:
+            # The lane's country (English, "Germany"): the stored one is a Korean label.
+            shelf = search_shelf_life(candidate["name"], bucket.get("country"))
+            search_calls += 1
+            progress.serper_calls += 1
+            if shelf["months"] is not None and shelf["months"] < MIN_SHELF_LIFE_MONTHS:
+                verdict = "reject"
+                reason_parts.append(
+                    f"구글 검색 결과 유통기한 최대 {shelf['months']}개월 — {MIN_SHELF_LIFE_MONTHS}개월 미만 ({shelf['url']})"
+                )
+            elif shelf["months"] is not None:
+                # The LONGEST one found -- can be an atypical product (Pernigotti's 60 months
+                # was a gelato-base paste, 三立製菓's 5 years emergency hardtack), so the
+                # source goes in the text for the reviewer.
+                reason_parts.append(f"유통기한 최대 {shelf['months']}개월 (구글 검색 결과, 제품별 확인 필요: {shelf['url']})")
+                shelf_evidence = shelf["url"]
+            else:
+                reason_parts.append(
+                    "유통기한 미확인 — 사이트·검색 결과에 표기 없음"
+                    + (" (검색 실패)" if shelf.get("failed") else "")
+                    + ", 콜드메일 시 확인 필요"
+                )
+
         if profile.get("foundedYear"):
             reason_parts.append(f"Founded year found on site: {profile['foundedYear']}")
         if snippet:
@@ -514,6 +546,8 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
 
     evidence = [candidate["website"]] if candidate["website"] else []
     evidence += [h["url"] for h in korea["topHits"][:3]]
+    if shelf_evidence:
+        evidence.append(shelf_evidence)
 
     insert_candidate(
         conn,
@@ -839,13 +873,13 @@ def main():
             # process_candidate's signatures just for this.
             query_bucket = {**bucket, "category": query_item["category"], "page": page, "dynamic": dynamic}
             kind = query_item.get("kind", "discovery")
-            korea_before = progress.korea_checked
+            serper_before = progress.serper_calls
             calls, new_count, results_count = process_one_query(conn, run_id, query_bucket, query_text, kind, progress)
             if BACKEND != "serper":
-                # Korea checks always use Serper (it finds Naver/Coupang listings far better),
-                # so record them on Serper's daily usage too -- otherwise a Tavily run spends
-                # Serper credits that never show up on the Serper side.
-                add_search_usage(conn, "serper", today, (progress.korea_checked - korea_before) * KOREA_CALLS_PER_CHECK)
+                # Korea checks and shelf-life lookups always use Serper (it finds Naver/
+                # Coupang listings far better), so record them on Serper's daily usage too --
+                # otherwise a Tavily run spends Serper credits that never show up there.
+                add_search_usage(conn, "serper", today, progress.serper_calls - serper_before)
 
             search_used += calls
             candidates_out += new_count

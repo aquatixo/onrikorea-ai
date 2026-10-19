@@ -445,6 +445,11 @@ _RESELLER_WORDS = re.compile(
     # opposite (the maker's own trade channel); site_profile only applies this to names.
     r"gro(ß|ss)handel|gro(ß|ss)h[äa]ndler|wiederverk[äa]ufer|\bgrossiste|\bingrosso\b|\bmayorista\b|\bwholesalers?\b|"
     r"\bdistributors?\b|\bdistribuidora\b|\bdistribuzione\b|cash\s*&\s*carry|"
+    # 2026-10-19 run: "Distributeur de bonbons et confiseries" (Confiserie Mondoux) and
+    # "Wholesale Candy, Snacks, and Sundries" (General Candy Company) -- both distributors.
+    # Not bare "wholesale": a maker's own title says "Wholesale Manufacturer" (Dillon Candy).
+    r"\bdistributeurs?\b|\bdistributore\b|\bsundries\b|"
+    r"\bwholesale\s+(?:candy|candies|snacks?|confectionery|groceries|foods?)\b|"
     r"\bimporters?\b|\bimportateur|\bimportatore|\bimporteur|"
     # supplier / B2B partner wording in a name or site title: a trader's self-description
     # ("Candies Supplier - Proveedor de Dulces", "Le Terroir » B2B-Partner für Feinkost")

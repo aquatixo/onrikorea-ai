@@ -32,6 +32,13 @@
 # at once, e.g. "biscuits confectionery producer list") still get "혼합" -- that's an
 # honest label there, not a cop-out.
 #
+# 2026-10-19: shelf life >= 12 months is now required (user, 2026-10-15), so queries for
+# short-lived items (kouign-amann, canelé, Stollen, Welsh cakes, bara brith, pecan
+# pralines, fudge shops...) and for fresh-pastry businesses (pasticceria, Bäckerei,
+# Konditorei, "shop") were swapped for long-life lines. Swapped IN PLACE, never deleted or
+# inserted: a lane remembers how far it got by list position (SourcingLaneState.cursor),
+# so removing an entry would make it skip or repeat others.
+#
 # Japan is left exactly as previously edited (English queries trimmed to bare category
 # terms, Japanese queries trimmed to bare product nouns, no "老舗"/anniversary/"family
 # business" framing) -- that was the user's own deliberate repeated edit, not touched here.
@@ -59,14 +66,14 @@ BUCKETS = [
         # trade channel is still required by site_profile.judge.
         "tradeTerm": "公式",
         "queries": [
-            {"q": "traditional Japanese wagashi", "category": "스낵/과자"},
+            {"q": "干菓子 製造元", "category": "캔디/컨펙셔너리"},
             # 2026-10-06: 일반명사 쿼리 5개(heritage/candy snack maker, 菓子店, 和菓子, 食品メーカー 菓子)는 삭제 -- 구인구직·OEM 디렉터리만 반환해 검색 크레딧만 소모함. 아래 품목명 쿼리는 유지.
         # (이전 메모) 추가 -- 위 6개(특히 마지막 3개)가 일반명사 쿼리라 쇼핑몰/매거진만 반환하고 실제
             # 브랜드 수율이 0에 가까웠음 (22건 전수 재현). 다른 레인들처럼 "품목명 단위"
             # 쿼리로 보강 -- 원래 6개는 지우지 않음(이유를 알 수 없는 과거의 의도적 반복
             # 편집이었음), is_query_retired가 2연속 무수확이면 알아서 은퇴시키니 신·구
             # 쿼리를 같이 돌려서 어느 쪽이 실제로 수율을 내는지 숫자로 가려지게 둠.
-            {"q": "八ツ橋 製造元", "category": "스낵/과자"},
+            {"q": "金平糖 製造元", "category": "캔디/컨펙셔너리"},
             {"q": "南部せんべい 製造", "category": "스낵/과자"},
             {"q": "かりんとう 老舗 製造", "category": "스낵/과자"},
         ],
@@ -78,15 +85,15 @@ BUCKETS = [
         "tradeTerm": "revendeurs",
         "queries": [
             {"q": "galette bretonne biscuiterie artisanale -recette", "category": "비스킷/쿠키/케이크"},
-            {"q": "kouign-amann fabrique artisanale Bretagne -recette", "category": "베이킹"},
+            {"q": "caramel au beurre salé confiserie Bretagne -recette", "category": "캔디/컨펙셔너리"},
             {"q": "bredele biscuiterie alsacienne familiale -recette", "category": "비스킷/쿠키/케이크"},
             {"q": "calisson d'Aix confiserie artisanale -recette", "category": "캔디/컨펙셔너리"},
             {"q": "bêtises de Cambrai confiserie artisanale -recette", "category": "캔디/컨펙셔너리"},
-            {"q": "gâteau basque maison artisanale Pays Basque -recette", "category": "비스킷/쿠키/케이크"},
+            {"q": "touron basque confiserie artisanale -recette", "category": "캔디/컨펙셔너리"},
             {"q": "nougat de Montélimar fabrique artisanale -recette", "category": "캔디/컨펙셔너리"},
-            {"q": "canelé bordelais fabrique artisanale -recette", "category": "베이킹"},
+            {"q": "berlingots confiserie artisanale -recette", "category": "캔디/컨펙셔너리"},
             {"q": "pâte de fruit confiserie artisanale française -recette", "category": "젤리/구미"},
-            {"q": '"depuis 18" biscuiterie confiserie France', "category": "비스킷/쿠키/케이크"},
+            {"q": '"depuis cinq générations" biscuiterie confiserie', "category": "비스킷/쿠키/케이크"},
             # PDO/PGI/수상 -- 여러 품목을 한꺼번에 나열하는 리스트형 쿼리라 단일 카테고리로 못 좁힘.
             # kind="roster": 생산자 명단 페이지를 겨냥하는 쿼리 -- 기본값("discovery")과 달리
             # 검색결과 자체를 후보로 안 보고, 그 페이지에서 이름을 "수확"한다 (roster_harvest.py).
@@ -103,10 +110,10 @@ BUCKETS = [
         "queries": [
             {"q": "ferratelle produttore Abruzzo -ricetta", "category": "비스킷/쿠키/케이크"},
             {"q": "pizzelle abruzzesi azienda famiglia -ricetta", "category": "비스킷/쿠키/케이크"},
-            {"q": "torrone tenero pasticceria storica L'Aquila -ricetta", "category": "캔디/컨펙셔너리"},
+            {"q": "torrone tenero produttore L'Aquila -ricetta", "category": "캔디/컨펙셔너리"},
             {"q": "confetti di Sulmona fabbrica artigianale -ricetta", "category": "캔디/컨펙셔너리"},
-            {"q": "mostaccioli pasticceria storica famiglia Abruzzo -ricetta", "category": "비스킷/쿠키/케이크"},
-            {"q": "bocconotti pasticceria storica Abruzzo -ricetta", "category": "비스킷/쿠키/케이크"},
+            {"q": "mostaccioli azienda dolciaria Abruzzo -ricetta", "category": "비스킷/쿠키/케이크"},
+            {"q": "croccante di mandorle produttore Abruzzo -ricetta", "category": "캔디/컨펙셔너리"},
             # 상호 접미사 트릭 (-ificio = "그걸 만드는 곳")
             {"q": "torronificio Puglia Calabria", "category": "캔디/컨펙셔너리"},
             {"q": "biscottificio storico Puglia", "category": "비스킷/쿠키/케이크"},
@@ -120,24 +127,28 @@ BUCKETS = [
         # 마스터 독일 46건 -- 대도시/대형 브랜드 편중 추정, 지방 특산으로 한정
         "label": "Germany",
         "country": "Germany",
-        "tradeTerm": "Großhandel",
+        # Was "Großhandel" (wholesaler) -- like 卸 for Japan, it pulled wholesalers rather than
+        # makers, and the word in a result's title also tripped name_filter.looks_like_reseller.
+        # "Händler werden" (become a dealer) is how a maker titles its own dealer page. Not
+        # "Wiederverkäufer": also a reseller word there (tried 2026-10-19, dropped Kossatz).
+        "tradeTerm": "Händler werden",
         "queries": [
             {"q": "Nürnberger Lebkuchen Manufaktur -Rezept", "category": "비스킷/쿠키/케이크"},
             # Lebküchnerei -- 뉘른베르크 진저브레드 제조사를 부르는 고유 직업명, 회사 이름 자체에
             # 들어가는 접미사형 단어 (-ificio/-erie와 같은 트릭)
             {"q": "Lebküchnerei Nürnberg Familienbetrieb -Rezept", "category": "비스킷/쿠키/케이크"},
-            {"q": "Aachener Printen Bäckerei Familienbetrieb -Rezept", "category": "비스킷/쿠키/케이크"},
-            {"q": "Dresdner Stollen Bäckerei Familienbetrieb -Rezept", "category": "베이킹"},
-            {"q": "Springerle Konditorei Familienbetrieb Schwaben -Rezept", "category": "비스킷/쿠키/케이크"},
+            {"q": "Aachener Printen Hersteller Familienbetrieb -Rezept", "category": "비스킷/쿠키/케이크"},
+            {"q": "Lakritz Manufaktur Familienbetrieb -Rezept", "category": "캔디/컨펙셔너리"},
+            {"q": "Springerle Manufaktur Schwaben -Rezept", "category": "비스킷/쿠키/케이크"},
             {"q": "Bonbonkocherei Manufaktur handgemacht -Rezept", "category": "캔디/컨펙셔너리"},
-            {"q": "Tiroler Lebkuchen Konditorei Familienbetrieb -Rezept", "category": "비스킷/쿠키/케이크"},
-            {"q": "Zwetschgenmännla Manufaktur Nürnberg -Rezept", "category": "캔디/컨펙셔너리"},
+            {"q": "Kräuterbonbons Hersteller Bayern -Rezept", "category": "캔디/컨펙셔너리"},
+            {"q": "Fruchtgummi Manufaktur Familienbetrieb -Rezept", "category": "젤리/구미"},
             {"q": "Brause Manufaktur Süßwaren -Rezept", "category": "캔디/컨펙셔너리"},
             # PDO/PGI/박람회 -- 리스트형 쿼리
-            {"q": '"seit 18" Manufaktur Familienbetrieb Süßwaren', "category": "혼합", "kind": "roster"},
+            {"q": '"in fünfter Generation" Süßwaren Manufaktur', "category": "혼합"},
             {"q": "geschützte geografische Angabe Gebäck Süßwaren Hersteller Liste", "category": "혼합", "kind": "roster"},
             {"q": "ISM Köln Aussteller Familienunternehmen Gebäck", "category": "혼합", "kind": "roster"},
-            {"q": "Slow Food Presidio Deutschland Süßwaren Hersteller", "category": "혼합", "kind": "roster"},
+            {"q": "Russisch Brot Hersteller -Rezept", "category": "비스킷/쿠키/케이크"},
         ],
     },
     {
@@ -147,7 +158,9 @@ BUCKETS = [
         # 확실히 북부인 것만 남김.
         "label": "Spain",
         "country": "Spain",
-        "tradeTerm": "distribuidores",
+        # Was "distribuidores" -- pulled distributors. "puntos de venta" is a maker's own
+        # where-to-buy page.
+        "tradeTerm": "puntos de venta",
         "queries": [
             {"q": "sobao pasiego obrador Cantabria -receta", "category": "베이킹"},
             {"q": "casadielles obrador Asturias -receta", "category": "비스킷/쿠키/케이크"},
@@ -155,7 +168,7 @@ BUCKETS = [
             {"q": "confitería artesanal tradicional País Vasco -receta", "category": "캔디/컨펙셔너리"},
             {"q": "turrón mazapán obrador familiar Aragón Navarra -receta", "category": "캔디/컨펙셔너리"},
             # 리스트형 쿼리
-            {"q": '"desde 18" obrador dulces España', "category": "혼합", "kind": "roster"},
+            {"q": '"quinta generación" obrador dulces', "category": "혼합"},
             {"q": "IGP DOP dulces tradicionales norte España lista de productores", "category": "혼합", "kind": "roster"},
         ],
     },
@@ -164,15 +177,16 @@ BUCKETS = [
         # 어휘·브랜드가 아예 다른 별개 시장 -- 지방 단위로 좁히면 여전히 유효.
         "label": "UK",
         "country": "UK",
-        "tradeTerm": "wholesale",
+        # Was "wholesale" -- names wholesalers. "stockists" is a maker's where-to-buy page.
+        "tradeTerm": "stockists",
         "queries": [
             {"q": "oatcake bakery family owned Scotland -recipe", "category": "스낵/과자"},
-            {"q": "tablet confectioner family owned Scotland -recipe", "category": "캔디/컨펙셔너리"},
+            {"q": "Scottish tablet confectioner family owned -recipe", "category": "캔디/컨펙셔너리"},
             {"q": "Edinburgh rock maker family owned -recipe", "category": "캔디/컨펙셔너리"},
             {"q": "shortbread bakery family owned Scotland -recipe", "category": "비스킷/쿠키/케이크"},
-            {"q": "Welsh cake bakery family owned Wales -recipe", "category": "비스킷/쿠키/케이크"},
-            {"q": "bara brith bakery family owned Wales -recipe", "category": "베이킹"},
-            {"q": "brown lemonade maker Northern Ireland family owned -recipe", "category": "음료"},
+            {"q": "fudge maker family owned Wales -recipe", "category": "캔디/컨펙셔너리"},
+            {"q": "boiled sweets maker family owned Wales -recipe", "category": "캔디/컨펙셔너리"},
+            {"q": "yellowman honeycomb toffee maker Northern Ireland -recipe", "category": "캔디/컨펙셔너리"},
             # 수상 -- 리스트형 쿼리
             {"q": "Great Taste Awards Scottish Welsh Northern Irish confectionery producer list", "category": "혼합", "kind": "roster"},
         ],
@@ -183,16 +197,17 @@ BUCKETS = [
         # 프랄린, 노스캐롤라이나 모라비안 쿠키 등)으로 좁혀서 소형 헤리티지 브랜드를 겨냥.
         "label": "USA",
         "country": "USA",
-        "tradeTerm": "wholesale",
+        # Was "wholesale" -- names wholesalers; "where to buy" is a maker's own stockist page.
+        "tradeTerm": "where to buy",
         "queries": [
-            {"q": "saltwater taffy shop family owned New Jersey -recipe", "category": "캔디/컨펙셔너리"},
+            {"q": "saltwater taffy company family owned New Jersey -recipe", "category": "캔디/컨펙셔너리"},
             {"q": "maple candy producer Vermont family owned -recipe", "category": "캔디/컨펙셔너리"},
             {"q": "benne wafer bakery Charleston family owned -recipe", "category": "비스킷/쿠키/케이크"},
-            {"q": "pecan praline candy company New Orleans family owned -recipe", "category": "캔디/컨펙셔너리"},
+            {"q": "hard candy company family owned Pennsylvania -recipe", "category": "캔디/컨펙셔너리"},
             {"q": "peanut brittle candy company family owned Southern -recipe", "category": "캔디/컨펙셔너리"},
-            {"q": "Moravian cookies bakery Winston-Salem family owned -recipe", "category": "비스킷/쿠키/케이크"},
+            {"q": "Moravian cookies company Winston-Salem family owned -recipe", "category": "비스킷/쿠키/케이크"},
             {"q": "horehound candy old fashioned candy company family owned -recipe", "category": "캔디/컨펙셔너리"},
-            {"q": "fudge shop Mackinac Island family owned -recipe", "category": "캔디/컨펙셔너리"},
+            {"q": "caramel candy company family owned -recipe", "category": "캔디/컨펙셔너리"},
             # 수상/박람회 (미국 특산식품협회 공식 시상식·무역박람회) -- 쿼리 자체가 candy
             # confectionery로 명시돼있어 혼합 아님. 그래도 구조는 명단형이라 kind=roster.
             {"q": "Specialty Food Association sofi Award winners candy confectionery", "category": "캔디/컨펙셔너리", "kind": "roster"},
@@ -238,7 +253,7 @@ BUCKETS = [
     },
     # --- Japan-focus-only lanes (focusOnly) -------------------------------------------
     # Requested 2026-10-12: alongside Japanese confectionery, look for ReFa-style beauty
-    # tools (rollers, gua sha, scalp brushes, makeup brushes -- NOT hair dryers/irons) and
+    # tools (rollers, gua sha, beauty devices -- NOT brushes/combs, hair dryers/irons) and
     # ReNu-style personal care (contact-lens care, eye care). They run only in a Japan
     # focus run ("일본 집중" buttons), never in a normal run, and use the same daily
     # budget. "group" makes site_profile.judge check beauty/care words instead of food,
