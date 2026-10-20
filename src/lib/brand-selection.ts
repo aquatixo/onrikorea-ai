@@ -3,32 +3,17 @@
 import * as React from "react";
 
 /**
- * Brands picked with the list's checkboxes, for "선택 다운로드". Kept in one module-level
- * store (not component state) so a selection survives paging, searching and changing the
- * page size -- every one of those is a navigation that re-renders the list -- and in
- * sessionStorage so it survives a reload of the same tab.
+ * Brands picked with the list's checkboxes, for "선택 다운로드". Shared by the row
+ * checkboxes, the header checkbox and the export menu (separate client components), so it
+ * lives in one module-level store rather than component state. It only ever holds the
+ * brands on the page being shown: BrandSelectAllHead clears it whenever the page changes
+ * (paging, searching, page size) -- to pick more at once, show more rows (up to 100).
  */
-const STORAGE_KEY = "brands:selected";
-
-let selected: ReadonlySet<string> = load();
+let selected: ReadonlySet<string> = new Set();
 const listeners = new Set<() => void>();
 
-function load(): ReadonlySet<string> {
-  try {
-    const raw = typeof window === "undefined" ? null : window.sessionStorage.getItem(STORAGE_KEY);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function commit(next: Set<string>) {
+function commit(next: ReadonlySet<string>) {
   selected = next;
-  try {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
-  } catch {
-    // Storage unavailable (private mode etc.) -- the in-memory selection still works.
-  }
   listeners.forEach((listener) => listener());
 }
 
@@ -50,4 +35,8 @@ export function setBrandsSelected(ids: string[], checked: boolean) {
     else next.delete(id);
   }
   commit(next);
+}
+
+export function clearBrandSelection() {
+  if (selected.size) commit(new Set());
 }
