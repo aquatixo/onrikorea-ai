@@ -46,7 +46,7 @@ export default async function StoreVisitItemDetailPage(props: { params: Promise<
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-5 px-4 py-8 sm:px-6 sm:py-10">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Link
           href={`/field/store-visits/${id}`}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -54,7 +54,7 @@ export default async function StoreVisitItemDetailPage(props: { params: Promise<
           <ArrowLeft className="size-4" /> {t.itemDetail.back}
         </Link>
         {canModify && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"

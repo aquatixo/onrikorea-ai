@@ -97,6 +97,16 @@ export function AppSidebar({
     }))
     .filter((group) => group.items.length > 0);
 
+  // The menu entry this page belongs to: the longest href the path starts with, so a detail
+  // page (/brands/123, /field/store-visits/abc, /settings/users) keeps its menu lit -- an
+  // exact match lost it -- and /brands/sourcing lights "브랜드 발굴", not "브랜드" as well.
+  const activeHref = navGroups
+    .flatMap((group) => group.items)
+    .filter((item) => !item.soon)
+    .map((item) => item.href)
+    .filter((href) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`)))
+    .sort((a, b) => b.length - a.length)[0];
+
   return (
     <>
       <div className="flex h-14 items-center justify-between border-b border-border px-4 sm:hidden">
@@ -106,7 +116,7 @@ export function AppSidebar({
         </Link>
         <button
           onClick={() => setOpen(true)}
-          aria-label="Open menu"
+          aria-label={t.common.openMenu}
           className="rounded-md p-2 text-muted-foreground hover:bg-accent"
         >
           <Menu className="size-5" />
@@ -132,7 +142,7 @@ export function AppSidebar({
           </Link>
           <button
             onClick={() => setOpen(false)}
-            aria-label="Close menu"
+            aria-label={t.common.closeMenu}
             className="rounded-md p-1.5 hover:bg-sidebar-accent sm:hidden"
           >
             <X className="size-4" />
@@ -147,13 +157,14 @@ export function AppSidebar({
               </p>
               <div className="space-y-0.5">
                 {group.items.map((item) => {
-                  const isActive = pathname === item.href;
+                  const isActive = item.href === activeHref;
                   const Icon = item.icon;
                   return (
                     <Link
                       key={item.href}
                       href={item.soon ? "#" : item.href}
                       aria-disabled={item.soon}
+                      aria-current={isActive ? "page" : undefined}
                       onClick={(e) => {
                         if (item.soon) e.preventDefault();
                         else setOpen(false);

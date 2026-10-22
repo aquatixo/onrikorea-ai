@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/pagination";
 import { cn } from "cn";
 import type { Prisma } from "@prisma/client";
+import { assigneeLabel } from "@/lib/work-assignee";
 
 const ETC_ASSIGNEE = "기타";
 
@@ -153,7 +154,7 @@ export default async function WorkPage(props: {
                       {item.title}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {item.assigneeName}
+                      {assigneeLabel(item.assigneeName, t.work.etcLabel)}
                       {item.category ? ` · ${item.category}` : ""}
                     </p>
                   </div>

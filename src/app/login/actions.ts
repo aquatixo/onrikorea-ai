@@ -2,6 +2,8 @@
 
 import { AuthError } from "next-auth";
 import { signIn } from "@/auth";
+import { getDictionary } from "@/lib/i18n/dictionary";
+import { getLocale } from "@/lib/i18n/get-locale";
 
 export type LoginState = { error?: string } | undefined;
 
@@ -21,7 +23,7 @@ export async function loginAction(
     // signal -- only AuthError (a real failed sign-in) should be turned into a form
     // error here, everything else must be rethrown so that redirect actually happens.
     if (error instanceof AuthError) {
-      return { error: "아이디 또는 비밀번호가 올바르지 않습니다." };
+      return { error: getDictionary(await getLocale()).login.invalidCredentials };
     }
     throw error;
   }

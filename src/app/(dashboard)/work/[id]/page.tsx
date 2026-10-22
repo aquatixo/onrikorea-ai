@@ -15,6 +15,7 @@ import { WorkCommentItem } from "@/components/work-comment-item";
 import { DeleteWorkButton } from "@/components/work/delete-work-button";
 import { LiveRefresh } from "@/components/live-refresh";
 import { formatDate } from "@/lib/format-date";
+import { assigneeLabel } from "@/lib/work-assignee";
 
 export const dynamic = "force-dynamic";
 
@@ -100,7 +101,7 @@ export default async function WorkDetailPage(props: {
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-muted py-1 pr-2.5 pl-1 text-xs font-medium text-muted-foreground">
                   <UserAvatar name={item.assigneeName} size="sm" />
-                  {item.assigneeName}
+                  {assigneeLabel(item.assigneeName, t.work.etcLabel)}
                 </span>
                 {item.category && (
                   <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">

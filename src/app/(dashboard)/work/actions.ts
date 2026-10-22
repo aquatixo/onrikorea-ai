@@ -181,7 +181,7 @@ export async function updateWorkStatus(id: string, status: WorkStatus): Promise<
   try {
     await db.workItem.update({ where: { id }, data: { status } });
   } catch {
-    return { error: "Failed to update status." };
+    return { error: getDictionary(await getLocale()).work.statusUpdateFailed };
   }
   revalidatePath(`/work/${id}`);
   revalidatePath("/work");

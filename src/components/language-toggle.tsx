@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { LOCALE_COOKIE } from "@/lib/i18n/locale-cookie";
-import type { Locale } from "@/lib/i18n/dictionary";
+import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 
 export function LanguageToggle({ locale }: { locale: Locale }) {
   const router = useRouter();
@@ -15,7 +15,7 @@ export function LanguageToggle({ locale }: { locale: Locale }) {
   }
 
   return (
-    <Button variant="ghost" size="sm" onClick={handleClick} aria-label="Toggle language">
+    <Button variant="ghost" size="sm" onClick={handleClick} aria-label={getDictionary(locale).common.changeLanguage}>
       {locale === "en" ? "ENG" : "KOR"}
     </Button>
   );

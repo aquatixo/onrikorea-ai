@@ -23,6 +23,13 @@ export function PhotoLightbox({
   const t = getDictionary(locale);
   const [openPhoto, setOpenPhoto] = React.useState<Photo | null>(null);
 
+  React.useEffect(() => {
+    if (!openPhoto) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpenPhoto(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openPhoto]);
+
   return (
     <>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
@@ -32,13 +39,16 @@ export function PhotoLightbox({
               type="button"
               onClick={() => setOpenPhoto(photo)}
               className="absolute inset-0"
-              aria-label={photo.caption ?? photo.fileName ?? "photo"}
+              aria-label={photo.caption ?? photo.fileName ?? t.common.photo}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- external Vercel Blob URL, no remotePatterns configured */}
               <img src={photo.fileUrl} alt={photo.caption ?? photo.fileName ?? ""} className="size-full object-cover" />
             </button>
             {isOwnerOrAdmin(currentUser, photo.createdById) && (
-              <div className="absolute top-1 right-1 opacity-0 transition-opacity group-hover:opacity-100">
+              // Hidden until hover only where hover exists (mouse). On a phone it used to be
+              // invisible but still tappable, so tapping a photo's corner opened the delete
+              // confirm -- there it's always shown; keyboard focus also reveals it.
+              <div className="absolute top-1 right-1 transition-opacity focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
                 <DeletePhotoButton photoId={photo.id} storeVisitId={storeVisitId} locale={locale} />
               </div>
             )}
@@ -48,6 +58,9 @@ export function PhotoLightbox({
 
       {openPhoto && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={openPhoto.caption ?? openPhoto.fileName ?? t.common.photo}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6"
           onClick={() => setOpenPhoto(null)}
         >
@@ -55,7 +68,8 @@ export function PhotoLightbox({
             type="button"
             onClick={() => setOpenPhoto(null)}
             className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
-            aria-label="Close"
+            aria-label={t.common.close}
+            autoFocus
           >
             <X className="size-5" />
           </button>

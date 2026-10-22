@@ -27,6 +27,7 @@ import { hasSectionAccess, type PageSection } from "@/lib/access-control";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { cn } from "cn";
+import { assigneeLabel } from "@/lib/work-assignee";
 
 export const dynamic = "force-dynamic";
 
@@ -84,25 +85,33 @@ export default async function HomePage(props: { searchParams: Promise<{ denied?:
             <Sparkles className="size-3.5" /> {t.home.badge}
           </div>
           <HomeTypingHero className="text-3xl leading-tight font-extrabold tracking-tight sm:text-5xl" />
-          <div className="flex flex-wrap gap-3 pt-1">
-            <Button
-              nativeButton={false}
-              render={
-                <Link href="/brands">
-                  {t.home.viewBrands} <ArrowRight className="size-4" />
-                </Link>
-              }
-            />
-            <Button
-              variant="outline"
-              nativeButton={false}
-              render={
-                <Link href="/work">
-                  {t.home.viewWork} <ArrowRight className="size-4" />
-                </Link>
-              }
-            />
-          </div>
+          {/* Same section rule as the tiles below -- these used to show for everyone and
+              bounce a user without access back here with "?denied". */}
+          {(canSeeBrands || canSeeWork) && (
+            <div className="flex flex-wrap gap-3 pt-1">
+              {canSeeBrands && (
+                <Button
+                  nativeButton={false}
+                  render={
+                    <Link href="/brands">
+                      {t.home.viewBrands} <ArrowRight className="size-4" />
+                    </Link>
+                  }
+                />
+              )}
+              {canSeeWork && (
+                <Button
+                  variant={canSeeBrands ? "outline" : "default"}
+                  nativeButton={false}
+                  render={
+                    <Link href="/work">
+                      {t.home.viewWork} <ArrowRight className="size-4" />
+                    </Link>
+                  }
+                />
+              )}
+            </div>
+          )}
         </div>
       </section>
 
@@ -225,7 +234,7 @@ export default async function HomePage(props: { searchParams: Promise<{ denied?:
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{item.title}</p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {item.assigneeName}
+                          {assigneeLabel(item.assigneeName, t.work.etcLabel)}
                           {item.category ? ` · ${item.category}` : ""}
                         </p>
                       </div>

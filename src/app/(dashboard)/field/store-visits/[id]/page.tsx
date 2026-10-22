@@ -82,11 +82,12 @@ export default async function StoreVisitDetailPage(props: {
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-5 px-4 py-8 sm:px-6 sm:py-10">
-      <div className="flex items-center justify-between">
+      {/* Wraps on a phone: back + status + edit + delete didn't fit one row and ran off-screen. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Link href="/field/store-visits" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" /> {t.visits.back}
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <VisitStatusControl visitId={visit.id} status={visit.status} locale={locale} canModify={canModifyVisit} />
           {canModifyVisit && (
             <>
@@ -131,7 +132,7 @@ export default async function StoreVisitDetailPage(props: {
           <h2 className="text-sm font-semibold">
             {t.visits.itemsHeading} ({itemCount})
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <PageSizeControl value={pageSize} label={t.products.rowsPerPage} />
             <Button
               size="sm"
