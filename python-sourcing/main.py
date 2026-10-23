@@ -69,6 +69,7 @@ else:
 
 from name_filter import (
     URL_FILTERS,
+    brand_domain_label,
     domain_matches_name,
     generic_overlap_only,
     guess_brand_name,
@@ -76,8 +77,8 @@ from name_filter import (
     strip_shop_words,
 )
 from site_profile import build_profile, judge, resolved_name
-from korea_check import KOREA_QUERY_TEMPLATES, check_korea_presence, classify_korea_status, korea_search_name
-from shelf_life import MIN_SHELF_LIFE_MONTHS, search_shelf_life
+from korea_check import KOREA_QUERY_TEMPLATES, check_korea_presence, classify_korea_status, korea_search_name, korea_shop_hits
+from shelf_life import MIN_SHELF_LIFE_MONTHS, format_months, search_shelf_life
 
 KOREA_CALLS_PER_CHECK = len(KOREA_QUERY_TEMPLATES)
 from brand_rules import category_signal, ownership_signal, known_parent_in_name
@@ -134,10 +135,17 @@ def similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, normalize_brand_name(a), normalize_brand_name(b)).ratio()
 
 
+def _site_host(c: dict) -> str:
+    return urlparse(c.get("website") or "").netloc.lower().removeprefix("www.")
+
+
 def dedupe_pooled(candidates: list[dict]) -> list[dict]:
+    """Near-identical names on the SAME site are one brand. Names alone are not enough:
+    "Chocolaterie Morin" / "Chocolaterie Marin" score 0.94 on the shared generic word and
+    one of two different makers silently disappeared."""
     kept = []
     for c in candidates:
-        if not any(similarity(c["name"], k["name"]) >= 0.84 for k in kept):
+        if not any(similarity(c["name"], k["name"]) >= 0.84 and _site_host(c) == _site_host(k) for k in kept):
             kept.append(c)
     return kept
 
@@ -317,8 +325,8 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
         reason_parts.append(pre_evaluation["categoryExcluded"]["reason"])
     if duplicates:
         d = duplicates[0]
-        label = "existing brand" if d.get("source") == "brand" else "a previously found sourcing candidate"
-        reason_parts.append(f"Possible duplicate of {label}: {d['name']} ({d['reason']})")
+        label = "기존 브랜드" if d.get("source") == "brand" else "이전 발굴 후보"
+        reason_parts.append(f"중복 가능성 ({label}): {d['name']} ({d['reason']})")
 
     # Cheap category signal from the search snippet alone -- keyword hits here are still
     # just signals (see brand_rules.py), not a claim the page was read. This used to
@@ -399,6 +407,7 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
         # Store the address that actually loaded (after redirects), as a site root. Some
         # sites only work on one host variant -- brieuc.bzh resets HTTPS on the bare domain
         # and only serves www.brieuc.bzh -- so the stored link must be the one verified.
+        original_website = candidate["website"]
         final = urlparse(profile.get("finalUrl") or "")
         if final.scheme in ("http", "https") and final.netloc:
             candidate = {**candidate, "website": f"{final.scheme}://{final.netloc}/"}
@@ -411,10 +420,12 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
 
         # A .com site gets the QUERY's country by default, which is only an intent -- the
         # site's own text overrules it when it clearly says otherwise.
+        # Compared with the country the first evaluation used (the search result's own domain,
+        # else the lane's) -- not with the redirected site's domain: a .com that redirects to
+        # a .ch site used to keep the lane's country because the new domain "had" one.
         site_country = profile.get("country")
-        country_changed = bool(
-            site_country and not guess_country_from_domain(candidate["website"]) and site_country != bucket.get("country")
-        )
+        first_country = guess_country_from_domain(original_website) or bucket.get("country")
+        country_changed = bool(site_country and site_country != first_country)
         if renamed or country_changed:
             # The duplicate check ran on the search-result name; a corrected name can match
             # a brand that one missed (real case: "Chocolaterie Monbana" -> "monbana", an
@@ -448,7 +459,11 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
         # The registry check before the crawl only saw the search-result name
         # ("ヤーマン公式通販サイト"); the corrected name or the domain name can match it
         # (ヤーマン / "ya man"). Free, and it saves the 2-search Korea check.
-        known_after = known_excluded_brand(candidate["name"]) or known_excluded_brand(korea_name)
+        # The domain-derived name only when it's long enough to mean something: a 4-5
+        # letter domain word ("solo", "novi", "lance") matched an unrelated registry entry.
+        known_after = known_excluded_brand(candidate["name"]) or (
+            known_excluded_brand(korea_name) if len(korea_name.replace(" ", "")) >= 6 else None
+        )
         if known_after:
             registry, known_reason = known_after
             print(f"  - {candidate['name']} -> dropped (known_excluded: {registry} — {known_reason})")
@@ -461,7 +476,9 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
         # Classify against ALL hits, not just the capped topHits display list -- a brand's
         # own (non-Korean) site usually ranks first and could push the one real Korean
         # marketplace hit out of the display cap. See check_korea_presence.
-        korea_status, korea_reason = classify_korea_status(korea["hits"], korea_name, korea.get("failed", 0))
+        korea_status, korea_reason = classify_korea_status(
+            korea["hits"], korea_name, korea.get("failed", 0), own_domain_label=brand_domain_label(candidate["website"] or "")
+        )
         progress.korea_checked += 1
         progress.push()
 
@@ -507,7 +524,7 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
             if shelf["months"] is not None and shelf["months"] < MIN_SHELF_LIFE_MONTHS:
                 verdict = "reject"
                 reason_parts.append(
-                    f"구글 검색 결과 유통기한 최대 {shelf['months']}개월 — {MIN_SHELF_LIFE_MONTHS}개월 미만 ({shelf['url']})"
+                    f"구글 검색 결과 유통기한 최대 {format_months(shelf['months'])} — {MIN_SHELF_LIFE_MONTHS}개월 미만 ({shelf['url']})"
                 )
             elif shelf["months"] is not None:
                 # The LONGEST one found -- can be an atypical product (Pernigotti's 60 months
@@ -523,9 +540,9 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
                 )
 
         if profile.get("foundedYear"):
-            reason_parts.append(f"Founded year found on site: {profile['foundedYear']}")
+            reason_parts.append(f"설립연도 (사이트 기준): {profile['foundedYear']}")
         if snippet:
-            reason_parts.append(f"Site snippet: {snippet[:200]}")
+            reason_parts.append(f"사이트 발췌: {snippet[:200]}")
 
     if verdict == "pass":
         # Evidence-only: nothing here judged the remaining ambiguous ownership cases or
@@ -545,7 +562,9 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
     progress.flagged += 1
 
     evidence = [candidate["website"]] if candidate["website"] else []
-    evidence += [h["url"] for h in korea["topHits"][:3]]
+    # The Korean shop results the Korea status was decided on -- not the first raw results,
+    # which were usually the brand's own site, social posts and unrelated pages.
+    evidence += [h["url"] for h in korea_shop_hits(korea["hits"], korea_name)[:3]] if korea["hits"] else []
     if shelf_evidence:
         evidence.append(shelf_evidence)
 

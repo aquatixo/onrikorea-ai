@@ -20,12 +20,30 @@ _ANNIVERSARY_PATTERNS = [
 ]
 _ANNIVERSARY_MIN_YEARS = 5
 _ANNIVERSARY_MAX_YEARS = 300
+# An anniversary that is not the company's own age: an age gate ("18 years or older"), a
+# regional tradition ("Seit 1950 ... 200 Jahre alte Tradition" gave 1826, "recipes go back
+# over 200 years in this region"), or a vague claim ("plus de 300 ans").
+_NOT_COMPANY_AGE_BEFORE = re.compile(r"(?:over|more\s+than|plus\s+de|[üu]ber|oltre|m[áa]s\s+de|back)\s*$", re.I)
+_NOT_COMPANY_AGE_AFTER = re.compile(
+    r"^\s*(?:or\s+older|of\s+age|old\b|ago\b|alte?n?\b|et\s+plus|vieille|d['’]histoire|di\s+storia|de\s+historia|"
+    r"tradition|Tradition)",
+    re.I,
+)
+
+# Japanese: 創業1902年 / 1902年創業 / 設立 / 創立, also as an era year (明治35年創業).
+_JP_ERAS = {"明治": 1867, "大正": 1911, "昭和": 1925, "平成": 1988, "令和": 2018}
+_JP_FOUNDED = re.compile(
+    r"(?:創業|設立|創立)\s*(?:は|：|:)?\s*(?:(\d{4})|(明治|大正|昭和|平成|令和)\s*(\d{1,2}|元))\s*年?|"
+    r"(?:(\d{4})|(明治|大正|昭和|平成|令和)\s*(\d{1,2}|元))\s*年\s*(?:に)?\s*(?:創業|設立|創立)"
+)
+_JP_YEARS_SINCE = re.compile(r"創業\s*(\d{1,3})\s*(?:年|周年)")
+_FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
 
 FOUNDED_PATTERNS = [
     re.compile(r"founded in (\d{4})", re.I),
     re.compile(r"established in (\d{4})", re.I),
     re.compile(r"since (\d{4})", re.I),
-    re.compile(r"est\.?\s*(\d{4})", re.I),
+    re.compile(r"\best\.?\s*(\d{4})", re.I),  # not "latest 1800 reviews", "forest 1750"
     # Most candidates in the France/Italy/Germany/Spain buckets have their "since 19xx"
     # heritage-story text in their own language, not English -- these patterns were
     # English-only, so founded year silently stayed blank for almost every non-English/
@@ -113,6 +131,21 @@ def extract_founded_year(text: str) -> int | None:
     without needing to special-case which pattern or phrase "wins"."""
     this_year = date.today().year
     years: list[int] = []
+    text = text.translate(_FULLWIDTH_DIGITS)
+
+    for m in _JP_FOUNDED.finditer(text):
+        year_s, era, era_n, year_s2, era2, era_n2 = m.groups()
+        if year_s or year_s2:
+            year = int(year_s or year_s2)
+        else:
+            n = era_n or era_n2
+            year = _JP_ERAS[era or era2] + (1 if n == "元" else int(n))
+        if 1600 <= year <= this_year:
+            years.append(year)
+    for m in _JP_YEARS_SINCE.finditer(text):
+        n = int(m.group(1))
+        if _ANNIVERSARY_MIN_YEARS <= n <= 500:
+            years.append(this_year - n)
 
     for pattern in FOUNDED_PATTERNS:
         for match in pattern.finditer(text):
@@ -123,8 +156,13 @@ def extract_founded_year(text: str) -> int | None:
     for pattern in _ANNIVERSARY_PATTERNS:
         for match in pattern.finditer(text):
             n = int(match.group(1))
-            if _ANNIVERSARY_MIN_YEARS <= n <= _ANNIVERSARY_MAX_YEARS:
-                years.append(this_year - n)
+            if not (_ANNIVERSARY_MIN_YEARS <= n <= _ANNIVERSARY_MAX_YEARS):
+                continue
+            if _NOT_COMPANY_AGE_BEFORE.search(text[max(0, match.start() - 15) : match.start()]):
+                continue
+            if _NOT_COMPANY_AGE_AFTER.match(text[match.end() : match.end() + 20]):
+                continue
+            years.append(this_year - n)
 
     return min(years) if years else None
 
@@ -139,16 +177,20 @@ def extract_founded_year(text: str) -> int | None:
 # reviewer (same "note, not a reject" treatment as everything else mechanical here).
 _EXPORT_KEYWORDS = re.compile(
     r"\bwholesale\b|\bb2b\b|\bexport(?:s|ing)?\b|distributor inquir|"
-    r"h[äa]ndler|großhandel|"  # German
+    r"h(?:ä|ae)ndler|großhandel|"  # German -- with ä/ae, never English "food handler"
     r"grossiste|revendeur|exportation|"  # French
     r"rivenditor|ingrosso|esportazione|"  # Italian
     r"mayorista|distribuidor|exportaci[oó]n|"  # Spanish
     r"\bstockists?\b|trade\s+(account|enquir|inquir|customer|sales)|\bfor\s+retailers\b|"  # English trade
-    r"gesch[äa]ftskunden|wiederverk[äa]ufer|fachhandel|gastronomie|horeca|foodservice|"  # German / food service
+    # "Gastronomie" only as German foodservice ("für Gastronomie", "Gastronomie & Handel") --
+    # in French "la gastronomie" is just cuisine, on every food site.
+    r"gesch[äa]ftskunden|wiederverk[äa]ufer|fachhandel|horeca|foodservice|"  # German / food service
+    r"f[üu]r\s+(?:die\s+)?gastronomie|gastronomie\s*(?:&|und)\s*handel|gastronomiekunden|"
     r"grossista|revendedor|exporta[cç][aã]o|"  # Portuguese
-    # Japanese. 百貨店 = sold through department stores nationwide (how 井筒八ッ橋本舗,
-    # 榮太樓, 六花亭 reach shoppers outside their own shops) -- a real distribution channel.
-    r"卸売|卸販売|業務用|海外|輸出|お取引|取扱店|取扱い店|販売店|代理店|百貨店",
+    # Japanese, as phrases: the bare words were matching shop-location and retail text --
+    # "阪神百貨店 B1F" (the maker's own counter), "販売店舗も少なく" ("few shops"),
+    # "海外発送は承っておりません" (no overseas shipping), "海外進出".
+    r"卸売|卸販売|業務用|海外(?!発送)|輸出|お取引|取扱店|取扱い店|販売店(?!舗)|代理店|百貨店",
     re.I,
 )
 

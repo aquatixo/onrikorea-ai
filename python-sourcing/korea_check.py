@@ -25,13 +25,16 @@ KOREA_QUERY_TEMPLATES = [
 ]
 
 # 조건 A 핵심 문구 -- 이미 공식/독점 총판이 있다는 명시적 신호. 이게 있으면 하드 제외.
-# 2026-10-19 리뷰: "공식수입원/공식총판"만 보던 시절엔 쿠팡·네이버의 흔한 표기("정식수입",
-# "독점수입", "공식 판매처", "브랜드관", "공식스토어")를 못 알아봐서, 이미 들어와 있는
-# 브랜드가 "병행수입 → 우선 후보"로 올라올 수 있었다. "총판 모집"(총판을 구한다)은 반대 뜻.
+# 2026-10-19: "공식 판매처", "브랜드관", "공식스토어", "독점수입"도 알아보도록 넓힘.
+# 2026-10-23 재검토: 그러나 "정식수입 통관 제품"/"정식 수입 정품"은 병행수입 업자가 흔히 쓰는
+# 말이라(= 정상 통관됐다는 뜻) 제외 신호가 아니다 -- 정식은 "정식수입원/정식수입사"만. 또
+# "총판 모집"/"대리점 모집"(총판을 구한다), "공식 판매처가 아닙니다"(부정)는 반대 뜻이라 뺀다.
+_NOT_RECRUITING_OR_NEGATED = r"(?!\s*(?:을|를)?\s*(?:모집|구함|구합니다|문의))(?!\S{0,2}\s*아(?:님|닙|닌))"
 _OFFICIAL_PHRASES = re.compile(
-    r"(?:공식|정식|독점)\s*(?:수입|유통|총판|판매처|판매원|대리점)|"
-    r"(?:한국|국내)\s*(?:공식\s*)?총판(?!\s*모집)|"
-    r"공식\s*(?:스토어|몰|샵|쇼핑몰)|브랜드관"
+    rf"(?:(?:공식|독점)\s*(?:수입(?:원|사)?|유통|총판|판매처|판매원|대리점)|"
+    rf"정식\s*수입(?:원|사)|"
+    rf"(?:한국|국내)\s*(?:공식\s*)?총판|"
+    rf"공식\s*(?:스토어|몰|샵|쇼핑몰)|브랜드관){_NOT_RECRUITING_OR_NEGATED}"
 )
 
 # A hit only counts as Korea-market evidence if it actually lives on a Korean retail/
@@ -52,21 +55,32 @@ _KOREA_RETAIL_DOMAINS = {
 # Blogs, cafés, Q&A and news on a Korean domain are people writing ABOUT a product (a
 # travel blog, a news item), not a shop selling it -- they used to count as sales evidence.
 _NOT_A_SHOP_LABELS = {"blog", "cafe", "kin", "post", "news", "in"}
+# Any other .kr site only counts when its name says it sells things: a bare .kr used to
+# count too, and a music page (music.bugs.co.kr), a news site and a wiki became "sales".
+_SHOP_HOST = re.compile(r"shop|mall|store|market|smartstore")
+
+
+def _host(url: str) -> str:
+    try:
+        return urlparse(url).netloc.lower().removeprefix("www.")
+    except Exception:
+        return ""
 
 
 def _is_korea_retail_hit(url: str) -> bool:
-    try:
-        host = urlparse(url).netloc.lower().removeprefix("www.")
-    except Exception:
+    host = _host(url)
+    if not host or _NOT_A_SHOP_LABELS & set(host.split(".")[:-2] or [host.split(".")[0]]):
         return False
-    if _NOT_A_SHOP_LABELS & set(host.split(".")[:-2] or [host.split(".")[0]]):
-        return False
-    if host.endswith(".kr"):
+    if any(host == d or host.endswith("." + d) for d in _KOREA_RETAIL_DOMAINS):
         return True
-    return any(host == d or host.endswith("." + d) for d in _KOREA_RETAIL_DOMAINS)
+    return host.endswith(".kr") and bool(_SHOP_HOST.search(host))
 
 
 _DOMAIN_ALIAS = re.compile(r"^[a-z][a-z-]{3,}$")
+# Pieces of a domain that are not the brand ("sweets-kagiya", "y-tanbaya", "marutonet"),
+# and shop-platform hosts whose first label is the shop, not a brand domain.
+_GENERIC_DOMAIN_PIECES = {"sweets", "shop", "store", "online", "official", "web", "net", "jp", "japan", "www", "co"}
+_SHOP_PLATFORMS = ("base.shop", "thebase.in", "base.ec", "stores.jp", "shop-pro.jp", "ocnk.net", "myshopify.com", "shopselect.net")
 
 
 def korea_search_name(brand_name: str, website: str | None) -> str:
@@ -77,12 +91,15 @@ def korea_search_name(brand_name: str, website: str | None) -> str:
     to the original name when the domain isn't a usable word (too short, digits)."""
     if has_latin_letters(brand_name) or not website:
         return brand_name
-    try:
-        host = urlparse(website).netloc.lower().removeprefix("www.")
-    except ValueError:
+    host = _host(website)
+    if not host or any(host.endswith(p) for p in _SHOP_PLATFORMS):
         return brand_name
     stem = host.split(".")[0]
-    return stem.replace("-", " ") if _DOMAIN_ALIAS.match(stem) else brand_name
+    if not _DOMAIN_ALIAS.match(stem):
+        return brand_name
+    pieces = [p for p in stem.split("-") if len(p) > 1 and p not in _GENERIC_DOMAIN_PIECES]
+    alias = " ".join(pieces)
+    return alias if len(alias.replace(" ", "")) >= 4 else brand_name
 
 
 def check_korea_presence(brand_name: str) -> dict:
@@ -114,7 +131,30 @@ def check_korea_presence(brand_name: str) -> dict:
     return {"hitCount": len(korea_hits), "hits": hits, "topHits": hits[:5], "failed": failed}
 
 
-def classify_korea_status(hits: list[dict], brand_name: str, failed: int = 0) -> tuple[str, str]:
+def _name_matcher(brand_name: str):
+    """Word-boundary match for a Latin name, plain substring for a CJK one (see below)."""
+    if has_latin_letters(brand_name):
+        name_pattern = re.compile(r"\b" + re.escape(brand_name.lower()) + r"\b")
+        return lambda text: bool(name_pattern.search(text.lower()))
+    lowered_name = brand_name.lower()
+    return lambda text: lowered_name in text.lower()
+
+
+def korea_shop_hits(hits: list[dict], brand_name: str) -> list[dict]:
+    """The hits that count as Korean sales evidence: on a Korean shop AND about this brand.
+    Also what main.py stores as the candidate's evidence links -- it used to store the
+    first three raw results instead (BBC, an Instagram reel, a game-music page)."""
+    name_hit = _name_matcher(brand_name)
+    return [
+        h
+        for h in hits
+        if _is_korea_retail_hit(h.get("url", "")) and name_hit(f"{h.get('title', '')} {h.get('description', '')}")
+    ]
+
+
+def classify_korea_status(
+    hits: list[dict], brand_name: str, failed: int = 0, own_domain_label: str | None = None
+) -> tuple[str, str]:
     """조건 A: "한국에서 검색이 되느냐"가 아니라 "지금 독점 총판 자리가 비어 있느냐"를 판정한다.
     공식/독점 총판 문구가 나오면 하드 제외. 마켓플레이스 판매 정황만 있고 공식 표기가
     없으면 -- 병행수입/구매대행 추정으로, 제외가 아니라 오히려 우선 후보로 취급한다
@@ -135,12 +175,18 @@ def classify_korea_status(hits: list[dict], brand_name: str, failed: int = 0) ->
     # doesn't). That silently disabled the official_distributor hard-exclude for every
     # non-Latin brand name. Latin names keep the \b (still needed for the Lance/
     # freelance case); non-Latin names fall back to a plain substring check instead.
-    if has_latin_letters(brand_name):
-        name_pattern = re.compile(r"\b" + re.escape(brand_name.lower()) + r"\b")
-        name_hit = lambda text: bool(name_pattern.search(text.lower()))
-    else:
-        lowered_name = brand_name.lower()
-        name_hit = lambda text: lowered_name in text.lower()
+    name_hit = _name_matcher(brand_name)
+
+    # The brand's OWN Korean site (menicon.co.kr for menicon.co.jp) means it is already in
+    # Korea through its own subsidiary -- it used to count as parallel-import evidence.
+    if own_domain_label and len(own_domain_label) >= 4:
+        for h in hits:
+            host = _host(h.get("url", ""))
+            if host.endswith(".kr") and host.split(".")[0] == own_domain_label:
+                return (
+                    "official_distributor",
+                    f"브랜드 자체 한국 사이트 발견 ({host}) — 이미 한국 진출, 소싱 대상에서 제외",
+                )
 
     # "공식총판" is common Korean e-commerce boilerplate -- for a short/generic brand
     # name (Lance, Roka, Fini, Terra...) the search can return an unrelated hit that
@@ -175,11 +221,7 @@ def classify_korea_status(hits: list[dict], brand_name: str, failed: int = 0) ->
     #
     # And the hit has to be ABOUT this brand -- an unrelated Coupang category page for the
     # same two search words used to count too, and three of those made "우선 후보".
-    korea_hits = [
-        h
-        for h in hits
-        if _is_korea_retail_hit(h.get("url", "")) and name_hit(f"{h.get('title', '')} {h.get('description', '')}")
-    ]
+    korea_hits = korea_shop_hits(hits, brand_name)
 
     if len(korea_hits) >= 3:
         return (

@@ -12,14 +12,7 @@ it), so the question domain_matches_name asks is exactly the right one to ask.
 """
 
 from search_errors import SearchAuthError
-from name_filter import (
-    is_blocked_domain,
-    is_article_page,
-    is_recipe_page,
-    is_adult_content,
-    is_portal_page,
-    domain_matches_name,
-)
+from name_filter import URL_FILTERS, domain_matches_name
 
 _MAX_SEARCH_CALLS_PER_NAME = 2
 
@@ -46,13 +39,9 @@ def resolve_site(name: str, country: str | None, search_fn) -> dict:
 
         any_survived = False
         for r in results:
-            if (
-                is_blocked_domain(r["url"])
-                or is_article_page(r["url"])
-                or is_recipe_page(r["url"], r.get("title", ""), r.get("description", ""))
-                or is_adult_content(r.get("title", ""), r["url"], r.get("description", ""))
-                or is_portal_page(r.get("description", ""))
-            ):
+            # The same filters as the discovery path (this was a hand-copied subset that
+            # lacked the retailer-listing and parked-page checks).
+            if any(check({"title": "", **r}) for _reason, check in URL_FILTERS):
                 continue
             any_survived = True
             if domain_matches_name(name, r["url"]):

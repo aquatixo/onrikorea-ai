@@ -3,10 +3,12 @@
 
 Deterministic, no LLM:
 - shelf_life_months(text): reads a stated shelf life ("shelf life: 18 months",
-  "MHD 12 Monate", "durata 24 mesi", "賞味期限 製造日より180日") and returns it in months.
+  "MHD 12 Monate", "durata: 24 mesi", "賞味期限 製造日より180日") and returns it in months.
   A site that sells several products states several -- the LONGEST one is returned, so a
-  biscuit maker that also sells a 1-month fresh cake is judged by its biscuits.
+  biscuit maker that also sells a 1-month fresh cake is judged by its biscuits. Times
+  "after opening" are not the product's shelf life and are skipped.
 - chilled_hits(text): how often the site says its products are kept cold or frozen.
+- names_cold_product(title): the site calls itself an ice-cream/gelato maker.
 - search_shelf_life(name, country): one Google search when the site states nothing.
 
 Most brand homepages never state a shelf life at all, so "not stated" is the normal case
@@ -28,11 +30,13 @@ _UNITS = (
     r"meses|mes|d[ií]as|semanas|años|año|"  # es
     r"ヶ月|か月|カ月|ケ月|ヵ月|箇月|日間|日|年"  # ja
 )
+# Not bare "conservation"/"durata": "conservation du patrimoine depuis 3 ans" and "durata 3
+# giorni" (a trade fair) read as 36 and 0 months. Only the shelf-life forms of those words.
 _KEYWORDS = (
     r"shelf[\s-]?life|best[\s-]before|"
     r"mindesthaltbarkeit\w*|\bmhd\b|haltbarkeit|haltbar|"
-    r"\bdluo\b|\bddm\b|dur[ée]e\s+de\s+conservation|conservation|"
-    r"conservabilit[àa]|durata|scadenza|"
+    r"\bdluo\b|\bddm\b|dur[ée]e\s+de\s+conservation|conservation\s*:|"
+    r"conservabilit[àa]|durata\s*:|durata\s+(?:del\s+prodotto|di\s+conservazione)|scadenza|"
     r"vida\s+[úu]til|caducidad|consumo\s+preferente|"
     r"賞味期限|消費期限|日持ち|保存期間"
 )
@@ -56,6 +60,28 @@ _AFTER_WORDED = re.compile(
     rf"(?:{_KEYWORDS})[^.。]{{0,60}}?(" + "|".join(f"(?P<m{k}>{v})" for k, v in _WORDED.items()) + ")",
     re.I,
 )
+# How long it keeps once OPENED ("Nach dem Öffnen 4 Wochen haltbar", "dopo l'apertura: 10
+# giorni", "開封後3日以内") -- every jam, spread and biscuit tin says it; it is not the
+# product's shelf life and must not reject the maker.
+_AFTER_OPENING = re.compile(
+    r"after\s+open|once\s+open|\bopened\b|nach\s+dem\s+[öo]ffnen|nach\s+anbruch|ge[öo]ffnet|"
+    r"apr[eè]s\s+(?:l['’]\s?)?ouverture|une\s+fois\s+ouvert|"
+    r"dopo\s+(?:l['’]\s?)?apertura|una\s+volta\s+apert|"
+    r"una\s+vez\s+abiert|tras\s+(?:su\s+)?apertura|despu[eé]s\s+de\s+abrir|"
+    r"開封",
+    re.I,
+)
+_SENTENCE_END = re.compile(r"[.;。!?！？]")
+
+
+def _about_after_opening(text: str, start: int, end: int) -> bool:
+    """The match, plus the rest of its own sentence on either side (up to ~30 chars), talks
+    about the opened product. Stops at the sentence end so "Shelf life 12 months. Once
+    opened, 4 weeks" still keeps its 12 months."""
+    before = text[max(0, start - 30) : start]
+    before = _SENTENCE_END.split(before)[-1]
+    after = _SENTENCE_END.split(text[end : end + 25])[0]
+    return bool(_AFTER_OPENING.search(before + text[start:end] + after))
 
 
 def _to_months(n: int, unit: str) -> float:
@@ -70,44 +96,77 @@ def _to_months(n: int, unit: str) -> float:
 
 
 def shelf_life_months(text: str) -> int | None:
-    """The longest shelf life stated in `text`, in whole months, or None if none is."""
+    """The longest shelf life stated in `text`, in whole months (0 = under a month), or
+    None if none is."""
     if not text:
         return None
     found = []
     for pattern in (_AFTER, _BEFORE):
         for m in pattern.finditer(text):
+            if _about_after_opening(text, m.start(), m.end()):
+                continue
             n = max(int(m.group(1)), int(m.group(2) or 0))
             months = _to_months(n, m.group(3))
             # 1 day .. 5 years; anything else is a misread (a date, a price, an amount).
             if 1 / 30 <= months <= 60:
                 found.append(months)
     for m in _AFTER_WORDED.finditer(text):
-        found += [k for k in _WORDED if m.group(f"m{k}")]
+        if not _about_after_opening(text, m.start(), m.end()):
+            found += [k for k in _WORDED if m.group(f"m{k}")]
     return round(max(found)) if found else None
+
+
+def format_months(months: int) -> str:
+    """For reason texts: 0 (a few days) reads as "1개월 미만", not "0개월"."""
+    return f"{months}개월" if months >= 1 else "1개월 미만"
 
 
 # Kept cold or frozen = can't sit in a container for weeks. "Store in a cool, dry place"
 # (kühl und trocken) is the normal wording for shelf-stable sweets, so only refrigerator /
-# freezer words count, and "do not refrigerate" (chocolate makers say it often) is skipped.
+# freezer words count. Skipped: "do not / don't refrigerate" (chocolate makers say it
+# often) and "keep refrigerated after opening" (every spread and caramel sauce says it).
 #
 # Two kinds. STORAGE wording says how the product itself must be kept. PRODUCT words
 # (gelato, ice cream) only name a cold product -- Babbi, a wafer maker that also sells
 # ingredients for gelato shops, says "gelato" dozens of times -- so they only add to the
 # count once the site also has at least one storage instruction.
+_NOT_AFTER_OPENING = r"(?!\s*(?:after|once)\s+open|\s*apr[eè]s\s+(?:l['’]\s?)?ouverture|\s*dopo\s+(?:l['’]\s?)?apertura)"
 _CHILLED_STORAGE = re.compile(
-    r"(?<!not\s)(?<!never\s)(?:keep|store)\s+(?:it\s+|them\s+)?(?:refrigerated|in\s+the\s+fridge|frozen)|"
+    rf"(?<!not\s)(?<!never\s)(?<!n't\s)(?<!n’t\s)(?:keep|store)\s+(?:it\s+|them\s+)?"
+    rf"(?:refrigerated|in\s+the\s+fridge|frozen){_NOT_AFTER_OPENING}|"
     r"\bchilled\b|\bfrozen\s+(?:desserts?|cakes?|products?)|"
-    r"tiefgekühlt|im\s+kühlschrank\s+(?:lagern|aufbewahren)|"
-    r"[àa]\s+conserver\s+au\s+r[ée]frig[ée]rateur|\bsurgel[ée]s?\b|"
-    r"conservare\s+in\s+frigorifero|\bsurgelat[oi]\b|"
+    r"tiefgekühlt|(?<!nicht\s)im\s+kühlschrank\s+(?:lagern|aufbewahren)|"
+    rf"[àa]\s+conserver\s+au\s+r[ée]frig[ée]rateur{_NOT_AFTER_OPENING}|\bsurgel[ée]s?\b|"
+    rf"conservare\s+in\s+frigorifero{_NOT_AFTER_OPENING}|\bsurgelat[oi]\b|"
     r"conservar\s+(?:en\s+)?(?:refrigeraci[oó]n|nevera|frigor[ií]fico)|\bcongelad[oa]s?\b|"
-    r"要冷蔵|要冷凍|冷凍便|クール便",
+    r"(?<!開封後は)(?<!開封後)要冷蔵|要冷凍|冷凍便|クール便",
     re.I,
 )
-_CHILLED_PRODUCT = re.compile(
-    r"\bice[\s-]cream|\bgelat[oi]\b|\bsorbet|speiseeis|\bhelados?\b|生チョコ|ジェラート|アイスクリーム",
+# Ice cream named as a product. "glace(s)" only as French ice cream: not "glacé(s)"
+# (glazed: marrons glacés), "sucre glace" (icing sugar), "glace royale" (royal icing) or
+# "glace cherries" (candied cherries).
+_ICE_CREAM = (
+    r"\bice[\s-]cream|\bgelat[oi]\b|\bgelateria\b|\bsorbet|speiseeis|\bhelados?\b|"
+    r"(?<!sucre\s)\bglaces?\b(?!\s+(?:royale|cherr))|ジェラート|アイスクリーム"
+)
+_CHILLED_PRODUCT = re.compile(_ICE_CREAM + r"|生チョコ", re.I)
+_ICE_CREAM_TITLE = re.compile(_ICE_CREAM, re.I)
+_COLD_INGREDIENT = re.compile(
+    r"ingredient[ie]?s?\s+(?:per|for|pour|para|f[üu]r)\s+(?:il\s+|le\s+|la\s+)?(?:gelat|ice|glace|helad|speiseeis)|"
+    r"per\s+gelateri|pour\s+glaciers|for\s+ice[\s-]cream\s+(?:shops|parlou?rs|makers)",
     re.I,
 )
+
+
+def names_cold_product(title: str) -> bool:
+    """The site calls ITSELF an ice-cream/gelato maker in its title ("Fabricant de glaces
+    artisanales", 2026-10-23 run). Product words in the body don't count on their own --
+    Babbi, a wafer maker, says "gelato" all over for its ingredient line -- but a title
+    is what the business is. Not when the title says it supplies INGREDIENTS for ice cream
+    ("Ingredienti per Gelato e Specialità Dolciarie dal 1952 Babbi"); a title that ALSO
+    names a shelf-stable line ("Helados y turrones") is left to the caller."""
+    title = title or ""
+    return bool(_ICE_CREAM_TITLE.search(title)) and not _COLD_INGREDIENT.search(title)
 
 
 def chilled_hits(text: str) -> int:

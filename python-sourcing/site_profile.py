@@ -20,9 +20,10 @@ import requests
 from bs4 import BeautifulSoup
 
 from country_guess import guess_country_from_domain, guess_country_from_text
-from name_filter import has_latin_letters, japanese_site_name, looks_like_reseller, pick_brand_name
+from name_filter import has_latin_letters, japanese_site_name, looks_like_reseller, pick_brand_name, says_it_makes
 from relevance import check_food_relevance, check_group_relevance, has_food_words, has_group_words, name_on_site
-from shelf_life import MIN_SHELF_LIFE_MONTHS, chilled_hits, shelf_life_months
+from query_vocab import VOCAB
+from shelf_life import MIN_SHELF_LIFE_MONTHS, chilled_hits, format_months, names_cold_product, shelf_life_months
 from site_scrape import HEADERS, _extract_site_name, _is_parked, extract_founded_year, has_export_signal
 
 MIN_READABLE_CHARS = 400
@@ -87,17 +88,25 @@ _ABOUT_LINK = re.compile(
 )
 _TRADE_LINK = re.compile(
     r"wholesale|\btrade\b|b2b|export|stockist|distribut|retailers?\b|"
+    # Where-to-buy pages -- what several lanes search with as their tradeTerm, so a maker
+    # found that way must not fail for "no trade channel".
+    r"where\s+to\s+buy|points?\s+de\s+vente|puntos?\s+de\s+venta|punti\s+vendita|verkaufsstellen|"
     r"h[äa]ndler|gro[ßs]handel|gesch[äa]ftskunden|wiederverk|fachhandel|gastronom|horeca|food\s?service|"
     r"grossiste|revendeur|professionnels?|"
     r"ingrosso|rivendit|esportaz|"
     r"mayorista|distribuidor|profesionales|exportaci|"
     r"revenda|grossista|"
     # Japanese makers rarely say 卸 outright: "お取引" (trade enquiries), "取扱店/販売店"
-    # (stockist list), "代理店" (agents), "輸出" (export), "OEM" all mean a B2B channel.
-    # Not 特定商取引法 (the legal-notice page every Japanese web shop must have).
-    r"卸|業務用|法人|海外|(?<!特定商)取引|取扱店|取り扱い店|販売店|代理店|輸出|\bOEM\b|問屋",
+    # (stockist list), "代理店" (agents), "輸出" (export) all mean a B2B channel. Not
+    # 特定商取引法 (the legal notice every Japanese web shop must have), not 海外発送 (a
+    # shop's overseas shipping), and not OEM -- that's a reject reason, not a trade channel.
+    r"卸|業務用|法人|海外(?!発送)|(?<!特定商)取引|取扱店|取り?扱い?店|販売店(?!舗)|代理店|輸出|問屋",
     re.I,
 )
+# A Japanese shop's corporate-gift page ("法人・団体様向けギフト", カステラ銀装) is a
+# company buying gift boxes, not a trade channel. European corporate/Christmas pages stay:
+# for a Lebkuchen or chocolate maker the business-customer page IS its B2B channel.
+_GIFT_LINK = re.compile(r"ギフト|贈答|手土産")
 
 # Supplier-grade signals that stand in for an explicit trade page: food-safety certificates
 # that retail chains and importers require (IFS, BRCGS, FSSC 22000, ISO 22000) and
@@ -142,7 +151,11 @@ _DIRECTORY_TITLE = re.compile(
     r"guide|guía|guida|reiseführer|tourisme|tourism|turismo|tourismus|vacances|"
     r"(online|stadt|city)[\s-]?magazin\w*|magazine|news|noticias|actualités|nachrichten|"
     r"app|blog)\b|"
-    r"観光|ガイド|まとめ|ポータル",
+    r"観光|ガイド|まとめ|ポータル|"
+    # Associations and member directories ("大阪産（もん）名品の会", 2026-10-23 run).
+    # Not 企業組合 / 農事組合法人 -- the legal forms of real small producers ("企業組合
+    # かりんとう工房", "農事組合法人 米の里 おかき工房").
+    r"名品の会|協会|協議会|(?<!企業)(?<!農事)組合(?!法人)|連合会",
     re.I,
 )
 
@@ -153,24 +166,14 @@ _DIRECTORY_TITLE = re.compile(
 _FRESH_WORDS = re.compile(
     # Not "sandwich biscuits" (shelf-stable), not "pain d'épices" (gingerbread), and no bare
     # English "pan"/"pains" ("pan-European", "Peter Pan", "great pains" all counted as bread).
-    r"\b(brot|brote|brötchen|bread|breads|baguettes?|quiches?|sandwich(?!\s+(?:biscuits?|cookies?|wafers?))\w*|"
+    r"\b((?<!russisch\s)brot|brote|brötchen|bread|breads|baguettes?|quiches?|sandwich(?!\s+(?:biscuits?|cookies?|wafers?))\w*|"
     r"panes|pan\s+(?:de|artesano|casero)|panader\w*|"
-    r"boulangerie|pains?(?!\s+d['’]\s?[ée]pices)|pane|focaccia|sourdough|sauerteig|semmel\w*|"
+    r"boulangerie|pains?(?!\s+d['’]\s?[ée]pices?)|pane|focaccia|sourdough|sauerteig|semmel\w*|"
     r"tartas?|torten?|sponges?|cream\s+cakes?|wedding\s+cakes?|hochzeitstorte\w*|"
     r"macarons?|tiramis[uù]|cheesecakes?)\b|"
     # Japanese fresh sweets (no \b: CJK has no word boundary inside a sentence).
-    r"生菓子|要冷蔵|生クリーム|大福|団子|だんご|食パン|当日中|カステラ|生八ッ橋|生八つ橋",
-    re.I,
-)
-# What a shelf-stable confectioner talks about: the target lines minus the short-lived
-# ones (カステラ, Stollen). Coffee/tea/honey/pasta/jam used to be in here too, which made a
-# bakery that also sells coffee and jam look shelf-stable.
-_SHELF_WORDS = re.compile(
-    r"biscuit|cookie|bonbon|candy|candies|chocolat|schokolade|caramel|karamell|toffee|fudge|praline|"
-    r"nougat|turr[oó]n|torrone|lebkuchen|wafer|waffel|shortbread|confiserie|calisson|liquirizia|lakritz|"
-    r"licorice|liquorice|crackers?|keks|gebäck|biscott|cantucci|taffy|brittle|marzipan|dragée|dragee|"
-    r"せんべい|煎餅|菓子|キャンディ|グミ|ビスケット|おかき|あられ|かりんとう|羊羹|クッキー|チョコ|焼菓子|米菓|"
-    r"金平糖|ラムネ|飴",
+    # 要冷蔵 is counted by shelf_life.chilled_hits, not here.
+    r"生菓子|生クリーム|大福|団子|だんご|食パン|当日中|カステラ|生八ッ橋|生八つ橋",
     re.I,
 )
 # Kept cold / frozen (see shelf_life.chilled_hits) outweighing shelf-stable wording.
@@ -186,10 +189,14 @@ _OFF_TARGET_WORDS = re.compile(
     r"coffee|kaffee|espresso|r[öo]sterei|roaster|roastery|torr[ée]fact|torrefaz|tostador|"
     # French "thé" only WITH the accent -- th[ée] also matched English "the" (99 hits on
     # one cookie bakery's homepage, which then read as a tea site).
-    r"\bcaf[ée]s?\b|\btea\b|\btee\b|\bthés?\b|matcha|honey|honig|\bmiel\b|miele|pastificio|"
-    # Not almond paste ("pasta di mandorle", "pasta reale"), shortcrust ("pasta frolla") or
-    # Spanish tea biscuits ("pastas de té") -- confectioners were dropped as pasta makers.
-    r"\bpasta\b(?!\s+(?:di\s+mandorl|reale|frolla|di\s+pistacchi|de\s+almendra))|"
+    r"\bcaf[ée]s?\b|\btea\b|\btee\b|\bthés?\b|matcha|"
+    # Honey -- but not honeycomb toffee, Honigkuchen/Honiglebkuchen (gingerbread). "miel"
+    # alone stays: a pain d'épices maker is kept because pain d'épices is a target word.
+    r"honey(?!comb|dew)|honig(?!kuchen|lebkuchen)|\bmiel\b|miele|pastificio|"
+    # Not almond/hazelnut/pistachio paste, shortcrust or gianduja paste ("pasta di
+    # mandorle", "pasta reale", "pasta frolla", "pasta di nocciole") or Spanish tea
+    # biscuits ("pastas de té") -- confectioners were dropped as pasta makers.
+    r"\bpasta\b(?!\s+(?:di\s+(?:mandorl|pistacchi|nocciol|cacao|zucchero)|reale|frolla|gianduia|de\s+almendra))|"
     # Beekeepers: honey, propolis and royal jelly with a few honey sweets on the side
     # (Imkergut, 2026-10-19 run) -- a honey business, not a confectioner.
     r"imkerei|\bimker\b|propolis|gel[ée]e\s+royale|royal\s+jelly|beekeep\w*|apicoltur\w*|apicultur\w*|"
@@ -197,14 +204,37 @@ _OFF_TARGET_WORDS = re.compile(
     r"コーヒー|珈琲|紅茶|緑茶|日本茶|煎茶|蜂蜜|はちみつ|パスタ",
     re.I,
 )
+
+
+def _vocab_product_words() -> list[str]:
+    """Every food product the query lanes search for (query_vocab.VOCAB), so a maker found
+    by a query is never short of target words for its own product -- the hand-kept list
+    missed 金平糖, galette, polvorones, amaretti... and their makers lost to off-target."""
+    words = set()
+    for lane, v in VOCAB.items():
+        if lane in ("Japan Beauty", "Japan Care"):
+            continue
+        for product, _category in v["products"]:
+            words.add(product.lower())
+    return sorted(words, key=len, reverse=True)
+
+
+# The product lines the company handles, all shelf-stable -- used both as "target" (vs
+# off-target lines) and as "shelf-stable" (vs fresh-bakery words). These used to be two
+# hand-kept lists that drifted apart. Short-lived lines (カステラ, 八ッ橋, Stollen) are not
+# in here. Not 菓子 inside 生菓子 (fresh).
 _TARGET_WORDS = re.compile(
-    r"biscuit|cookie|bonbon|candy|candies|chocolat|schokolade|caramel|karamell|toffee|fudge|praline|"
-    r"nougat|turr[oó]n|torrone|lebkuchen|stollen|wafer|waffel|shortbread|confiserie|calisson|"
+    "|".join(re.escape(w) for w in _vocab_product_words()) + "|"
+    r"biscuit|cookie|bonbon|candy|candies|sweets|chocolat|schokolade|caramel|karamell|toffee|fudge|praline|"
+    r"nougat|turr[oó]n|torrone|lebkuchen|wafer|waffel|shortbread|confiserie|calisson|"
     r"liquirizia|lakritz|licorice|liquorice|crackers?|keks|gebäck|biscott|cantucci|taffy|brittle|"
-    r"marzipan|dragée|dragee|confett|せんべい|煎餅|菓子|"
-    r"キャンディ|グミ|ビスケット|カステラ|八ッ橋|おかき|あられ|かりんとう|羊羹|クッキー|チョコ|焼菓子|米菓",
+    r"marzipan|mazap[aá]n|marshmallow|dragée|dragee|confett|galettes?|sabl[ée]s?|berlingots?|"
+    r"pain\s+d['’]\s?[ée]pices?|p[âa]te\s+de\s+fruits?|galletas|polvorones|mantecados|amaretti|croccante|"
+    r"せんべい|煎餅|(?<!生)菓子|キャンディ|グミ|ビスケット|おかき|あられ|かりんとう|羊羹|クッキー|チョコ|焼菓子|米菓|"
+    r"金平糖|ラムネ|ドロップ|落雁|飴",
     re.I,
 )
+_SHELF_WORDS = _TARGET_WORDS
 _MIN_OFF_TARGET_HITS = 5
 
 # Shop selling OTHER makers' products (marketplace, deli, gift-box assembler). Strong
@@ -215,10 +245,12 @@ _RETAILER_MARKERS = re.compile(
     r"\b(shop\s+by\s+brand|all\s+brands|brands\s+we\s+(stock|carry)|marketplace)\b",
     re.I,
 )
-# A distributor describing itself (judged on a JS site's title + meta description only).
+# A distributor describing itself (judged on a JS site's title + meta description only):
+# "Wholesale candy, snacks, and sundries" (General Candy Company). Not "wholesalers" /
+# "distributors of" -- a maker's own description says "available through wholesalers and
+# stockists" -- and not when the same text says it makes the products.
 _THIN_DISTRIBUTOR = re.compile(
-    r"\bsundries\b|\bwholesale\s+(?:candy|candies|snacks?|confectionery|groceries|foods?)\b|"
-    r"\bdistributeurs?\s+de\b|\bwholesalers?\b|\bdistributors?\s+of\b",
+    r"\bsundries\b|\bwholesale\s+(?:candy|candies|snacks?|confectionery|groceries|foods?)\b|\bdistributeurs?\s+de\b",
     re.I,
 )
 _WEAK_RETAILER_MARKERS = re.compile(
@@ -229,7 +261,7 @@ _WEAK_RETAILER_MARKERS = re.compile(
 
 # The site describes itself as MAKING things (not selling or writing about them).
 _PRODUCER_MARKERS = re.compile(
-    r"\b(hand[\s-]?made|made\s+by\s+hand|we\s+bake|baked\s+(fresh|daily|by\s+hand|in)|"
+    r"\b(?:hand[\s-]?made|made\s+by\s+hand|we\s+bake|baked\s+(fresh|daily|by\s+hand|in)|"
     r"our\s+(bakery|kitchen|factory|recipes?|confectioners?)|family[\s-](run|owned|business)|"
     r"since\s+1[89]\d\d|since\s+20\d\d|est\.?\s*(19|18|20)\d\d|established\s+in|"
     r"manufactur\w*|confectioners?|chocolatiers?|artisan\w*|"
@@ -237,8 +269,11 @@ _PRODUCER_MARKERS = re.compile(
     r"fait[\s-]main|fabrication|fabriqu\w*|artisana\w*|biscuiterie|confiserie|chocolaterie|depuis\s+\d{4}|"
     r"fatt[oi]\s+a\s+mano|produzione|artigian\w*|laboratorio|pasticceria|torronificio|biscottificio|dal\s+\d{4}|"
     r"hecho\s+a\s+mano|elaboraci[oó]n|elaboramos|obrador|artesan\w*|confiter[ií]a|pasteler[ií]a|desde\s+\d{4}|"
-    r"fabrico|f[aá]brica|"
-    r"創業|製造|手作り|自社工場|老舗|製菓|本舗|本舖|総本家|総本店|菓子司|菓子處|菓子処|職人|製法|自社製|工場)",
+    r"fabrico|f[aá]brica)|"
+    # Japanese OUTSIDE the \b(...)\b group: kanji and kana are word characters, so inside
+    # it "1902年創業", "伝統の製法", "製菓メーカー" never matched in running text -- a
+    # senbei maker's site read as "not a producer".
+    r"創業|製造|手作り|自社工場|老舗|製菓|本舗|本舖|総本家|総本店|菓子司|菓子處|菓子処|職人|製法|自社製|工場",
     re.I,
 )
 
@@ -369,7 +404,12 @@ def build_profile(url: str) -> dict:
 
     links = _internal_links(soup, home.url)
     about_urls = [h for t, h in links if _ABOUT_LINK.search(t) or _ABOUT_LINK.search(urlparse(h).path)][:_MAX_ABOUT_PAGES]
-    trade_links = [(t, h) for t, h in links if _TRADE_LINK.search(t) or _TRADE_LINK.search(urlparse(h).path)]
+    trade_links = [
+        (t, h)
+        for t, h in links
+        if (_TRADE_LINK.search(t) or _TRADE_LINK.search(urlparse(h).path))
+        and not _GIFT_LINK.search(f"{t} {urlparse(h).path}")
+    ]
     texts = [home_text]
     for sub in about_urls + [h for _, h in trade_links[:_MAX_TRADE_PAGES]]:
         resp = _get(sub, timeout=6)
@@ -433,13 +473,16 @@ def _japanese_middleman(text: str) -> tuple[str, str] | None:
       masaki-ya (wholesaler, "800 makers, 30,000 items"): メーカー様 + 小売店 x8 + バイヤー x19.
       contactlife (lens web shop): 処方箋 x7. masdac (food machinery): 食品機械 x11."""
     n = text.count
+    # 掲載 as in "listed here" -- not a maker's own press coverage (メディア掲載, "…に掲載
+    # されました"), which a popular maker's homepage lists many times.
+    listed = n("掲載") - n("メディア掲載") - n("掲載されました") - n("掲載いただ") - n("掲載情報")
     if n("卸通販"):
         return "reseller_site", "도매 통판 사이트 (卸通販) — 다른 업체 상품을 파는 곳"
     if n("総合商社"):
         return "reseller_site", "식품 종합상사 (総合商社) — 제조사가 아님"
-    if n("掲載") >= 10:
-        return "publisher_site", f"업체 목록·디렉토리 사이트 (掲載 {n('掲載')}회)"
-    if n("仕入れ") >= 10 and (n("掲載") >= 5 or n("バイヤー") >= 5 or n("登録無料")):
+    if listed >= 10:
+        return "publisher_site", f"업체 목록·디렉토리 사이트 (掲載 {listed}회)"
+    if n("仕入れ") >= 10 and (listed >= 5 or n("バイヤー") >= 5 or n("登録無料")):
         return "reseller_site", f"B2B 도매 마켓플레이스 (仕入れ {n('仕入れ')}회)"
     if n("メーカー様") and n("小売店") >= 5 and n("バイヤー") >= 5:
         return "reseller_site", "여러 제조사 상품을 모아 파는 도매상 (メーカー様/小売店/バイヤー)"
@@ -481,7 +524,7 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
         # The description is this site's whole self-introduction here, so a distributor's
         # wording in it counts like a title ("Wholesale candy, snacks, and sundries").
         distributor = _THIN_DISTRIBUTOR.search(profile["fullText"])
-        if distributor:
+        if distributor and not says_it_makes(profile["fullText"]):
             return False, "reseller_site", f"제목/설명이 도매·유통업체형 ('{distributor.group(0)}')"
         thin_off = len(_OFF_TARGET_WORDS.findall(profile["fullText"]))
         thin_target = len(_TARGET_WORDS.findall(profile["fullText"]))
@@ -494,9 +537,18 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
             return False, "unverifiable_site", "본문이 거의 없고 제목/설명에 제품·제조·도매 근거가 다 있지 않음"
         if not has_latin_letters(name) and name_on_site(name, profile["fullText"]) is False:
             return False, "name_not_on_site", "사이트 제목/설명에 후보 이름이 없음"
+        # The checks that only need the title/description, same as the full path below.
+        if _OEM_WORDS.search(profile.get("pageTitle") or ""):
+            return False, "oem_maker", "OEM·위탁생산 공장 (사이트 제목) — 자체 브랜드가 아니라 다른 회사 제품을 만드는 곳"
+        middleman = _japanese_middleman(profile["fullText"])
+        if middleman:
+            return False, middleman[0], middleman[1]
         short = _short_shelf_life(profile) if food else None
         if short:
             return False, "shelf_life_short", short
+        cold = _cold_product_title(profile) if food else None
+        if cold:
+            return False, "chilled_frozen", cold
         return True, "ok", "JS 사이트라 본문 대신 제목/설명으로 판정: 식품·제조·도매 모두 명시" + _shelf_note(profile)
     # Strict producer words only: a review listicle (my-best) is full of "メーカー".
     if profile["publisherTypes"] and not profile["producerHits"]:
@@ -539,6 +591,9 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
     short = _short_shelf_life(profile) if food else None
     if short:
         return False, "shelf_life_short", short
+    cold = _cold_product_title(profile) if food else None
+    if cold:
+        return False, "chilled_frozen", cold
     chilled = profile.get("chilledHits", 0)
     if (
         food
@@ -565,7 +620,17 @@ def _short_shelf_life(profile: dict) -> str | None:
     """The site itself states a shelf life, and even its longest one is under 12 months."""
     months = profile.get("shelfLifeMonths")
     if months is not None and months < MIN_SHELF_LIFE_MONTHS:
-        return f"사이트에 표기된 유통기한이 최대 {months}개월 — {MIN_SHELF_LIFE_MONTHS}개월 미만이라 수입 불가"
+        return f"사이트에 표기된 유통기한이 최대 {format_months(months)} — {MIN_SHELF_LIFE_MONTHS}개월 미만이라 수입 불가"
+    return None
+
+
+def _cold_product_title(profile: dict) -> str | None:
+    """The site's title says it is an ice-cream/gelato maker -- unless the title also names a
+    shelf-stable line ("Helados y turrones", "Torrone e gelato"): then the site's own
+    shelf-life and chilled wording decide, like for any other mixed maker."""
+    title = profile.get("selfTitle") or ""
+    if names_cold_product(title) and not _TARGET_WORDS.search(title):
+        return "사이트 제목이 아이스크림·젤라또 업체 — 냉동 제품이라 유통기한 12개월 미달"
     return None
 
 

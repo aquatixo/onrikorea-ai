@@ -437,29 +437,59 @@ _HEADLINE_SHAPE = re.compile(
 
 # A reseller / gift-basket assembler, not a producer: it sells other makers' goods in a box
 # (real run: "Fine Scottish Hampers" -- whisky, smoked salmon and venison hampers).
-_RESELLER_WORDS = re.compile(
-    r"\bhampers?\b|gift\s?(basket|box|set)s?\b|geschenk(korb|set|box)|coffret\s+cadeau|"
-    r"panier\s+garni|cestas?\s+de\s+regalo|cesti?\s+regalo|"
-    # A wholesaler/distributor NAMED as such ("Jakob Distler Süßwarengroßhandel") -- the
-    # middleman, not the maker. As a LINK on a maker's site these same words mean the
-    # opposite (the maker's own trade channel); site_profile only applies this to names.
-    r"gro(ß|ss)handel|gro(ß|ss)h[äa]ndler|wiederverk[äa]ufer|\bgrossiste|\bingrosso\b|\bmayorista\b|\bwholesalers?\b|"
-    r"\bdistributors?\b|\bdistribuidora\b|\bdistribuzione\b|cash\s*&\s*carry|"
-    # 2026-10-19 run: "Distributeur de bonbons et confiseries" (Confiserie Mondoux) and
-    # "Wholesale Candy, Snacks, and Sundries" (General Candy Company) -- both distributors.
-    # Not bare "wholesale": a maker's own title says "Wholesale Manufacturer" (Dillon Candy).
-    r"\bdistributeurs?\b|\bdistributore\b|\bsundries\b|"
+# Applied to names and site titles only: as a LINK on a maker's site these same words mean
+# the opposite (the maker's own trade channel).
+#
+# HARD words name a middleman whatever else the title says. SOFT words also turn up in a
+# real maker's own title ("Candy Manufacturer & Supplier", "Wholesale Candy | Family candy
+# maker since 1920", "美容・健康雑貨の企画・製造・販売", "Biscottificio X – produzione e
+# forniture per bar") -- they only count when the title doesn't also say it makes things.
+_RESELLER_HARD = re.compile(
+    # Hampers and gift BASKETS are assembled from other makers' goods; gift boxes, sets and
+    # "coffrets" are not -- "Luxury Gift Boxes" is in the titles of Bendicks and Charbonnel
+    # et Walker, both chocolate makers.
+    r"\bhampers?\b|gift\s?baskets?\b|geschenkk[öo]rbe?\b|panier\s+garni|cestas?\s+de\s+regalo|cesti?\s+regalo|"
+    # A wholesaler NAMED as such ("Jakob Distler Süßwarengroßhandel").
+    r"gro(?:ß|ss)handel|gro(?:ß|ss)h[äa]ndler|wiederverk[äa]ufer|\bgrossiste|\bingrosso\b|\bmayorista\b|"
+    r"cash\s*&\s*carry|\bsundries\b|"
+    # Wine/liquor shops ("Acquista Vini e Liquori ... Damarco Enoteca", 2026-10-23 run).
+    r"\benoteca\b|\bvinoteca\b|\bvinothek\b|\bcaviste\b|\bwine\s+(?:shop|merchants?)\b|\bliquor\s+store\b|"
+    r"セレクトショップ|"
+    r"\bimporters?\b|\bimportateur|\bimportatore|\bimporteur|\bb2b[\s-]partner",
+    re.I,
+)
+_RESELLER_SOFT = re.compile(
+    r"\bwholesalers?\b|\bdistributors?\b|\bdistribuidora\b|\bdistribuzione\b|"
+    # "Distributeur de bonbons et confiseries" (Confiserie Mondoux, 2026-10-19 run).
+    r"\bdistributeurs?\b|\bdistributore\b|"
     r"\bwholesale\s+(?:candy|candies|snacks?|confectionery|groceries|foods?)\b|"
-    r"\bimporters?\b|\bimportateur|\bimportatore|\bimporteur|"
-    # supplier / B2B partner wording in a name or site title: a trader's self-description
-    # ("Candies Supplier - Proveedor de Dulces", "Le Terroir » B2B-Partner für Feinkost")
-    r"\bsuppliers?\b|\bproveedor(es)?\b|\bfornitor[ei]\b|\bfournisseurs?\b|\bb2b[\s-]partner",
+    # "Dolciumi, Bevande e Forniture per Bar e Ristoranti" (Venar), "沖縄のお菓子・食品・
+    # 雑貨…をお届け" (沖縄商店, an online shop reselling GODIVA) -- 2026-10-23 run.
+    r"\bforniture\b|雑貨|"
+    # A trader's self-description ("Candies Supplier - Proveedor de Dulces") -- but not a
+    # royal warrant: "Supplier to the Royal Household", "Fornitore della Real Casa".
+    r"\bsuppliers?\b(?!\s+(?:to|of)\s+(?:the\s+)?(?:royal|real))|\bproveedor(?:es)?\b|"
+    r"\bfornitor[ei]\b(?!\s+(?:ufficial[ei]\s+)?della\s+real)|\bfournisseurs?\b",
+    re.I,
+)
+_MAKER_IN_TITLE = re.compile(
+    r"製造|メーカー|製菓|manufactur\w*|\bmakers?\b|\bproduzione\b|\bprodutt\w*|\bproduc(?:er|teur)s?\b|"
+    r"\bfabricant\b|\bfabrique\b|\bfabrica\w*|\bf[aá]brica\b|hersteller|manufaktur|biscottificio|torronificio|"
+    r"chocolatier|chocolaterie|\bconfectioners?\b|\bbakery\b|biscuiterie|\bobrador\b",
     re.I,
 )
 
 
+def says_it_makes(text: str) -> bool:
+    """A name, title or self-description that says it makes the products."""
+    return bool(_MAKER_IN_TITLE.search(text or ""))
+
+
 def looks_like_reseller(text: str) -> bool:
-    return bool(_RESELLER_WORDS.search(text or ""))
+    text = text or ""
+    if _RESELLER_HARD.search(text):
+        return True
+    return bool(_RESELLER_SOFT.search(text)) and not _MAKER_IN_TITLE.search(text)
 
 
 _SHOP_WORDS = re.compile(
@@ -484,7 +514,7 @@ def pick_brand_name(current: str, site_name: str | None, url: str) -> str:
     with "Dresdner Mühlenbäckerei" (the company)."""
     if not site_name or not site_name.strip():
         return current
-    dom = _normalize_for_domain_match(_domain_label(url))
+    dom = _normalize_for_domain_match(brand_domain_label(url))
 
     def closeness(n: str) -> float:
         return SequenceMatcher(None, _normalize_for_domain_match(n), dom).ratio()
@@ -494,9 +524,16 @@ def pick_brand_name(current: str, site_name: str | None, url: str) -> str:
     pieces = [site_name.strip()] + [
         p.strip() for p in re.split(r"\s+[|\-–—:·»]\s+|\s*[｜»]\s*", site_name) if p.strip()
     ]
+    # A one-word site name that is just the domain ("Worldsmostfamoustaffy" -- the Shopify
+    # default) is always "closest" to the domain, and replaced "Zeno's World's Most Famous
+    # Taffy". It only wins over a single-word current name.
+    def domain_echo(p: str) -> bool:
+        return " " not in p.strip() and _normalize_for_domain_match(p) == dom and len(current.split()) >= 2
+
     usable = [
         p for p in pieces
         if len(p) >= 3 and has_latin_letters(p) and is_plausible_brand_name(p) and domain_matches_name(p, url)
+        and not domain_echo(p)
     ]
     if not usable:
         return current
@@ -518,6 +555,7 @@ def has_latin_letters(text: str) -> bool:
 # candidate, just a plain category word on its own never is.
 _GENERIC_CATEGORY_WORDS_NON_LATIN = {
     "和菓子", "洋菓子", "菓子", "スイーツ", "季節", "お菓子", "スナック",
+    "チョコレート", "クッキー", "せんべい", "おかき", "キャンディ", "グミ", "ビスケット",
 }
 
 
@@ -566,14 +604,28 @@ def _name_match_variants(name: str) -> set[str]:
     return {v for v in variants if v}
 
 
-def _domain_label(url: str) -> str:
+# Subdomains in front of the brand's own domain: shop.bettys.co.uk, en.lindt.com,
+# www2.kambly.ch. Taking the first label of those gave "shop"/"en"/"www2", so the real
+# brand failed the name check and a "... Shop" title on any shop. subdomain passed it.
+_SUBDOMAIN_PREFIX = re.compile(r"^(?:www\d*|shop|store|m|online|boutique|eshop|[a-z]{2})$")
+_SECOND_LEVEL = {"co", "com", "or", "ne", "ac", "go", "org", "net", "gr", "ed"}
+
+
+def brand_domain_label(url: str) -> str:
+    """The brand-identifying label of a site's host: the first label of the registered
+    domain (also for multi-part TLDs like .co.uk / .com.au), skipping shop./en./www2.
+    style subdomains in front of it."""
     try:
-        host = urlparse(url).netloc.lower().removeprefix("www.")
+        host = urlparse(url).netloc.lower().split(":")[0]
     except Exception:
         return ""
-    # The brand-identifying part of a domain is almost always its first label, even for
-    # multi-part TLDs like ".com.au" -- so just the piece before the first dot.
-    return host.split(".")[0]
+    labels = [l for l in host.split(".") if l]
+    if not labels:
+        return ""
+    base = 3 if len(labels) >= 3 and labels[-2] in _SECOND_LEVEL and len(labels[-1]) == 2 else 2
+    while len(labels) > base and _SUBDOMAIN_PREFIX.match(labels[0]):
+        labels.pop(0)
+    return labels[0]
 
 
 def is_blocked_domain(url: str) -> bool:
@@ -639,7 +691,7 @@ def domain_matches_name(name: str, url: str) -> bool:
     class needs either a brand-name knowledge base or an LLM call to resolve, not a
     regex. What this recovers is narrower: a real, non-generic token just reordered or
     standing alone."""
-    normalized_domain = _normalize_for_domain_match(_domain_label(url))
+    normalized_domain = _normalize_for_domain_match(brand_domain_label(url))
     if not normalized_domain or len(normalized_domain) < 3:
         return False
 
@@ -661,7 +713,7 @@ def domain_matches_name(name: str, url: str) -> bool:
         inner_page = urlparse(url).path.strip("/") != ""
     except ValueError:
         inner_page = False
-    return _token_overlap_match(_domain_label(url), name, strict=inner_page)
+    return _token_overlap_match(brand_domain_label(url), name, strict=inner_page)
 
 
 # Industry/product-category nouns and generic modifiers -- NOT brand-identifying on
@@ -741,15 +793,17 @@ def generic_overlap_only(name: str, url: str) -> bool:
     plain "domain_mismatch" -- that count is exactly the measure of how often this
     known, unfixed-without-an-LLM gap (see domain_matches_name's docstring) actually
     comes up in practice."""
-    shared = _shared_tokens(_domain_label(url), name)
-    return bool(shared) and not _non_generic_shared_tokens(_domain_label(url), name)
+    shared = _shared_tokens(brand_domain_label(url), name)
+    return bool(shared) and not _non_generic_shared_tokens(brand_domain_label(url), name)
 
 
 # Includes the full-width equivalents ("｜", "－", "：", "・") Japanese page titles
 # commonly use instead of the ASCII versions -- without these, a Japanese wagashi
 # shop's title never splits at all and the whole title (tagline included) gets
 # scored as a single "brand name" candidate.
-_TITLE_SEPARATORS = re.compile(r"\s*[|\-–—:·｜－：・]\s*")
+# An ASCII hyphen only splits with spaces around it: "Lebkuchen-Schmidt", "Saint-Malo",
+# "bean-to-bar" are one word ("Lebkuchen-Schmidt" used to become "Schmidt").
+_TITLE_SEPARATORS = re.compile(r"\s*[|–—:·｜－：・]\s*|\s+-\s+")
 
 _BOILERPLATE_PARTS = _GENERIC_TITLES | {
     "official site", "official website", "online store", "welcome to", "buy", "product",
@@ -762,11 +816,19 @@ _LEADING_BOILERPLATE = re.compile(r"^(about|welcome to|discover|introducing)\s+"
 
 
 def _domain_token_overlap(domain_label: str, part: str) -> int:
+    """How many of the part's words the domain contains. Whole domain words count double;
+    a non-generic word of 3+ letters found INSIDE a run-together domain counts once --
+    walkersshortbread.com has no separate words, so every title part used to score 0 and
+    the shortest part won ("Scotland's favourite" over "Walkers Shortbread Ltd")."""
     # Strip diacritics first -- otherwise "Läckerli" tokenizes as ["l", "ckerli"]
     # (the regex simply skips "ä"), which can never overlap a domain's "laeckerli".
-    dom_tokens = set(re.findall(r"[a-z]+", _strip_diacritics(domain_label).lower()))
+    dom = _strip_diacritics(domain_label).lower()
+    dom_tokens = set(re.findall(r"[a-z]+", dom))
+    dom_flat = re.sub(r"[^a-z0-9]", "", dom)
     part_tokens = set(re.findall(r"[a-z]+", _strip_diacritics(part).lower()))
-    return len(dom_tokens & part_tokens)
+    whole = dom_tokens & part_tokens
+    inside = {t for t in part_tokens - whole if len(t) >= 3 and t not in _GENERIC_MATCH_TOKENS and t in dom_flat}
+    return 2 * len(whole) + len(inside)
 
 
 def guess_brand_name(title: str, url: str) -> str | None:
@@ -781,7 +843,7 @@ def guess_brand_name(title: str, url: str) -> str | None:
     letters with the trademarks.justia.com domain and passed domain_matches_name for
     the wrong reason entirely.
     """
-    domain_label = _domain_label(url)
+    domain_label = brand_domain_label(url)
     parts = [p.strip() for p in _TITLE_SEPARATORS.split(title) if p.strip()]
     parts = [p for p in parts if p.lower() not in _BOILERPLATE_PARTS]
     parts = [_LEADING_BOILERPLATE.sub("", p).strip() for p in parts]
@@ -834,6 +896,15 @@ _JP_MAKER_END = re.compile(r"(製菓|本舗|本舖|総本家|総本店|本店|�
 _JP_TAIL = re.compile(r"\s*(公式オンラインショップ|オンラインショップ|公式通販サイト|公式通販|通販サイト|公式サイト|オフィシャルサイト|公式|official\s*site)\s*$", re.I)
 
 
+# Words that end like a maker name (屋, 舗, 匠) or open a title but are a place or a generic
+# word: "名古屋 和菓子 | 両口屋是清" gave 名古屋, "名古屋の老舗 両口屋是清" gave 老舗,
+# "株式会社 菓匠 三全" gave 菓匠.
+_JP_NOT_NAMES = {
+    "名古屋", "大阪", "京都", "東京", "神戸", "横浜", "札幌", "福岡", "長崎", "金沢", "奈良", "沖縄",
+    "老舗", "菓匠", "菓子", "お菓子", "和菓子", "洋菓子", "銘菓", "本店", "公式", "通販", "販売", "名物",
+}
+
+
 def _clean_jp(name: str) -> str:
     name = re.sub(r"[\s　]+", " ", name).strip(" -–—|｜")
     return _JP_TAIL.sub("", name).strip()
@@ -847,7 +918,21 @@ def japanese_site_name(title: str | None, site_name: str | None) -> str | None:
         for pattern in (_JP_CORP_BEFORE, _JP_CORP_AFTER):
             m = pattern.search(text)
             if m and not _JP_LABEL.match(m.group(1).strip()):
-                return _clean_jp(m.group(1))
+                name = _clean_jp(m.group(1))
+                # The name stops at の: "九州のお菓子メーカー山田製菓株式会社" is what follows
+                # the last の / メーカー; "株式会社山田製菓のホームページへようこそ" what
+                # precedes the first の.
+                if pattern is _JP_CORP_AFTER:
+                    piece = re.split(r"の|メーカー", name)[-1]
+                else:
+                    piece = name.split("の")[0]
+                name = piece if len(piece) >= 2 else name
+                if name in _JP_NOT_NAMES and pattern is _JP_CORP_BEFORE:
+                    # "株式会社 菓匠 三全": the generic word is part of the name -- take the next word too.
+                    nxt = re.match(rf"\s+([^{_JP_STOP}]{{1,20}})", text[m.end():])
+                    name = _clean_jp(name + nxt.group(1)) if nxt else name
+                if name not in _JP_NOT_NAMES:
+                    return name
         for inner in _JP_BRACKET.findall(text):
             inner = inner.strip()
             if not _JP_LABEL.match(inner) and _JP_MAKER_END.search(inner):
@@ -860,21 +945,31 @@ def japanese_site_name(title: str | None, site_name: str | None) -> str | None:
             # A "<product>の<name>" word keeps only the name ("えびせんべいの桂新堂" -> 桂新堂).
             for word in re.split(r"[\s\-–—]+", p):
                 word = word.split("の")[-1] if "の" in word else word
-                if 2 <= len(word) <= 20 and _JP_MAKER_END.search(word) and word not in _GENERIC_CATEGORY_WORDS_NON_LATIN:
+                if (
+                    2 <= len(word) <= 20
+                    and _JP_MAKER_END.search(word)
+                    and word not in _GENERIC_CATEGORY_WORDS_NON_LATIN
+                    and word not in _JP_NOT_NAMES
+                ):
                     return word
         # 4. Brand names with no maker ending (ヤーマン, メニコン, シード, モロゾフ) open the
         #    title: "ヤーマン公式通販サイト | ...", "コンタクトレンズのメニコン",
         #    "【公式】コンタクトレンズのシード「SEED」", "洋菓子のモロゾフ:チョコレート...".
-        first = next((p for p in pieces if p), "")
-        first = re.split(r"[\s:：]", re.sub(r"「[^」]*」", "", first))[0]
-        first = _clean_jp(first.split("の")[-1] if "の" in first else first)
-        if (
-            2 <= len(first) <= 12
-            and first not in _GENERIC_CATEGORY_WORDS_NON_LATIN
-            and first not in _JP_PAGE_WORDS
-            and not re.search(r"おすすめ|ランキング|比較|まとめ", first)
-        ):
-            return first
+        #    The first Japanese word that isn't a place, a generic word or a page name -- so
+        #    "名古屋 和菓子 | 両口屋是清" reads past 名古屋/和菓子, and "Japanese Sweets Shop |
+        #    亀屋良長" past the English tagline.
+        for piece in pieces:
+            for word in re.split(r"[\s:：]", re.sub(r"「[^」]*」", "", piece)):
+                word = _clean_jp(word.split("の")[-1] if "の" in word else word)
+                if (
+                    2 <= len(word) <= 12
+                    and _JP_CHARS.search(word)
+                    and word not in _GENERIC_CATEGORY_WORDS_NON_LATIN
+                    and word not in _JP_NOT_NAMES
+                    and word not in _JP_PAGE_WORDS
+                    and not re.search(r"おすすめ|ランキング|比較|まとめ", word)
+                ):
+                    return word
     return None
 
 

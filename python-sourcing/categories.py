@@ -39,9 +39,8 @@
 # inserted: a lane remembers how far it got by list position (SourcingLaneState.cursor),
 # so removing an entry would make it skip or repeat others.
 #
-# Japan is left exactly as previously edited (English queries trimmed to bare category
-# terms, Japanese queries trimmed to bare product nouns, no "老舗"/anniversary/"family
-# business" framing) -- that was the user's own deliberate repeated edit, not touched here.
+# Japan uses bare product nouns + a maker word (the user's own earlier edit); its first
+# two entries were also swapped in place on 2026-10-19 (wagashi/八ッ橋 -> 干菓子/金平糖).
 #
 # Each bucket's "label" is deliberately just a short country/region name now (was
 # "Python Sourcing — Japan (Heritage Snacks & Confectionery)" etc.) -- the old long form
@@ -66,13 +65,10 @@ BUCKETS = [
         # trade channel is still required by site_profile.judge.
         "tradeTerm": "公式",
         "queries": [
+            # 2026-10-06: 일반명사 쿼리 5개(heritage/candy snack maker, 菓子店, 和菓子,
+            # 食品メーカー 菓子)는 삭제 -- 구인구직·OEM 디렉터리만 반환해 검색 크레딧만 소모함.
+            # 품목명 단위 쿼리만 남김.
             {"q": "干菓子 製造元", "category": "캔디/컨펙셔너리"},
-            # 2026-10-06: 일반명사 쿼리 5개(heritage/candy snack maker, 菓子店, 和菓子, 食品メーカー 菓子)는 삭제 -- 구인구직·OEM 디렉터리만 반환해 검색 크레딧만 소모함. 아래 품목명 쿼리는 유지.
-        # (이전 메모) 추가 -- 위 6개(특히 마지막 3개)가 일반명사 쿼리라 쇼핑몰/매거진만 반환하고 실제
-            # 브랜드 수율이 0에 가까웠음 (22건 전수 재현). 다른 레인들처럼 "품목명 단위"
-            # 쿼리로 보강 -- 원래 6개는 지우지 않음(이유를 알 수 없는 과거의 의도적 반복
-            # 편집이었음), is_query_retired가 2연속 무수확이면 알아서 은퇴시키니 신·구
-            # 쿼리를 같이 돌려서 어느 쪽이 실제로 수율을 내는지 숫자로 가려지게 둠.
             {"q": "金平糖 製造元", "category": "캔디/컨펙셔너리"},
             {"q": "南部せんべい 製造", "category": "스낵/과자"},
             {"q": "かりんとう 老舗 製造", "category": "스낵/과자"},
@@ -148,8 +144,8 @@ BUCKETS = [
             {"q": "Kräuterbonbons Hersteller Bayern -Rezept", "category": "캔디/컨펙셔너리"},
             {"q": "Fruchtgummi Manufaktur Familienbetrieb -Rezept", "category": "젤리/구미"},
             {"q": "Brause Manufaktur Süßwaren -Rezept", "category": "캔디/컨펙셔너리"},
-            # PDO/PGI/박람회 -- 리스트형 쿼리
             {"q": '"in fünfter Generation" Süßwaren Manufaktur', "category": "혼합"},
+            # PDO/PGI/박람회 -- 리스트형 쿼리
             {"q": "geschützte geografische Angabe Gebäck Süßwaren Hersteller Liste", "category": "혼합", "kind": "roster"},
             {"q": "ISM Köln Aussteller Familienunternehmen Gebäck", "category": "혼합", "kind": "roster"},
             {"q": "Russisch Brot Hersteller -Rezept", "category": "비스킷/쿠키/케이크"},
@@ -166,13 +162,15 @@ BUCKETS = [
         # where-to-buy page.
         "tradeTerm": "puntos de venta",
         "queries": [
-            {"q": "sobao pasiego obrador Cantabria -receta", "category": "베이킹"},
-            {"q": "casadielles obrador Asturias -receta", "category": "비스킷/쿠키/케이크"},
+            # sobao pasiego / casadielles (fresh pastry, days to weeks) swapped in place for
+            # long-life lines, 2026-10-23 -- shelf life >= 12 months.
+            {"q": "caramelos artesanos obrador Cantabria -receta", "category": "캔디/컨펙셔너리"},
+            {"q": "galletas artesanas fábrica Asturias -receta", "category": "비스킷/쿠키/케이크"},
             {"q": "confitería artesanal tradicional Galicia -receta", "category": "캔디/컨펙셔너리"},
             {"q": "confitería artesanal tradicional País Vasco -receta", "category": "캔디/컨펙셔너리"},
             {"q": "turrón mazapán obrador familiar Aragón Navarra -receta", "category": "캔디/컨펙셔너리"},
-            # 리스트형 쿼리
             {"q": '"quinta generación" obrador dulces', "category": "혼합"},
+            # 리스트형 쿼리
             {"q": "IGP DOP dulces tradicionales norte España lista de productores", "category": "혼합", "kind": "roster"},
         ],
     },

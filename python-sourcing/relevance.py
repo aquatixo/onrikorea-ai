@@ -55,10 +55,16 @@ _FOOD_STEMS = (
 # Whole-word, case-insensitive: short or collision-prone terms.
 _FOOD_WORDS = re.compile(r"\b(tea|thé|tee|té|cocoa|cacao|jam|nuts?|cereal)\b", re.I)
 
-_NONFOOD_STEMS = (
-    "seed", "garden", "gardening", "heirloom", "vegetable", "fertiliz", "perennial",
-    "planting", "germination", "nursery", "求人", "採用情報", "転職", "recruit", "career",
-    "hotel", "tourism", "tourist", "real estate", "software", "apparel", "clothing",
+# Whole words, not substrings: "seed" was matching "proceed"/"exceed" and "sesame seeds",
+# "vegetable" every ingredient list ("vegetable oil"), "hotel" the HORECA trade page the
+# crawler fetches on purpose, "career" a careers link -- together they out-counted a real
+# shortbread maker's food words. Those three are gone; seed only as a seed company says it.
+_NONFOOD_WORDS = re.compile(
+    r"(?<!sesame\s)(?<!poppy\s)(?<!pumpkin\s)(?<!caraway\s)(?<!sunflower\s)(?<!chia\s)\bseeds?\b|"
+    r"\bgardening\b|\bgarden\s+(?:centre|center|supplies)\b|\bheirloom\b|\bfertili[sz]\w*|\bperennials?\b|"
+    r"\bplanting\b|\bgermination\b|\bplant\s+nursery\b|\breal\s+estate\b|\bsoftware\b|\bapparel\b|"
+    r"\bclothing\b|\btourism\b|\btourist\s+(?:information|office)\b|求人|採用情報|転職",
+    re.I,
 )
 
 # "This site uses cookies" etc. -- would otherwise count as a food word on every site.
@@ -76,23 +82,33 @@ _MIN_TEXT_LEN = 400
 
 _MIN_FOOD_HITS = 3
 _MIN_DISTINCT_FOOD_TERMS = 2
+_ONE_WORD_FOOD_HITS = 8  # ...or one food word this often (a chocolate-only maker)
 _MIN_FOOD_DENSITY_PER_1K = 0.5
 
 
 def has_food_words(text: str) -> bool:
     lowered = (text or "").lower()
-    return any(s.lower() in lowered for s in _FOOD_STEMS) or bool(_FOOD_WORDS.search(lowered))
+    return bool(_FOOD_STEM_RE.search(lowered)) or bool(_FOOD_WORDS.search(lowered))
 
 
-def _count_stems(text: str, stems: tuple[str, ...]) -> tuple[int, set[str]]:
-    total = 0
-    distinct: set[str] = set()
-    for stem in stems:
-        n = text.count(stem)
-        if n:
-            total += n
-            distinct.add(stem)
-    return total, distinct
+def _stem_pattern(stems) -> re.Pattern:
+    """One alternation, longest stem first, so each occurrence counts ONCE: counting every
+    stem separately made one "chocolate" 3 hits / 2 terms (chocolat x2 in the list +
+    chocolate) and let a tax firm's page with a single "chocolate" pass as a food site."""
+    unique = sorted({s.lower() for s in stems}, key=len, reverse=True)
+    return re.compile("|".join(re.escape(s) for s in unique))
+
+
+def _count_stems(text: str, pattern: re.Pattern) -> tuple[int, set[str]]:
+    found = pattern.findall(text)
+    return len(found), set(found)
+
+
+def _count_nonfood(text: str) -> int:
+    return len(_NONFOOD_WORDS.findall(text))
+
+
+_FOOD_STEM_RE = _stem_pattern(_FOOD_STEMS)
 
 
 _CORP_PREFIX = re.compile(r"株式会社|有限会社|合同会社|\(株\)|（株）|㈱|\(有\)|（有）")
@@ -124,22 +140,22 @@ def check_food_relevance(text: str | None, extra_text: str = "") -> tuple[bool |
         # name/snippet can still be conclusive: "High Desert Seed + Gardens" has no food
         # word and two non-food ones. Only drop on that clear a signal; otherwise unknown.
         extra = extra_text.lower()
-        extra_nonfood, _ = _count_stems(extra, _NONFOOD_STEMS)
-        extra_food, _ = _count_stems(extra, tuple(s.lower() for s in _FOOD_STEMS))
+        extra_nonfood = _count_nonfood(extra)
+        extra_food, _ = _count_stems(extra, _FOOD_STEM_RE)
         if extra_nonfood >= 1 and extra_food == 0 and not _FOOD_WORDS.search(extra):
             return False, f"본문 판정 불가지만 이름/스니펫이 비식품 (비식품 단어 {extra_nonfood}개, 식품 단어 없음)"
         return None, "페이지 본문이 짧아 판정 불가"
 
     cleaned = _COOKIE_BANNER.sub(" ", f"{text} {extra_text}").lower()
 
-    stem_hits, stem_terms = _count_stems(cleaned, tuple(s.lower() for s in _FOOD_STEMS))
+    stem_hits, stem_terms = _count_stems(cleaned, _FOOD_STEM_RE)
     word_matches = _FOOD_WORDS.findall(cleaned)
     food_hits = stem_hits + len(word_matches)
     food_terms = stem_terms | {w.lower() for w in word_matches}
 
-    nonfood_hits, _ = _count_stems(cleaned, _NONFOOD_STEMS)
+    nonfood_hits = _count_nonfood(cleaned)
 
-    if food_hits < _MIN_FOOD_HITS or len(food_terms) < _MIN_DISTINCT_FOOD_TERMS:
+    if food_hits < _MIN_FOOD_HITS or (len(food_terms) < _MIN_DISTINCT_FOOD_TERMS and food_hits < _ONE_WORD_FOOD_HITS):
         return False, f"식품 관련 단어가 거의 없음 (hits={food_hits}, terms={len(food_terms)})"
     # Density, not just count: a lifestyle/travel blog mentions "cookies" a few times
     # across thousands of words (measured: 4 hits in 13k chars = 0.3 per 1k chars), while
@@ -148,7 +164,7 @@ def check_food_relevance(text: str | None, extra_text: str = "") -> tuple[bool |
     # Computed on the PAGE text only -- the candidate name/snippet is a few words and (for a
     # recipe post) is itself full of food words, which would inflate the density.
     page_cleaned = _COOKIE_BANNER.sub(" ", text).lower()
-    page_hits = _count_stems(page_cleaned, tuple(s.lower() for s in _FOOD_STEMS))[0] + len(_FOOD_WORDS.findall(page_cleaned))
+    page_hits = _count_stems(page_cleaned, _FOOD_STEM_RE)[0] + len(_FOOD_WORDS.findall(page_cleaned))
     density = page_hits * 1000 / max(len(page_cleaned), 1)
     if density < _MIN_FOOD_DENSITY_PER_1K:
         return False, f"식품 단어 밀도가 낮음 (1000자당 {density:.1f}회) -- 블로그/매거진형 사이트로 추정"
@@ -161,18 +177,23 @@ def check_food_relevance(text: str | None, extra_text: str = "") -> tuple[bool |
 # (categories.py "group"). Same idea as the food check: the candidate's own site must
 # actually be about that kind of product, so a listicle or an unrelated company drops out.
 _GROUP_STEMS = {
-    # ReFa-style beauty tools and devices: rollers, gua sha, scalp brushes, facial devices.
-    "beauty": (
-        "美顔", "美容", "ローラー", "スキンケア", "ヘアケア", "頭皮", "スカルプ", "ブラシ", "かっさ",
-        "マッサージ", "フェイス", "ボディ", "エステ", "ゲルマニウム", "リフト", "小顔", "くし", "櫛",
-        "化粧", "コスメ", "メイク", "筆", "beauty", "skincare", "skin care", "facial", "roller",
-        "scalp", "massage", "gua sha", "brush", "comb", "makeup", "cosmetic",
+    # ReFa-style beauty tools and devices: rollers, gua sha, facial devices. Not bare comb /
+    # brush / くし / 筆 / フェイス / リフト: "combine", "brush-up", 美しく, 執筆, フェイスブック and
+    # フォークリフト made an IT page and a logistics page read as beauty sites.
+    "beauty": re.compile(
+        r"美顔|美容|ローラー|スキンケア|ヘアケア|頭皮|スカルプ|かっさ|マッサージ|フェイス(?!ブック)|ボディ|エステ|"
+        r"ゲルマニウム|(?<!フォーク)リフト(?!ト)|小顔|櫛|化粧|コスメ|メイク|"
+        r"\bbeauty\b|\bskin\s?care\b|\bfacial\b|\brollers?\b|\bscalp\b|\bmassage\b|\bgua\s?sha\b|"
+        r"\bbrush(?:es)?\b|\bcombs?\b|\bmakeup\b|\bcosmetics?\b",
+        re.I,
     ),
-    # ReNu-style personal care: contact lens care and eye care.
-    "care": (
-        "コンタクトレンズ", "レンズケア", "ケア用品", "洗浄液", "保存液", "洗浄", "すすぎ", "消毒",
-        "目薬", "点眼", "洗眼", "アイケア", "目もと", "眼", "医薬部外品", "ドラッグストア",
-        "contact lens", "lens care", "eye care", "solution", "disinfect",
+    # ReNu-style personal care: contact lens care and eye care. Not bare 洗浄 / 眼 /
+    # "solution" (any washing, any eye, any IT "solution").
+    "care": re.compile(
+        r"コンタクトレンズ|レンズケア|ケア用品|洗浄液|保存液|すすぎ|消毒|目薬|点眼|洗眼|アイケア|目もと|"
+        r"医薬部外品|ドラッグストア|\bcontact\s+lens(?:es)?\b|\blens\s+care\b|\beye\s+care\b|"
+        r"\blens\s+solution\b|\bdisinfect\w*",
+        re.I,
     ),
 }
 GROUP_LABELS = {"beauty": "뷰티", "care": "생활·헬스케어"}
@@ -181,12 +202,11 @@ _MIN_GROUP_DENSITY_PER_1K = 0.3
 
 def check_group_relevance(text: str | None, group: str) -> tuple[bool | None, str]:
     """check_food_relevance for a non-food group ("beauty" / "care")."""
-    stems = _GROUP_STEMS[group]
     label = GROUP_LABELS[group]
     if not text or len(text) < _MIN_TEXT_LEN:
         return None, "페이지 본문이 짧아 판정 불가"
     cleaned = _COOKIE_BANNER.sub(" ", text).lower()
-    hits, terms = _count_stems(cleaned, tuple(s.lower() for s in stems))
+    hits, terms = _count_stems(cleaned, _GROUP_STEMS[group])
     if hits < _MIN_FOOD_HITS or len(terms) < _MIN_DISTINCT_FOOD_TERMS:
         return False, f"{label} 관련 단어가 거의 없음 (hits={hits}, terms={len(terms)})"
     # Lower bar than food: a beauty/care maker's site also carries its other lines (Leda:
@@ -199,5 +219,4 @@ def check_group_relevance(text: str | None, group: str) -> tuple[bool | None, st
 
 
 def has_group_words(text: str, group: str) -> bool:
-    lowered = (text or "").lower()
-    return any(s.lower() in lowered for s in _GROUP_STEMS[group])
+    return bool(_GROUP_STEMS[group].search(text or ""))
