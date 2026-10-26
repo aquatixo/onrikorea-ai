@@ -9,6 +9,12 @@ more (2026-10-15): short-lived items (macarons, madeleines, Stollen, Baumkuchen,
 pralines, カステラ, 八ツ橋) and fresh-pastry maker words (pasticceria, Confiserie as a shop)
 were removed. Baby food is out of scope (user, 2026-10-19).
 
+Chocolate is a priority premium line (user, 2026-10-26) -- never fewer chocolate queries.
+But a bare "chocolat fabricant" / "chocolate manufacturer" returned mostly tiny bean-to-bar
+and bonbon shops (weeks of shelf life, "can't ship in summer"). The chocolate products are
+therefore the long-life, packaged kinds a real chocolate maker exports: bars/tablets,
+gianduja, chocolate dragées and chocolate-covered nuts, chocolate biscuits.
+
 Each product carries the Korean SKU label the candidate is filed under. Edit freely: the
 generator picks up added words automatically and scores every word by how many verified
 candidates the queries containing it actually produced.
@@ -42,7 +48,10 @@ VOCAB = {
             ("caramel au beurre salé", "캔디/컨펙셔너리"),
             ("pâte de fruits", "젤리/구미"),
             ("dragées", "캔디/컨펙셔너리"),
-            ("chocolat", "초콜릿"),
+            ("tablette de chocolat", "초콜릿"),
+            ("dragées chocolat", "초콜릿"),
+            ("amandes enrobées de chocolat", "초콜릿"),
+            ("chocolat praliné", "초콜릿"),
             ("bêtises", "캔디/컨펙셔너리"),
             ("galette bretonne", "비스킷/쿠키/케이크"),
             ("sablé", "비스킷/쿠키/케이크"),
@@ -59,8 +68,10 @@ VOCAB = {
             ("croccante", "캔디/컨펙셔너리"),
             ("confetti", "캔디/컨펙셔너리"),
             ("liquirizia", "캔디/컨펙셔너리"),
-            ("cioccolato", "초콜릿"),
+            ("tavolette di cioccolato", "초콜릿"),
             ("gianduiotti", "초콜릿"),
+            ("cremini al cioccolato", "초콜릿"),
+            ("mandorle ricoperte di cioccolato", "초콜릿"),
             ("caramelle", "캔디/컨펙셔너리"),
             ("amaretti", "비스킷/쿠키/케이크"),
             ("cantucci", "비스킷/쿠키/케이크"),
@@ -82,7 +93,9 @@ VOCAB = {
             ("yemas de Santa Teresa", "캔디/컨펙셔너리"),
             ("almendras garrapiñadas", "캔디/컨펙셔너리"),
             ("caramelos", "캔디/컨펙셔너리"),
-            ("chocolate", "초콜릿"),
+            ("tabletas de chocolate", "초콜릿"),
+            ("almendras con chocolate", "초콜릿"),
+            ("grageas de chocolate", "초콜릿"),
             ("polvorones", "비스킷/쿠키/케이크"),
             ("mantecados", "비스킷/쿠키/케이크"),
             ("rosquillas", "비스킷/쿠키/케이크"),
@@ -103,7 +116,9 @@ VOCAB = {
             ("rock candy", "캔디/컨펙셔너리"),
             ("liquorice", "캔디/컨펙셔너리"),
             ("marshmallows", "캔디/컨펙셔너리"),
-            ("chocolate", "초콜릿"),
+            ("chocolate bars", "초콜릿"),
+            ("chocolate coated nuts", "초콜릿"),
+            ("chocolate covered honeycomb", "초콜릿"),
             ("shortbread", "비스킷/쿠키/케이크"),
             ("biscuits", "비스킷/쿠키/케이크"),
             ("oatcakes", "스낵/과자"),
@@ -122,7 +137,9 @@ VOCAB = {
             ("toffee", "캔디/컨펙셔너리"),
             ("maple candy", "캔디/컨펙셔너리"),
             ("licorice", "캔디/컨펙셔너리"),
-            ("chocolate", "초콜릿"),
+            ("chocolate bars", "초콜릿"),
+            ("chocolate covered almonds", "초콜릿"),
+            ("chocolate covered pretzels", "초콜릿"),
             ("pretzels", "스낵/과자"),
         ],
         "makers": ["manufacturer", "family owned candy company", "candy maker", "confectioner"],
@@ -142,6 +159,8 @@ VOCAB = {
             ("クッキー", "비스킷/쿠키/케이크"),
             # Added 2026-10-12 for the Japan focus run -- shelf-stable lines only (no 生菓子).
             ("チョコレート", "초콜릿"),
+            ("アーモンドチョコ", "초콜릿"),
+            ("チョコレート菓子", "초콜릿"),
             ("グミ", "젤리/구미"),
             ("ビスケット", "비스킷/쿠키/케이크"),
             ("豆菓子", "스낵/과자"),

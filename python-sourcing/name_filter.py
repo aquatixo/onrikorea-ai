@@ -888,7 +888,9 @@ URL_FILTERS = [
 #   3. a title piece that ends like a maker/shop name: 竹宝堂, たんばや製菓, 長崎 和泉屋
 _JP_CHARS = re.compile(r"[぀-ヿ一-鿿]")
 _JP_STOP = r"\s｜|【】\[\]()（）「」『』・、,。:：!！?？"
-_JP_CORP_BEFORE = re.compile(rf"(?:株式会社|有限会社|合同会社)\s*([^{_JP_STOP}]{{2,20}})")
+# Not a dash right after the company form: "小林製薬株式会社 -あったらいいなをカタチにする-"
+# is the company followed by its slogan (a dash INSIDE a name, 株式会社TEN-TWO, is fine).
+_JP_CORP_BEFORE = re.compile(rf"(?:株式会社|有限会社|合同会社)\s*(?![-–—])([^{_JP_STOP}]{{2,20}})")
 _JP_CORP_AFTER = re.compile(rf"([^{_JP_STOP}]{{2,20}}?)\s*(?:株式会社|有限会社|合同会社|（株）|\(株\)|㈱)")
 _JP_BRACKET = re.compile(r"【([^】]{2,20})】")
 _JP_LABEL = re.compile(r"^(公式|公式サイト|公式通販|公式オンラインショップ|オンラインショップ|通販|重要|お知らせ|新着|NEW)$", re.I)
@@ -958,18 +960,27 @@ def japanese_site_name(title: str | None, site_name: str | None) -> str | None:
         #    The first Japanese word that isn't a place, a generic word or a page name -- so
         #    "名古屋 和菓子 | 両口屋是清" reads past 名古屋/和菓子, and "Japanese Sweets Shop |
         #    亀屋良長" past the English tagline.
+        #    A one-word Latin piece first is the brand itself ("flaneru (フラネル) | 粉と砂糖と");
+        #    a multi-word Latin piece is a tagline and is skipped. Only place names and
+        #    generic words are read past -- any other Japanese word ends the search, so a
+        #    slogan in a later piece is never taken for the name.
         for piece in pieces:
-            for word in re.split(r"[\s:：]", re.sub(r"「[^」]*」", "", piece)):
+            words = [w for w in re.split(r"[\s:：]", re.sub(r"「[^」]*」", "", piece)) if w]
+            if words and not _JP_CHARS.search(piece):
+                if len(words) == 1 and 2 <= len(words[0]) <= 20:
+                    return words[0]
+                continue
+            for word in words:
                 word = _clean_jp(word.split("の")[-1] if "の" in word else word)
+                if word in _GENERIC_CATEGORY_WORDS_NON_LATIN or word in _JP_NOT_NAMES or word in _JP_PAGE_WORDS:
+                    continue
                 if (
                     2 <= len(word) <= 12
                     and _JP_CHARS.search(word)
-                    and word not in _GENERIC_CATEGORY_WORDS_NON_LATIN
-                    and word not in _JP_NOT_NAMES
-                    and word not in _JP_PAGE_WORDS
                     and not re.search(r"おすすめ|ランキング|比較|まとめ", word)
                 ):
                     return word
+                return None
     return None
 
 

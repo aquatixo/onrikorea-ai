@@ -17,6 +17,7 @@ from korea_check import (  # noqa: E402
     korea_search_name,
     korea_shop_hits,
 )
+from jp_reading import korean_reading, with_korean_reading  # noqa: E402
 from main import dedupe_pooled  # noqa: E402
 from name_filter import (  # noqa: E402
     brand_domain_label,
@@ -237,6 +238,8 @@ JP_NAME = [
     ("九州のお菓子メーカー山田製菓株式会社", "山田製菓"),
     ("株式会社山田製菓のホームページへようこそ", "山田製菓"),
     ("トップページ | 本店", None),
+    ("小林製薬株式会社 -あったらいいなをカタチにする-", "小林製薬"),  # not the slogan
+    ("flaneru (フラネル) | 粉と砂糖と", "flaneru"),  # Latin brand first, slogan after
 ]
 
 DOMAIN_LABEL = [
@@ -252,6 +255,21 @@ KOREA_NAME = [
     ("かぎや", "https://www.sweets-kagiya.jp/", "kagiya"),
     ("たんばや", "https://www.y-tanbaya.com/", "tanbaya"),
     ("マルト", "https://marutonet.base.shop/", "マルト"),  # shop-platform subdomain
+]
+
+# Korean reading shown after a Japanese-only name (user, 2026-10-23).
+READING = [
+    ("シード", None, "시도"),
+    ("メニコン", None, "메니콘"),  # ん at the end
+    ("かぎや", None, "가기야"),  # や
+    ("ロッテ", None, "롯테"),  # っ
+    ("きょうと", None, "교토"),  # long vowel not written, word-initial 교
+    ("三ツ矢製菓", "https://www.mitsuyaseika.co.jp/", "미쓰야세이카"),  # kanji: from the domain
+    ("丹生堂本舗", "https://www.tanseido-honpo.co.jp/", "단세이도 혼포"),
+    ("小林製薬", "https://www.kobayashi.co.jp/", "고바야시 세이야쿠"),  # suffix the domain leaves out
+    ("虎屋", "https://www.toraya-group.co.jp/", "도라야"),  # "group" is not part of the name
+    ("Stockley's Sweets", "https://stockleys-sweets.co.uk/", None),  # not Japanese
+    ("六花亭", "https://www.example-123.jp/", None),  # domain is not a reading
 ]
 
 CATEGORY = [
@@ -355,6 +373,11 @@ if __name__ == "__main__":
     for name, site, expected in KOREA_NAME:
         got = korea_search_name(name, site)
         check(got == expected, f"korea name {name} {site} -> {got!r}")
+    for name, site, expected in READING:
+        got = korean_reading(name, site)
+        check(got == expected, f"reading {name} -> {got!r}")
+    check(with_korean_reading("三ツ矢製菓", "https://www.mitsuyaseika.co.jp/") == "三ツ矢製菓 (미쓰야세이카)", "name with reading")
+    check(with_korean_reading("三ツ矢製菓 (미쓰야세이카)", "https://www.mitsuyaseika.co.jp/") == "三ツ矢製菓 (미쓰야세이카)", "reading not added twice")
     for text, expected in CATEGORY:
         got = category_signal(text)
         check((got[0] if got else None) == expected, f"category {text!r} -> {got}")

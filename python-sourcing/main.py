@@ -79,6 +79,7 @@ from name_filter import (
 from site_profile import build_profile, judge, resolved_name
 from korea_check import KOREA_QUERY_TEMPLATES, check_korea_presence, classify_korea_status, korea_search_name, korea_shop_hits
 from shelf_life import MIN_SHELF_LIFE_MONTHS, format_months, search_shelf_life
+from jp_reading import with_korean_reading
 
 KOREA_CALLS_PER_CHECK = len(KOREA_QUERY_TEMPLATES)
 from brand_rules import category_signal, ownership_signal, known_parent_in_name
@@ -572,7 +573,10 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
         conn,
         run_id,
         {
-            "name": candidate["name"],
+            # A Japanese-only name gets its Korean reading: "三ツ矢製菓 (미쓰야세이카)". Only
+            # here, at insert -- every check above (duplicates, registry, Korea search) used
+            # the plain name.
+            "name": with_korean_reading(candidate["name"], candidate["website"]),
             "methodology": methodology_label(bucket),
             "country": pre_evaluation["normalized"].get("country"),
             "sku": pre_evaluation["normalized"].get("sku"),
