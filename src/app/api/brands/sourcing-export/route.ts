@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   // matches what the review table on screen shows, now that daily runs accumulate
   // candidates over several days instead of one run replacing the last.
   const candidates = await db.sourcingCandidate.findMany({
+    where: { hiddenAt: null }, // deleted ("hidden") candidates aren't on the review list either
     orderBy: [{ createdAt: "asc" }, { id: "asc" }], // same order as the review table
   });
 

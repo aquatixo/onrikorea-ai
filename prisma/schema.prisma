@@ -168,9 +168,17 @@ model SourcingCandidate {
   reason       String      @db.Text
   evidence     String[]    // citation URLs gathered during LLM verification
 
+  // Set when someone deletes the candidate from the review list ("후보 삭제"). The row is
+  // kept, not removed: the duplicate check (src/lib/brand-sourcing/dedup.ts) reads every
+  // candidate row, so a hidden one stops the same site from being found again -- a hard
+  // delete left nothing to compare against and the same junk came back next run. Listed
+  // on /brands/sourcing/hidden, where it can be restored.
+  hiddenAt     DateTime?
+
   createdAt    DateTime    @default(now())
 
   @@index([runId])
+  @@index([hiddenAt])
 }
 
 enum WorkStatus {

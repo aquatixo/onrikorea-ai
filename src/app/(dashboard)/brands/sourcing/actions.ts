@@ -14,7 +14,7 @@ export async function addSourcingCandidateToBrands(candidateId: string): Promise
   if (!session) return { error: await noAccessMessage() };
   const t = getDictionary(await getLocale()).sourcing;
   const candidate = await db.sourcingCandidate.findUnique({ where: { id: candidateId } });
-  if (!candidate) return { error: t.candidateNotFound };
+  if (!candidate || candidate.hiddenAt) return { error: t.candidateNotFound };
   if (candidate.verdict === "reject") return { error: t.candidateRejected };
 
   // Same rule as adding a brand by hand (brands/actions.ts createBrand): no second brand
@@ -69,20 +69,6 @@ export async function addSourcingCandidateToBrands(candidateId: string): Promise
   }
 }
 
-/** Removes a candidate from the sourcing results -- for junk the name filter let
- * through (listicles, FAQ pages, etc.) that a human doesn't want cluttering the review
- * list. Doesn't touch Brands; this only ever deletes a SourcingCandidate row. */
-export async function deleteSourcingCandidate(candidateId: string): Promise<{ ok: true } | { error: string }> {
-  if (!(await requireSection("brandSourcing"))) return { error: await noAccessMessage() };
-  try {
-    await db.sourcingCandidate.delete({ where: { id: candidateId } });
-    revalidatePath("/brands/sourcing");
-    return { ok: true };
-  } catch {
-    return { error: "Failed to delete candidate." };
-  }
-}
-
 /** Bulk version of addSourcingCandidateToBrands for the "전체 추가" toolbar action --
  * runs sequentially (not Promise.all) so each candidate's sourceNo aggregate sees the
  * previous insert, same as adding them one at a time from the UI. */
@@ -105,10 +91,28 @@ export async function addSourcingCandidatesToBrands(
   return { addedIds, errors };
 }
 
-/** Bulk version of deleteSourcingCandidate for the "전체 삭제" toolbar action. */
+/** "후보 삭제": hides the selected candidates instead of deleting them -- the kept row is
+ * what stops the next run from finding the same site again (see SourcingCandidate.hiddenAt).
+ * Doesn't touch Brands. */
 export async function deleteSourcingCandidates(candidateIds: string[]): Promise<{ deleted: number }> {
   if (!(await requireSection("brandSourcing"))) return { deleted: 0 };
-  const { count } = await db.sourcingCandidate.deleteMany({ where: { id: { in: candidateIds } } });
+  const { count } = await db.sourcingCandidate.updateMany({
+    where: { id: { in: candidateIds }, hiddenAt: null },
+    data: { hiddenAt: new Date() },
+  });
   revalidatePath("/brands/sourcing");
+  revalidatePath("/brands/sourcing/hidden");
   return { deleted: count };
+}
+
+/** "복원": puts hidden candidates back on the review list. */
+export async function restoreSourcingCandidates(candidateIds: string[]): Promise<{ restored: number }> {
+  if (!(await requireSection("brandSourcing"))) return { restored: 0 };
+  const { count } = await db.sourcingCandidate.updateMany({
+    where: { id: { in: candidateIds }, hiddenAt: { not: null } },
+    data: { hiddenAt: null },
+  });
+  revalidatePath("/brands/sourcing");
+  revalidatePath("/brands/sourcing/hidden");
+  return { restored: count };
 }

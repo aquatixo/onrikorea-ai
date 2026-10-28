@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Download, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, EyeOff, Plus, RotateCcw, Trash2 } from "lucide-react";
 import {
   addSourcingCandidatesToBrands,
   deleteSourcingCandidates,
+  restoreSourcingCandidates,
 } from "@/app/(dashboard)/brands/sourcing/actions";
 import { ExpandableText } from "@/components/expandable-text";
 import { WebsiteLink } from "@/components/website-link";
@@ -23,14 +25,25 @@ const VERDICT_STYLE: Record<string, string> = {
   reject: "bg-destructive/10 text-destructive",
 };
 
+/**
+ * The candidate table, in two modes with the same columns:
+ * - "review" (/brands/sourcing): download, add to Brands, delete -- and a link to the
+ *   deleted candidates.
+ * - "hidden" (/brands/sourcing/hidden): the deleted ("hidden") candidates, with restore and
+ *   a link back to the review list.
+ */
 export function SourcingResultsTable({
+  mode = "review",
   lastRunAt,
   candidates,
+  hiddenCount = 0,
   verdictLabel,
   locale,
 }: {
+  mode?: "review" | "hidden";
   lastRunAt: Date | null;
   candidates: SourcingCandidate[];
+  hiddenCount?: number;
   verdictLabel: Record<string, string>;
   locale: Locale;
 }) {
@@ -104,13 +117,30 @@ export function SourcingResultsTable({
     });
   }
 
+  async function handleRestoreSelected() {
+    if (selected.size === 0) {
+      await confirm({ description: t.selectAtLeastOne, alertOnly: true });
+      return;
+    }
+    if (!(await confirm({ description: t.confirmRestoreSelected(selected.size), confirmLabel: t.restoreSelected }))) {
+      return;
+    }
+    startTransition(async () => {
+      await restoreSourcingCandidates(Array.from(selected));
+      setSelected(new Set());
+      router.refresh();
+    });
+  }
+
   return (
     <div className="space-y-3">
       {confirmDialog}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-medium">{t.resultsTitle(candidates.length)}</p>
-          {lastRunAt && (
+          <p className="text-sm font-medium">
+            {mode === "hidden" ? t.hiddenCount(candidates.length) : t.resultsTitle(candidates.length)}
+          </p>
+          {mode === "review" && lastRunAt && (
             <p className="text-xs text-muted-foreground">
               {t.lastRunAt}: {formatDateTime(lastRunAt, locale)}
             </p>
@@ -120,23 +150,54 @@ export function SourcingResultsTable({
           {selected.size > 0 && (
             <span className="text-sm font-medium text-muted-foreground">{t.selectedCount(selected.size)}</span>
           )}
-          <Button
-            variant="outline"
-            nativeButton={false}
-            render={
-              <a href="/api/brands/sourcing-export">
-                <Download className="size-4" />
-                {t.downloadExcel}
-              </a>
-            }
-          />
-          <Button disabled={isPending} onClick={handleAddSelected}>
-            <Plus className="size-4" />
-            {isPending ? t.addingSelected : t.addSelected}
-          </Button>
-          <Button variant="destructive" disabled={isPending} onClick={handleDeleteSelected}>
-            <Trash2 className="size-4" /> {t.deleteSelected}
-          </Button>
+          {mode === "hidden" ? (
+            <>
+              <Button disabled={isPending} onClick={handleRestoreSelected}>
+                <RotateCcw className="size-4" />
+                {isPending ? t.restoring : t.restoreSelected}
+              </Button>
+              <Button
+                variant="outline"
+                nativeButton={false}
+                render={
+                  <Link href="/brands/sourcing">
+                    <ArrowLeft className="size-4" />
+                    {t.viewCandidates}
+                  </Link>
+                }
+              />
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                nativeButton={false}
+                render={
+                  <a href="/api/brands/sourcing-export">
+                    <Download className="size-4" />
+                    {t.downloadExcel}
+                  </a>
+                }
+              />
+              <Button disabled={isPending} onClick={handleAddSelected}>
+                <Plus className="size-4" />
+                {isPending ? t.addingSelected : t.addSelected}
+              </Button>
+              <Button variant="destructive" disabled={isPending} onClick={handleDeleteSelected}>
+                <Trash2 className="size-4" /> {t.deleteSelected}
+              </Button>
+              <Button
+                variant="outline"
+                nativeButton={false}
+                render={
+                  <Link href="/brands/sourcing/hidden">
+                    <EyeOff className="size-4" />
+                    {t.hiddenButton(hiddenCount)}
+                  </Link>
+                }
+              />
+            </>
+          )}
         </div>
       </div>
       {summary && (

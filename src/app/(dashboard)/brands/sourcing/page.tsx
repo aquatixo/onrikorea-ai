@@ -33,13 +33,14 @@ export default async function BrandSourcingPage() {
   // progress) specifically so the status card stays honest when no one has run today
   // yet -- latestRun.progress would otherwise show yesterday's finished totals as if
   // they were today's, which is exactly the confusion that prompted this card to exist.
-  const [latestSerperRun, latestTavilyRun, candidates, serperBudget, tavilyBudget] = await Promise.all([
+  const [latestSerperRun, latestTavilyRun, candidates, serperBudget, tavilyBudget, hiddenCount] = await Promise.all([
     db.sourcingRun.findFirst({ where: { backend: "serper" }, orderBy: { createdAt: "desc" } }),
     db.sourcingRun.findFirst({ where: { backend: "tavily" }, orderBy: { createdAt: "desc" } }),
     // In the order they were found -- run by run, newest at the bottom (user, 2026-10-13).
-    db.sourcingCandidate.findMany({ orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
+    db.sourcingCandidate.findMany({ where: { hiddenAt: null }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
     db.sourcingDailyBudget.findUnique({ where: { backend_runDate: { backend: "serper", runDate: today } } }),
     db.sourcingDailyBudget.findUnique({ where: { backend_runDate: { backend: "tavily", runDate: today } } }),
+    db.sourcingCandidate.count({ where: { hiddenAt: { not: null } } }),
   ]);
 
   const lastRunAt = [latestSerperRun?.createdAt, latestTavilyRun?.createdAt]
@@ -123,7 +124,8 @@ export default async function BrandSourcingPage() {
         </div>
       </div>
 
-      {candidates.length === 0 ? (
+      {/* Always the table (even empty): its toolbar is also the way to the deleted candidates. */}
+      {candidates.length === 0 && hiddenCount === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border py-16 text-center">
           <ListChecks className="size-6 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">{t.sourcing.noRunsYet}</p>
@@ -132,6 +134,7 @@ export default async function BrandSourcingPage() {
         <SourcingResultsTable
           lastRunAt={lastRunAt}
           candidates={candidates}
+          hiddenCount={hiddenCount}
           verdictLabel={verdictLabel}
           locale={locale}
         />
