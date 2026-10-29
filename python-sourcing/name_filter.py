@@ -907,6 +907,17 @@ _JP_NOT_NAMES = {
 }
 
 
+def _after_no(word: str) -> str:
+    """ "えびせんべいの桂新堂" -> 桂新堂: a "<product>の<name>" word keeps the name -- but only
+    when the part after the last の is a name on its own, not just a suffix with one
+    character in front: 鶴の子本舗 / 月の雫本舗 / 森の菓子店 are whole names. A generic tail
+    (名古屋の老舗) is still returned on its own, so the caller reads past it."""
+    if "の" not in word:
+        return word
+    tail = word.split("の")[-1]
+    return tail if tail in _JP_NOT_NAMES or len(_JP_MAKER_END.sub("", tail)) >= 2 else word
+
+
 def _clean_jp(name: str) -> str:
     name = re.sub(r"[\s　]+", " ", name).strip(" -–—|｜")
     return _JP_TAIL.sub("", name).strip()
@@ -938,7 +949,8 @@ def japanese_site_name(title: str | None, site_name: str | None) -> str | None:
         for inner in _JP_BRACKET.findall(text):
             inner = inner.strip()
             if not _JP_LABEL.match(inner) and _JP_MAKER_END.search(inner):
-                return _clean_jp(inner)
+                # "【さぬき和三盆のばいこう堂】" -> ばいこう堂, like the "<product>の<name>" rule below.
+                return _clean_jp(_after_no(inner))
         no_reading = re.sub(r"[（(][^）)]*[）)]", " ", text)  # 巖手屋（いわてや） -> 巖手屋
         pieces = [_clean_jp(_JP_BRACKET.sub(" ", p)) for p in re.split(r"[｜|]|\s[-–—]\s", no_reading)]
         for p in pieces:
@@ -946,7 +958,7 @@ def japanese_site_name(title: str | None, site_name: str | None) -> str | None:
             # "創業元禄二年" / "南部せんべい乃" / "長崎" and a trailing "-しあわせをつくるお菓子".
             # A "<product>の<name>" word keeps only the name ("えびせんべいの桂新堂" -> 桂新堂).
             for word in re.split(r"[\s\-–—]+", p):
-                word = word.split("の")[-1] if "の" in word else word
+                word = _after_no(word)
                 if (
                     2 <= len(word) <= 20
                     and _JP_MAKER_END.search(word)

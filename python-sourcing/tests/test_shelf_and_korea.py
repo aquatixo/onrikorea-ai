@@ -41,8 +41,11 @@ from site_profile import (  # noqa: E402
     _TARGET_WORDS,
     _THIN_DISTRIBUTOR,
     _TRADE_LINK,
+    _category_in_place,
     _japanese_middleman,
+    _unusable_name,
     judge,
+    resolved_name,
 )
 from site_scrape import extract_founded_year, has_export_signal  # noqa: E402
 
@@ -201,6 +204,10 @@ EXPORT = [
 FOUNDED = [
     ("1929年創業の佐々木製菓", 1929),
     ("明治35年創業", 1902),
+    ("創立(設立) 大正10年10月8日", 1921),  # 三立製菓
+    ("1950年12月 黒川梅行商店を黒川梅行が個人創業。", 1950),  # ばいこう堂
+    ("2015年4月 新工場を設立", None),  # a factory, not the company
+    ("2023年10月 創業者 山田太郎", None),  # the founder
     ("latest 1800 reviews", None),
     ("Seit 1950 ... 200 Jahre alte Tradition", 1950),
     ("Founded in 1952 … recipes go back over 200 years in this region", 1952),
@@ -240,6 +247,9 @@ JP_NAME = [
     ("トップページ | 本店", None),
     ("小林製薬株式会社 -あったらいいなをカタチにする-", "小林製薬"),  # not the slogan
     ("flaneru (フラネル) | 粉と砂糖と", "flaneru"),  # Latin brand first, slogan after
+    ("【さぬき和三盆のばいこう堂】公式オンラインショップ", "ばいこう堂"),  # <product>の<name> in brackets
+    ("【鶴の子本舗】公式", "鶴の子本舗"),  # の inside the name: not cut to 子本舗
+    ("【森の菓子店】", "森の菓子店"),
 ]
 
 DOMAIN_LABEL = [
@@ -270,6 +280,13 @@ READING = [
     ("虎屋", "https://www.toraya-group.co.jp/", "도라야"),  # "group" is not part of the name
     ("Stockley's Sweets", "https://stockleys-sweets.co.uk/", None),  # not Japanese
     ("六花亭", "https://www.example-123.jp/", None),  # domain is not a reading
+    ("さぬき和三盆のばいこう堂", "https://www.wasanbon-shop.com/", None),  # domain names the sugar, not the shop
+    ("たんばや製菓", "https://tanbaya.co.jp/", "단바야 세이카"),  # kana word spelled in the domain
+    ("さぬき和三盆のばいこう堂", "https://sanuki-baikodo.jp/", "사누키 바이코도"),  # の is a particle
+    ("菓子のくろだ", "https://kuroda.co.jp/", "구로다"),
+    ("おかき処 播磨屋", "https://harimaya.com/", "하리마야"),  # おかき is a product word
+    ("おおの製菓", "https://www.ohno-seika.co.jp/", "오노 세이카"),  # ohno = oono
+    ("つるや本舗", "https://www.turuya-honpo.jp/", "두루야 혼포"),  # kunrei spelling tu = tsu
 ]
 
 CATEGORY = [
@@ -326,6 +343,45 @@ JUDGE = [
     (_profile(chilledHits=2), "ok"),
     (_profile(selfTitle="Terre adélice | Fabricant de glaces artisanales"), "chilled_frozen"),
     (_profile(selfTitle="Helados y turrones Artesanos - Jijona"), "ok"),  # also names turrón
+    # 2026-10-29 run: machinery maker, trade journal, souvenir planner, cake shop.
+    (_profile(selfTitle="Customized Biscuit Production Line, Dough Mixer Manufacturing Company, Tunnel Oven Manufacturers"), "not_a_producer"),
+    (_profile(selfTitle="Biscuit Oven Fresh Daily | Family bakery"), "ok"),  # one machine-ish word
+    (_profile(selfTitle="Revista de Distribución y Consumo | Sweetpress"), "publisher_site"),
+    (_profile(selfTitle="北陸のおみやげはあいの風 | 卸売り・商品企画開発"), "reseller_site"),
+    (_profile(selfTitle="せんべいの製造・卸売 | 山田製菓"), "ok"),  # says it makes them
+    (_profile(selfTitle="山田製菓株式会社 | せんべい卸売・直売"), "ok"),  # a maker suffix says it too
+    (_profile(selfTitle="Oven Baked Biscuits | Fresh From Our Ovens"), "ok"),  # a bakery's oven
+    (_profile(selfTitle="Gumball Machine | Machines"), "ok"),  # singular + plural is one word
+    (_profile(fullText="ケーキ" * 57 + "x" * 3000, shelfHits=77), "fresh_bakery"),
+    (_profile(fullText="ケーキ" * 12 + "パウンドケーキ" * 20 + "x" * 3000, shelfHits=29), "ok"),
+]
+
+NAMES = [
+    # (name, unusable, product-in-a-place)
+    ("Turrón, un dulce que trasciende la Navidad", True, False),
+    ("富山のスイーツ専門店リブラン-Lis Blanc-話題のケーキや ...", True, False),
+    ("Turrones en Alicante", False, True),
+    ("Maison De La Praline", False, False),
+    ("Hijas de Alberto Monerris Sirvent", False, False),
+    ("Biscuiterie de Provence", False, False),
+    ("The Fudge Shop of the Lakes", False, False),  # "the" twice is one function word
+    ("Chocolat de Neuville", False, False),  # de/di/of: how real brands are named
+    ("Amaretti di Saronno", False, False),
+    ("Biscuits from Devon", False, True),
+]
+RESOLVE = [
+    # (pageTitle, siteName, search name, url, expected)
+    ("Turrones en Alicante | Hijas de Alberto Monerris Sirvent | Elaboración artesanal de turrones y dulces de Jijona",
+     None, "Turrones en Alicante", "https://turronesenalicante.com/", "Hijas de Alberto Monerris Sirvent"),
+    ("富山のスイーツ専門店リブラン-Lis Blanc-話題のケーキやおすすめ焼き菓子・洋菓子、銘菓「甘金丹」など",
+     None, "富山のスイーツ専門店リブラン-Lis Blanc-話題のケーキや ...", "https://www.lisblanc.com/", "Lis Blanc"),
+    ("Biscuiterie de Provence | Accueil", None, "Biscuiterie de Provence", "https://biscuiterie-provence.fr/", "Biscuiterie de Provence"),
+    ("Turrones de Jijona | Made In Spain | Home Page", None, "Turrones de Jijona", "https://turronesjijona.es/", "Turrones de Jijona"),  # no slogan as name
+    ("Nougat de Montélimar | Free Shipping Worldwide", None, "Nougat de Montélimar", "https://nougat.fr/", "Nougat de Montélimar"),
+    ("Amaretti di Saronno | Privacy Policy", None, "Amaretti di Saronno", "https://amaretti.it/", "Amaretti di Saronno"),
+    ("Chocolate Bars | McVITIES Official", None, "Chocolate Bars ...", "https://www.mcvities.co.uk/", "McVITIES"),
+    ("Premiata Fabbrica di Cioccolato Zeno 1926 Srl", None, "Premiata Fabbrica di Cioccolato Zeno 1926 Srl",
+     "https://www.zeno1926.it/", "Premiata Fabbrica di Cioccolato Zeno 1926 Srl"),  # long real name kept
 ]
 
 
@@ -390,6 +446,15 @@ if __name__ == "__main__":
         [{"title": "Pelino BBC", "description": "", "url": "https://www.bbc.com/x"}] + _hits("Pelino 사탕", 2), "Pelino"
     )
     check([h["url"] for h in shop] == [f"https://www.coupang.com/vp/products/{i}" for i in range(2)], "evidence = Korean shop hits")
+    for name, unusable, in_place in NAMES:
+        check(_unusable_name(name) == unusable and _category_in_place(name) == in_place, f"name shape {name!r}")
+    for page_title, site_name, name, url, expected in RESOLVE:
+        got = resolved_name({"pageTitle": page_title, "siteName": site_name}, name, url)
+        check(got == expected, f"resolved name {name!r} -> {got!r}")
+    # A ReFa-style beauty brand plans its devices (企画) -- the food-only title rules leave it.
+    beauty = _profile(selfTitle="美容機器の企画・開発・卸売 | Beauty Equipment Machines", food=(True, ""))
+    check(judge(beauty, "Maker", "https://maker.example/", "beauty")[1] not in ("reseller_site", "not_a_producer"),
+          "beauty planner not dropped by food-only title rules")
     for profile, expected in JUDGE:
         got = judge(profile, "Maker", "https://maker.example/")[1]
         check(got == expected, f"judge {profile['selfTitle']!r} shelf={profile['shelfLifeMonths']} chilled={profile['chilledHits']} -> {got}")

@@ -20,7 +20,17 @@ import requests
 from bs4 import BeautifulSoup
 
 from country_guess import guess_country_from_domain, guess_country_from_text
-from name_filter import has_latin_letters, japanese_site_name, looks_like_reseller, pick_brand_name, says_it_makes
+from name_filter import (
+    brand_domain_label,
+    domain_matches_name,
+    has_latin_letters,
+    is_plausible_brand_name,
+    japanese_site_name,
+    looks_like_reseller,
+    pick_brand_name,
+    says_it_makes,
+    strip_shop_words,
+)
 from relevance import check_food_relevance, check_group_relevance, has_food_words, has_group_words, name_on_site
 from query_vocab import VOCAB
 from shelf_life import MIN_SHELF_LIFE_MONTHS, chilled_hits, format_months, names_cold_product, shelf_life_months
@@ -150,6 +160,8 @@ _DIRECTORY_TITLE = re.compile(
     r"\b(portal|portale|directory|directorio|annuaire|verzeichnis|branchenbuch|"
     r"guide|guía|guida|reiseführer|tourisme|tourism|turismo|tourismus|vacances|"
     r"(online|stadt|city)[\s-]?magazin\w*|magazine|news|noticias|actualités|nachrichten|"
+    # Trade journals ("Revista de Distribución y Consumo | Sweetpress", 2026-10-29 run).
+    r"revista|rivista|revue|zeitschrift|fachzeitschrift|"
     r"app|blog)\b|"
     r"観光|ガイド|まとめ|ポータル|"
     # Associations and member directories ("大阪産（もん）名品の会", 2026-10-23 run).
@@ -462,6 +474,39 @@ def build_profile(url: str) -> dict:
     }
 
 
+# A food-MACHINERY maker names its machines in its own title: "Customized Biscuit
+# Production Line, Dough Mixer Manufacturing Company, Tunnel Oven Manufacturers" (WENVA,
+# 2026-10-29 run) -- full of biscuit words and "manufacturing", so every food check passed.
+# Two different machine words in the title; a confectioner's title never has even one.
+_MACHINERY_TITLE = re.compile(
+    r"\b(production\s+lines?|machinery|machines?|equipment|tunnel\s+ovens?|mixers?|"
+    r"packaging\s+systems?|maquinaria|m[áa]quinas?|macchin[ae]|macchinari|maschinen|anlagenbau)\b|"
+    r"製造ライン|製菓機械|食品機械|機械",
+    re.I,
+)
+# A Japanese wholesaler / product planner calling itself that in its title ("北陸のおみやげは
+# あいの風 | 卸売り・商品企画開発", 2026-10-29 run) -- it plans souvenirs that others make.
+# Not when the title also says it makes them ("製造・卸売").
+_JP_WHOLESALE_TITLE = re.compile(r"卸売|卸販売|菓子卸|商品企画")
+# A maker suffix counts too: "山田製菓株式会社 | せんべい卸売・直売" makes its senbei.
+_JP_MAKES_TITLE = re.compile(r"製造|工場|自社製|製菓|本舗|本舖|総本家|総本店|菓子司|製作所")
+# A Japanese cake shop (ケーキバイキング, birthday cakes) -- fresh, not importable. Its own
+# word because 生菓子-type fresh words are rare on these sites: Lis Blanc (Toyama, 2026-10-29
+# run) had ケーキ x57 against 77 shelf-stable words; the most cake-heavy real maker in
+# tests/eval_japan_sites.py had 12 against 29. Not パウンドケーキ / カップケーキ /
+# ドライケーキ (baked, shelf-stable) or ライスケーキ.
+_JP_CAKE = re.compile(r"(?<!パウンド)(?<!カップ)(?<!ドライ)(?<!ライス)ケーキ")
+_MIN_CAKE_HITS = 15
+_MAX_CAKE_RATIO = 0.5
+
+
+def _machinery_title(title: str) -> str | None:
+    # Singular and plural are one word ("Machine" / "Machines"); a lone "oven" is a
+    # bakery's ("Oven Baked Biscuits"), only "tunnel oven" is a machine.
+    words = {re.sub(r"s$", "", re.sub(r"\s+", " ", m.group(0).lower())) for m in _MACHINERY_TITLE.finditer(title)}
+    return ", ".join(sorted(words)) if len(words) >= 2 else None
+
+
 def _japanese_middleman(text: str) -> tuple[str, str] | None:
     """A Japanese site that sells, lists or supplies OTHER makers' products (or makes the
     machines), not its own. Each rule is the wording one kind of middleman can't avoid,
@@ -515,6 +560,14 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
     directory = _DIRECTORY_TITLE.search(profile.get("selfTitle") or "")
     if directory:
         return False, "publisher_site", f"사이트 제목이 포털/가이드/매거진형 ('{directory.group(0)}')"
+    # Food lanes only: a ReFa-style beauty brand is often a planner (企画・開発) whose
+    # devices are made elsewhere, and that's the kind the beauty lane wants.
+    title = profile.get("selfTitle") or ""
+    machinery = _machinery_title(title) if food else None
+    if machinery:
+        return False, "not_a_producer", f"사이트 제목이 기계·설비 제조사 ('{machinery}') — 식품 제조사가 아님"
+    if food and _JP_WHOLESALE_TITLE.search(title) and not _JP_MAKES_TITLE.search(title):
+        return False, "reseller_site", f"사이트 제목이 도매·상품기획 회사 ('{_JP_WHOLESALE_TITLE.search(title).group(0)}') — 제조사가 아님"
     if profile.get("thin"):
         # Only the title/meta description to go on, so all three must be stated outright.
         if profile["thinPublisher"]:
@@ -588,6 +641,9 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
     fresh, shelf = profile["freshHits"], profile["shelfHits"]
     if food and fresh >= _MIN_FRESH_HITS and fresh / max(shelf, 1) >= _MAX_FRESH_RATIO:
         return False, "fresh_bakery", f"신선 빵·케이크 위주 (빵 단어 {fresh} vs 보존식품 단어 {shelf}) — 수입 불가 품목"
+    cake = len(_JP_CAKE.findall(profile["fullText"]))
+    if food and cake >= _MIN_CAKE_HITS and cake >= _MAX_CAKE_RATIO * shelf:
+        return False, "fresh_bakery", f"케이크 가게 (ケーキ {cake}회 vs 보존식품 단어 {shelf}) — 생케이크는 수입 불가"
     short = _short_shelf_life(profile) if food else None
     if short:
         return False, "shelf_life_short", short
@@ -653,4 +709,99 @@ def resolved_name(profile: dict, name: str, url: str) -> str:
         first = re.split(r"[\s　｜|【】]", title.strip())[0]
         if 2 <= len(first) <= 20:
             return first
-    return pick_brand_name(name, profile.get("siteName"), url)
+    picked = pick_brand_name(name, profile.get("siteName"), url)
+    if _unusable_name(picked) or _category_in_place(picked):
+        better = _name_from_title(f"{title} | {profile.get('siteName') or ''}", picked, url)
+        if better:
+            return better
+        if _unusable_name(picked):
+            label = brand_domain_label(url)
+            return label.replace("-", " ").title() if len(label) >= 3 else picked
+    return picked
+
+
+# --- names that are not names --------------------------------------------------------------
+# What reached the review list as a "brand" (2026-10-29 run): a search title cut off by
+# Google ("富山のスイーツ専門店リブラン-Lis Blanc-話題のケーキや ..."), an article headline
+# ("Turrón, un dulce que trasciende la Navidad") and a product-in-a-place phrase ("Turrones
+# en Alicante" -- the maker is "Hijas de Alberto Monerris Sirvent", the title's next piece).
+# Function words a headline has and a company name doesn't (no de/la/di/du/van: "Maison De
+# La Praline", "Hijas de Alberto ...").
+_HEADLINE_WORDS = {
+    "un", "una", "uno", "que", "che", "qui", "est", "es", "is", "are", "the", "for", "with", "con",
+    "para", "per", "pour", "avec", "und", "mit", "für", "your", "how", "why", "what", "come", "como",
+}
+_PLACE_PREPOSITIONS = {"en", "de", "in", "di", "da", "from", "aus", "du", "of"}
+_LOCATIVE_WORDS = {"en", "in", "from", "aus"}
+_CONNECTORS = {"y", "e", "et", "and", "&", "la", "le", "el", "del", "della", "los", "las", "les"}
+# A title piece that doesn't match the domain only replaces the name when it says it is a
+# company ("Hijas de Alberto Monerris Sirvent"): any Title Case piece let "Free Shipping
+# Worldwide" or "Privacy Policy" replace "Nougat de Montélimar".
+_COMPANY_SHAPE = re.compile(
+    r"\b(hij[oa]s|fils|figli|filhos|sons|söhne|brothers|fr[èe]res|fratelli|hermanos|maison|casa|famil\w+|"
+    r"s\.?r\.?l|s\.?p\.?a|s\.?l|s\.?a|ltd|limited|gmbh|ag|inc|llc|co|company|cie)\b",
+    re.I,
+)
+# Title Case pieces that are page furniture or slogans, not a company ("Made In Italy").
+_NOT_COMPANY_WORDS = {
+    "home", "homepage", "page", "welcome", "official", "site", "website", "shop", "store", "online",
+    "accueil", "inicio", "startseite", "contact", "about", "products", "made", "since", "italy",
+    "france", "spain", "españa", "italia", "england", "scotland", "uk", "usa", "japan", "gifts", "gift",
+}
+# Splits a title into pieces, also on a dash glued to Japanese text ("リブラン-Lis Blanc-話題の").
+_TITLE_PIECES = re.compile(r"\s*[|｜–—:·»【】「」]\s*|\s+-\s+|(?<=[぀-ヿ一-鿿])-|-(?=[぀-ヿ一-鿿])")
+
+
+def _unusable_name(name: str) -> bool:
+    words = re.findall(r"[^\W\d_]+", name.lower())
+    # Two DIFFERENT function words: "The Fudge Shop of the Lakes" has "the" twice and is a name.
+    headline = len(words) >= 5 and len(set(words) & _HEADLINE_WORDS) >= 2
+    # 60: "Premiata Fabbrica di Cioccolato Zeno 1926 Srl" is a real 45-character name.
+    return name.rstrip().endswith(("...", "…")) or len(name) > 60 or headline
+
+
+def _category_in_place(name: str) -> bool:
+    """ "Turrones en Alicante", "Biscuits from Devon": a product (plural or not) + a place.
+    Only "in/from" words: with de/di/of it's how real brands are named ("Chocolat de
+    Neuville", "Amaretti di Saronno", "Galletas de la Abuela")."""
+    words = name.split()
+    if not 3 <= len(words) <= 4 or words[1].lower() not in _LOCATIVE_WORDS:
+        return False
+    first = words[0].lower()
+    product = any(_TARGET_WORDS.fullmatch(first[: len(first) - cut]) for cut in (0, 1, 2) if len(first) - cut >= 3)
+    return product and all(w[:1].isupper() for w in words[2:])
+
+
+def _name_from_title(text: str, current: str, url: str) -> str | None:
+    """Another piece of the site's own title that reads as a company name: a Title Case
+    piece of 1-6 words that matches the domain ("Lis Blanc"), else one with no product or
+    page/slogan word in it ("Hijas de Alberto Monerris Sirvent"). Lower-case words mean a
+    description ("Elaboración artesanal de turrones y dulces de Jijona")."""
+    pieces = []
+    for p in _TITLE_PIECES.split(text):
+        p = re.sub(r"\s+", " ", p).strip(" -")
+        content = [w for w in p.split() if w.lower() not in _PLACE_PREPOSITIONS and w.lower() not in _CONNECTORS]
+        if (
+            2 <= len(p) <= 60
+            and 1 <= len(p.split()) <= 6
+            and has_latin_letters(p)
+            and content
+            and all(w[:1].isupper() for w in content)
+            and p.lower() != current.lower()
+            and not _unusable_name(p)
+            and not _category_in_place(p)
+            and is_plausible_brand_name(p)
+        ):
+            pieces.append((p, content))
+    for p, _content in pieces:
+        if domain_matches_name(p, url):
+            return strip_shop_words(p)  # "McVITIES Official" -> McVITIES
+    for p, content in pieces:
+        if (
+            len(p.split()) >= 2
+            and _COMPANY_SHAPE.search(p)
+            and not any(w.lower().strip(".,") in _NOT_COMPANY_WORDS for w in content)
+            and not _TARGET_WORDS.search(p)
+        ):
+            return p
+    return None

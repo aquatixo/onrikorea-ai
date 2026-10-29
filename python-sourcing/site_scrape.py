@@ -32,9 +32,14 @@ _NOT_COMPANY_AGE_AFTER = re.compile(
 
 # Japanese: 創業1902年 / 1902年創業 / 設立 / 創立, also as an era year (明治35年創業).
 _JP_ERAS = {"明治": 1867, "大正": 1911, "昭和": 1925, "平成": 1988, "令和": 2018}
+# Also "創立(設立) 大正10年" (a label in brackets after the word) and "1950年12月 …が個人創業"
+# (a month and a few words before it) -- 三立製菓 and ばいこう堂 write it that way.
 _JP_FOUNDED = re.compile(
-    r"(?:創業|設立|創立)\s*(?:は|：|:)?\s*(?:(\d{4})|(明治|大正|昭和|平成|令和)\s*(\d{1,2}|元))\s*年?|"
-    r"(?:(\d{4})|(明治|大正|昭和|平成|令和)\s*(\d{1,2}|元))\s*年\s*(?:に)?\s*(?:創業|設立|創立)"
+    r"(?:創業|設立|創立)\s*(?:[（(][^）)]{0,6}[）)])?\s*(?:は|：|:)?\s*(?:(\d{4})|(明治|大正|昭和|平成|令和)\s*(\d{1,2}|元))\s*年?|"
+    # The few words in between never name a facility ("2015年4月 新工場を設立"), and the
+    # word isn't 創業者 ("2023年10月 創業者 山田太郎" is about the founder).
+    r"(?:(\d{4})|(明治|大正|昭和|平成|令和)\s*(\d{1,2}|元))\s*年\s*(?:\d{1,2}\s*月)?"
+    r"(?:(?!工場|子会社|支店|支社|営業所|店舗|事業所|研究所|センター|社屋|物流)[^。\d]){0,15}?(?:に)?\s*(?:創業|設立|創立)(?!者)"
 )
 _JP_YEARS_SINCE = re.compile(r"創業\s*(\d{1,3})\s*(?:年|周年)")
 _FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")

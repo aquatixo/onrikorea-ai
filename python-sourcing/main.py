@@ -806,16 +806,19 @@ def process_one_query(
     return process_discovery_query(conn, run_id, bucket, query_text, progress)
 
 
+# The SourcingRun row a manual run (no run id argument) created, for the crash handler.
+_created_run_id: str | None = None
+
+
 def main():
+    global _created_run_id
     run_id = sys.argv[1] if len(sys.argv) > 1 else None
-    conn = get_connection()
-    if run_id is None:
-        run_id = create_sourcing_run(conn, BACKEND)
-    print(f"Sourcing run {run_id} (backend: {BACKEND}" + (f", focus: {FOCUS}" if FOCUS else "") + ")")
 
     # Fail before touching the budget/ledger/lane state when a key this run needs is
     # missing (the run buttons already refuse to start then -- this covers a manual run).
-    # The Korea check always uses Serper, so a Tavily run needs both keys.
+    # The Korea check always uses Serper, so a Tavily run needs both keys. These checks come
+    # before a manual run creates its SourcingRun row: the run button shows the newest
+    # "running" run as in progress, so a row left behind by a failed start looked stuck.
     from config import SERPER_API_KEY, TAVILY_API_KEY
 
     missing = [k for k, v in (("SERPER_API_KEY", SERPER_API_KEY), ("TAVILY_API_KEY", TAVILY_API_KEY)) if not v]
@@ -823,6 +826,24 @@ def main():
         missing = [k for k in missing if k == "SERPER_API_KEY"]
     if missing:
         raise SearchAuthError(f"{', '.join(missing)}가 .env에 없습니다")
+
+    # The duplicate check is the app's own API (evaluate_client.py). Unreachable (dev
+    # server not running) or refusing the internal secret, it fails every candidate --
+    # after its searches were paid for, with each query recorded as finding nothing (two
+    # of those retire it). One read-only call before any search instead -- tried twice, as
+    # `next dev` compiles the route on its first request and that can outlast the timeout.
+    for attempt in (1, 2):
+        try:
+            evaluate_candidate({"name": "preflight", "website": None, "sku": "과자", "methodology": "preflight", "country": None})
+            break
+        except Exception as e:
+            if attempt == 2:
+                raise RuntimeError(f"앱 API에 연결할 수 없습니다 (개발 서버/INTERNAL_API_SECRET 확인): {e}") from e
+
+    conn = get_connection()
+    if run_id is None:
+        run_id = _created_run_id = create_sourcing_run(conn, BACKEND)
+    print(f"Sourcing run {run_id} (backend: {BACKEND}" + (f", focus: {FOCUS}" if FOCUS else "") + ")")
 
     today = date.today()
     budget_state = get_or_create_daily_budget(conn, BACKEND, today)
@@ -943,7 +964,7 @@ if __name__ == "__main__":
         detail = traceback.format_exc()
         print(f"[fatal] {detail}", file=sys.stderr)
         try:
-            fallback_run_id = sys.argv[1] if len(sys.argv) > 1 else None
+            fallback_run_id = sys.argv[1] if len(sys.argv) > 1 else _created_run_id
             if fallback_run_id:
                 fallback_conn = get_connection()
                 update_run_progress(

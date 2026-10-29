@@ -38,8 +38,13 @@ export type DedupCandidate = {
   website?: string | null;
 };
 
+// The Korean reading the sourcing engine appends to Japanese-only names ("ばいこう堂 (바이코도)").
+// It is a display aid, not part of the name: left in, "さぬき和三盆のばいこう堂" never
+// contained the stored name and the same shop came back under its web-shop domain.
+const KOREAN_READING = /\s*[(（][가-힣\s]+[)）]\s*$/;
+
 function normalizeName(name: string): string {
-  return name.trim().toLowerCase();
+  return name.replace(KOREAN_READING, "").trim().toLowerCase();
 }
 
 function isGuardedPartialMatch(a: string, b: string): boolean {

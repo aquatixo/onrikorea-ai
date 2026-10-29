@@ -142,6 +142,44 @@ _GENERIC_DOMAIN_PIECES = {
 }
 
 
+# Product words in a shop name ("おかき処 播磨屋" on harimaya.com) -- not in the domain.
+_GENERIC_KANA = {
+    "おかき", "せんべい", "おせんべい", "あられ", "かりんとう", "まんじゅう", "もなか", "ようかん", "だんご",
+    "クッキー", "チョコ", "チョコレート", "キャンディ", "キャンデー", "ドロップ", "ラムネ", "グミ", "ビスケット",
+    "サブレ", "おかし", "スイーツ", "ケーキ", "カステラ", "コンタクトレンズ",
+}
+
+
+def _loose_romaji(text: str) -> str:
+    """Spelling-tolerant romaji for comparing a name with a domain: no long vowels
+    (baikou = baiko, ohno = ono), no doubled consonants, m before b/p is n (hompo = honpo),
+    and the other common spelling system (tsu/tu, shi/si, chi/ti, fu/hu, ji/zi)."""
+    t = text.lower().replace("q", "").replace(" ", "")
+    for hepburn, kunrei in (("tsu", "tu"), ("shi", "si"), ("chi", "ti"), ("fu", "hu"), ("ji", "zi")):
+        t = t.replace(hepburn, kunrei)
+    t = re.sub(r"(?<=o)h(?![aiueoy])", "", t)
+    t = re.sub(r"(?<=o)[ou]|(?<=u)u|(?<=a)a|(?<=e)i|(?<=i)i", "", t)
+    t = re.sub(r"m(?=[bp])", "n", t)
+    return re.sub(r"([bcdfghjklmnprstvwz])\1", r"\1", t)
+
+
+def _kana_in_domain(name: str, romaji: str) -> bool:
+    """Every kana word of the name (2+ kana) is spelled in the domain. A shop domain can
+    name a PRODUCT instead of the shop: "さぬき和三盆のばいこう堂" on wasanbon-shop.com
+    (和三盆 = the sugar) was read "와산본" (2026-10-29 run). 三ツ矢製菓 on mitsuyaseika.co.jp
+    has no 2-kana word and is unaffected."""
+    domain = _loose_romaji(romaji)
+    for run in re.findall(r"[ぁ-んァ-ヶー]+", name):
+        for word in run.split("の"):  # 菓子のくろだ: の is a particle, not part of a name
+            if len(word) < 2 or word in _GENERIC_KANA:
+                continue
+            # ゴンチャロフ is goncharofu, the domain says goncharoff: a loanword's final u.
+            spelled = re.sub(r"u$", "", _loose_romaji(_kana_to_romaji(word).replace("N", "n")))
+            if spelled.strip() and spelled not in domain:
+                return False
+    return True
+
+
 def korean_reading(name: str, website: str | None) -> str | None:
     """The Korean pronunciation of a Japanese-only name, or None when there is nothing to add
     (the name has Latin letters, isn't Japanese, or a kanji name's domain gives no reading)."""
@@ -155,6 +193,8 @@ def korean_reading(name: str, website: str | None) -> str | None:
     if not pieces or not all(re.fullmatch(r"[a-z]+", p) for p in pieces):
         return None
     romaji = " ".join(pieces)
+    if not _kana_in_domain(name, romaji):
+        return None
     for suffix, sr in _SUFFIX_ROMAJI.items():
         if name.endswith(suffix) and not romaji.replace(" ", "").endswith(sr):
             romaji += " " + sr
