@@ -17,12 +17,43 @@ Same search(query, count) -> list of {"title","url","description"} dicts as the 
 tavily_search.py/gemini_search.py, so main.py and korea_check.py need only an import swap.
 """
 
+import re
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import parse_qs, urlparse
+
 import requests
 
 from config import SERPER_API_KEY
 from search_errors import SearchAuthError
 
 _ENDPOINT = "https://google.serper.dev/search"
+
+# Since 2026-10-30 some organic links come back as Google redirects
+# ("https://www.google.com/goto?url=CAES...", an opaque token) instead of the site itself.
+# Left as-is, every such hit was "website google.com": the duplicate check matched them all
+# to the one Brand row whose website is a Google search link, and the Korea check could not
+# see a Korean shop's domain.
+_GOOGLE_REDIRECT = re.compile(r"^https?://(?:www\.)?google\.[a-z.]+/(?:goto|url)\?", re.I)
+
+
+def _resolve_link(url: str) -> str:
+    """The real site behind a Google redirect link, or "" when Google doesn't redirect
+    (it serves a "wait" page instead -- not retried)."""
+    if not _GOOGLE_REDIRECT.match(url):
+        return url
+    # /url?q=https://... carries the target in plain sight; /goto needs one request.
+    for key in ("q", "url"):
+        target = parse_qs(urlparse(url).query).get(key, [""])[0]
+        if target.startswith(("http://", "https://")):
+            return target
+    try:
+        response = requests.get(url, allow_redirects=False, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+    except requests.RequestException:
+        return ""
+    location = response.headers.get("Location", "")
+    if location.startswith(("http://", "https://")) and not _GOOGLE_REDIRECT.match(location):
+        return location
+    return ""
 
 
 def search(query: str, count: int = 8, page: int = 1, gl: str | None = None, hl: str | None = None) -> list[dict]:
@@ -50,7 +81,14 @@ def search(query: str, count: int = 8, page: int = 1, gl: str | None = None, hl:
         raise SearchAuthError(f"Serper 크레딧이 소진되었습니다 (HTTP {response.status_code})")
     response.raise_for_status()
     organic = response.json().get("organic", [])
+    links = [r.get("link", "") for r in organic]
+    if any(_GOOGLE_REDIRECT.match(link) for link in links):
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            links = list(pool.map(_resolve_link, links))
+    # Google answers only the first couple of redirects at once and a wait page after that.
+    # An unresolved hit keeps url "": discovery drops it (no site to judge), while the Korea
+    # check still reads its title/snippet for "공식 수입원" wording.
     return [
-        {"title": r.get("title", ""), "url": r.get("link", ""), "description": r.get("snippet", "")}
-        for r in organic
+        {"title": r.get("title", ""), "url": link, "description": r.get("snippet", "")}
+        for r, link in zip(organic, links)
     ]

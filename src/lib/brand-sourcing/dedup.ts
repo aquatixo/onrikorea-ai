@@ -69,6 +69,15 @@ function coreName(name: string): string {
     .join(" ");
 }
 
+// Hosts many unrelated businesses sit on, so a shared domain says nothing about being the
+// same brand. Brand No.153's website is a Google search link: when search results came back
+// as google.com redirect links, every one of them "matched" that row by domain.
+const SHARED_HOSTS = /^(?:google\.[a-z.]+|facebook\.com|instagram\.com|linktr\.ee|youtube\.com|amazon\.[a-z.]+)$/;
+
+function isSharedHost(domain: string): boolean {
+  return SHARED_HOSTS.test(domain);
+}
+
 function isGuardedPartialMatch(a: string, b: string): boolean {
   if (a.length < MIN_PARTIAL_LENGTH || b.length < MIN_PARTIAL_LENGTH) return false;
   return a.includes(b) || b.includes(a);
@@ -192,7 +201,7 @@ export async function findDuplicates(candidate: DedupCandidate): Promise<Duplica
     // Same website domain = same company even under a different display name (e.g. a
     // rebrand, or one side using a legal suffix/subsidiary name) -- a strong enough
     // signal to auto-exclude on its own, same as an exact name match.
-    if (candidateDomain && existing.domain && candidateDomain === existing.domain) {
+    if (candidateDomain && existing.domain && candidateDomain === existing.domain && !isSharedHost(candidateDomain)) {
       matches.push(
         toMatch(
           existing,

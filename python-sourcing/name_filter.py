@@ -880,6 +880,8 @@ def guess_brand_name(title: str, url: str) -> str | None:
 # one, silently defeating the whole point of having it. Each entry takes a result dict
 # with "title"/"url"/"description" keys, same shape both callers already use.
 URL_FILTERS = [
+    # serper_search leaves url "" for a Google redirect link it could not resolve.
+    ("no_url", lambda r: not r["url"]),
     ("blocked_domain", lambda r: is_blocked_domain(r["url"])),
     ("retailer_listing", lambda r: is_retailer_listing_page(r["url"])),
     ("article_page", lambda r: is_article_page(r["url"])),
@@ -899,7 +901,7 @@ URL_FILTERS = [
 #   2. a bracketed name:     洋菓子のOEM製造【名月製菓】  (not 【公式】-type labels)
 #   3. a title piece that ends like a maker/shop name: 竹宝堂, たんばや製菓, 長崎 和泉屋
 _JP_CHARS = re.compile(r"[぀-ヿ一-鿿]")
-_JP_STOP = r"\s｜|【】\[\]()（）「」『』・、,。:：!！?？"
+_JP_STOP = r"\s｜|【】\[\]()（）「」『』・、,。:：!！?？／/"
 # Not a dash right after the company form: "小林製薬株式会社 -あったらいいなをカタチにする-"
 # is the company followed by its slogan (a dash INSIDE a name, 株式会社TEN-TWO, is fine).
 _JP_CORP_BEFORE = re.compile(rf"(?:株式会社|有限会社|合同会社)\s*(?![-–—])([^{_JP_STOP}]{{2,20}})")
@@ -916,6 +918,8 @@ _JP_TAIL = re.compile(r"\s*(公式オンラインショップ|オンラインシ
 _JP_NOT_NAMES = {
     "名古屋", "大阪", "京都", "東京", "神戸", "横浜", "札幌", "福岡", "長崎", "金沢", "奈良", "沖縄",
     "老舗", "菓匠", "菓子", "お菓子", "和菓子", "洋菓子", "銘菓", "本店", "公式", "通販", "販売", "名物",
+    # "confectioner by appointment" -- a title many shops carry: "御菓子司 鶴屋八幡" is 鶴屋八幡.
+    "御菓子司", "菓子司", "御菓子処", "菓子処",
 }
 
 
@@ -931,7 +935,8 @@ def _after_no(word: str) -> str:
 
 
 def _clean_jp(name: str) -> str:
-    name = re.sub(r"[\s　]+", " ", name).strip(" -–—|｜")
+    # A hashtag-style name ("#えご製菓") is the name without the #.
+    name = re.sub(r"[\s　]+", " ", name).strip(" -–—|｜#＃")
     return _JP_TAIL.sub("", name).strip()
 
 
@@ -970,7 +975,7 @@ def japanese_site_name(title: str | None, site_name: str | None) -> str | None:
             # "創業元禄二年" / "南部せんべい乃" / "長崎" and a trailing "-しあわせをつくるお菓子".
             # A "<product>の<name>" word keeps only the name ("えびせんべいの桂新堂" -> 桂新堂).
             for word in re.split(r"[\s\-–—]+", p):
-                word = _after_no(word)
+                word = _after_no(word.lstrip("#＃"))
                 if (
                     2 <= len(word) <= 20
                     and _JP_MAKER_END.search(word)
@@ -991,7 +996,8 @@ def japanese_site_name(title: str | None, site_name: str | None) -> str | None:
         for piece in pieces:
             words = [w for w in re.split(r"[\s:：]", re.sub(r"「[^」]*」", "", piece)) if w]
             if words and not _JP_CHARS.search(piece):
-                if len(words) == 1 and 2 <= len(words[0]) <= 20:
+                # ...but not a page name ("TOP | 鶴屋八幡").
+                if len(words) == 1 and 2 <= len(words[0]) <= 20 and words[0].lower() not in {"top", "home", "menu", "index"}:
                     return words[0]
                 continue
             for word in words:
