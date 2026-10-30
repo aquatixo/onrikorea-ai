@@ -463,6 +463,9 @@ _RESELLER_SOFT = re.compile(
     # "Distributeur de bonbons et confiseries" (Confiserie Mondoux, 2026-10-19 run).
     r"\bdistributeurs?\b|\bdistributore\b|"
     r"\bwholesale\s+(?:candy|candies|snacks?|confectionery|groceries|foods?)\b|"
+    # A wholesaler or a shop by its own company name / tagline (2026-10-29 run):
+    # "BonBons Wholesale Ltd", "North America's Largest Candy Store".
+    r"\bwholesale\s+(?:ltd|limited|inc|llc|co)\b|\bcandy\s+(?:store|shop)s?\b|\bsweet\s?shops?\b|"
     # "Dolciumi, Bevande e Forniture per Bar e Ristoranti" (Venar), "沖縄のお菓子・食品・
     # 雑貨…をお届け" (沖縄商店, an online shop reselling GODIVA) -- 2026-10-23 run.
     r"\bforniture\b|雑貨|"
@@ -527,8 +530,17 @@ def pick_brand_name(current: str, site_name: str | None, url: str) -> str:
     # A one-word site name that is just the domain ("Worldsmostfamoustaffy" -- the Shopify
     # default) is always "closest" to the domain, and replaced "Zeno's World's Most Famous
     # Taffy". It only wins over a single-word current name.
+    # A short one-word piece that is also IN the current name is the brand itself: "Shockino"
+    # lost to "Shockino - Cioccolato" (2026-10-30 run). One that isn't in it can be the parent
+    # company's site ("Charleston Chew" on tootsie.com is still Charleston Chew).
     def domain_echo(p: str) -> bool:
-        return " " not in p.strip() and _normalize_for_domain_match(p) == dom and len(current.split()) >= 2
+        word = p.strip()
+        return (
+            " " not in word
+            and _normalize_for_domain_match(p) == dom
+            and len(current.split()) >= 2
+            and (len(word) >= 15 or word.lower() not in current.lower())
+        )
 
     usable = [
         p for p in pieces

@@ -498,6 +498,82 @@ _JP_MAKES_TITLE = re.compile(r"製造|工場|自社製|製菓|本舗|本舖|総�
 _JP_CAKE = re.compile(r"(?<!パウンド)(?<!カップ)(?<!ドライ)(?<!ライス)ケーキ")
 _MIN_CAKE_HITS = 15
 _MAX_CAKE_RATIO = 0.5
+# A shop for wedding/christening favours (dragées, bomboniere, confetti), not a brand to
+# import: it sells by occasion. Measured: the deleted favour shops (Limas, Càversa, Crispo
+# Confetti) name 5-7 different occasions; no team brand or eval maker names more than 2.
+_OCCASIONS = re.compile(
+    r"\b(mariages?|bapt[êe]mes?|communions?|matrimoni[oa]?|battesim[oi]|comunion[ei]|cresim[ae]|laurea|"
+    r"bodas?|bautizos?|comuniones|wedding\s+favou?rs?|baby\s+showers?)\b",
+    re.I,
+)
+_MIN_OCCASION_KINDS = 4
+# A Japanese pâtisserie/bakery chain (EDELWEISS: ブーランジェ, パティスリー, "約80店舗を展開",
+# 2026-10-30 run) -- fresh cakes and bread from its own shops. Real makers: at most 1.
+_JP_BAKERY_CHAIN = re.compile(r"ブーランジェ|ベーカリー|パティスリー|生ケーキ|店舗を展開|店舗展開")
+_MIN_JP_BAKERY_CHAIN_HITS = 3
+
+
+# A cocoa PROCESSOR (cocoa mass, butter, powder, "cocoa preparations" for the food
+# industry), not a chocolate brand: 大東カカオ (2026-10-29 run) had 21 of those words and
+# 調製品 x10; every real maker in tests/eval_japan_sites.py has 0. English sites need the
+# industry wording too -- a chocolatier lists cocoa butter in every ingredient line.
+_COCOA_INGREDIENTS = re.compile(
+    r"カカオマス|ココアバター|ココアパウダー|cocoa\s+(?:mass|liquor|butter|powder)|cacao\s+(?:mass|butter)", re.I
+)
+_FOR_INDUSTRY = re.compile(r"調製品|原料|業務用|\bfood\s+(?:industry|manufacturers)\b|\bindustrial\b", re.I)
+
+
+# One candidate = one brand (user, 2026-10-29). Not a group or holding company over several
+# brands ("Le groupe Sucralliance", "株式会社ロワールホールディングス"), not a distributor of
+# other makers' brands ("Fabricant et distributeur de marques reconnues"), and not a
+# business-to-business supplier that names itself so -- a B2B catalogue ("Catalogue B2B
+# Choc and Co") or a hotel/restaurant supplier ("galletas ... para Hostelería"). Judged on
+# the site's own title and domain: almost every real brand also has a trade page, and that
+# page is the trade-channel signal, not a reason to drop it.
+# A group name alone isn't enough: "APOLLO Food Holdings" and "OHO GROUP" are each one
+# brand (the team works with both); a group also lists its brands ("Nos Marques").
+# Private-label wording isn't counted either: Mathez (chocolate truffles, a brand the team
+# is talking to) mentions it 13 times -- makers with their own brand often also do it.
+_GROUP_NAME = re.compile(r"\b(?:groupe?|gruppo|grupo|gruppe|holdings?)\b|ホールディングス|グループ", re.I)
+_BRAND_LIST = re.compile(
+    r"\b(?:nos\s+marques|our\s+brands|nuestras\s+marcas|i\s+nostri\s+marchi|unsere\s+marken|"
+    r"brand\s+portfolio|portfolio\s+of\s+brands|our\s+family\s+of\s+brands)\b|ブランド一覧|ブランド紹介",
+    re.I,
+)
+_BRAND_DISTRIBUTOR = re.compile(
+    r"distributeur\s+de\s+marques|distributor\s+of\s+(?:\w+\s+){0,2}brands|distribuidor\s+de\s+marcas|"
+    r"distributore\s+di\s+marchi|vertrieb\s+(?:von\s+)?(?:\w+\s+){0,2}marken",
+    re.I,
+)
+_B2B_TITLE = re.compile(
+    r"\bb2b\b|\bhoreca\b|\bfoodservice\b|\bfood\s+service\b|\bhosteler[ií]a\b|\bristorazione\b|"
+    r"pour\s+(?:les\s+)?professionnels|f[üu]r\s+(?:die\s+)?gastronomie|業務用",
+    re.I,
+)
+
+
+def _not_one_brand(profile: dict, name: str, url: str) -> tuple[str, str] | None:
+    title = profile.get("selfTitle") or ""
+    group = _GROUP_NAME.search(title) or _GROUP_NAME.search(name)
+    if group and _BRAND_LIST.search(profile.get("fullText") or ""):
+        return "multi_brand", f"그룹·지주회사 ('{group.group(0)}') — 여러 브랜드를 가진 회사라 브랜드 하나가 아님"
+    distributor = _BRAND_DISTRIBUTOR.search(profile.get("fullText") or "")
+    if distributor:
+        return "multi_brand", f"여러 브랜드를 유통하는 회사 ('{distributor.group(0)}') — 브랜드 하나가 아님"
+    b2b = _B2B_TITLE.search(title)
+    if b2b:
+        return "b2b_supplier", f"B2B 납품업체 (사이트 제목: '{b2b.group(0)}') — 소비자 브랜드가 아님"
+    if "b2b" in brand_domain_label(url):  # b2bchocandco.com: no word boundary in a domain
+        return "b2b_supplier", "B2B 납품업체 (사이트 주소에 'b2b') — 소비자 브랜드가 아님"
+    return None
+
+
+def _ingredient_supplier(text: str) -> str | None:
+    cocoa = len(_COCOA_INGREDIENTS.findall(text))
+    industry = len(_FOR_INDUSTRY.findall(text))
+    if cocoa >= 10 and industry >= 5:
+        return f"초콜릿 원료(카카오매스·코코아버터·파우더) 제조사 (원료 단어 {cocoa}회, 업무용/원료 {industry}회) — 완제품 브랜드가 아님"
+    return None
 
 
 def _machinery_title(title: str) -> str | None:
@@ -568,6 +644,9 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
         return False, "not_a_producer", f"사이트 제목이 기계·설비 제조사 ('{machinery}') — 식품 제조사가 아님"
     if food and _JP_WHOLESALE_TITLE.search(title) and not _JP_MAKES_TITLE.search(title):
         return False, "reseller_site", f"사이트 제목이 도매·상품기획 회사 ('{_JP_WHOLESALE_TITLE.search(title).group(0)}') — 제조사가 아님"
+    not_one_brand = _not_one_brand(profile, name, url)
+    if not_one_brand:
+        return False, not_one_brand[0], not_one_brand[1]
     if profile.get("thin"):
         # Only the title/meta description to go on, so all three must be stated outright.
         if profile["thinPublisher"]:
@@ -596,6 +675,9 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
         middleman = _japanese_middleman(profile["fullText"])
         if middleman:
             return False, middleman[0], middleman[1]
+        ingredient = _ingredient_supplier(profile["fullText"]) if food else None
+        if ingredient:
+            return False, "not_a_producer", ingredient
         short = _short_shelf_life(profile) if food else None
         if short:
             return False, "shelf_life_short", short
@@ -616,6 +698,9 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
     middleman = _japanese_middleman(profile["fullText"])
     if middleman:
         return False, middleman[0], middleman[1]
+    ingredient = _ingredient_supplier(profile["fullText"]) if food else None
+    if ingredient:
+        return False, "not_a_producer", ingredient
     oem = len(_OEM_WORDS.findall(profile["fullText"]))
     if oem >= _MIN_OEM_HITS or _OEM_WORDS.search(profile.get("pageTitle") or ""):
         return False, "oem_maker", f"OEM·위탁생산 공장 (언급 {oem}회) — 자체 브랜드가 아니라 다른 회사 제품을 만드는 곳"
@@ -644,6 +729,12 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
     cake = len(_JP_CAKE.findall(profile["fullText"]))
     if food and cake >= _MIN_CAKE_HITS and cake >= _MAX_CAKE_RATIO * shelf:
         return False, "fresh_bakery", f"케이크 가게 (ケーキ {cake}회 vs 보존식품 단어 {shelf}) — 생케이크는 수입 불가"
+    bakery_chain = len(_JP_BAKERY_CHAIN.findall(profile["fullText"]))
+    if food and bakery_chain >= _MIN_JP_BAKERY_CHAIN_HITS:
+        return False, "fresh_bakery", f"제과점·베이커리 체인 (ブーランジェ/パティスリー/店舗展開 {bakery_chain}회) — 생과자·빵 위주"
+    occasions = {m.group(1).lower() for m in _OCCASIONS.finditer(profile["fullText"])}
+    if food and len(occasions) >= _MIN_OCCASION_KINDS:
+        return False, "favor_shop", f"결혼식·세례식 답례품 가게 (행사 {len(occasions)}종: {', '.join(sorted(occasions)[:4])}) — 수입 브랜드가 아님"
     short = _short_shelf_life(profile) if food else None
     if short:
         return False, "shelf_life_short", short
@@ -706,10 +797,14 @@ def resolved_name(profile: dict, name: str, url: str) -> str:
     # title doesn't even contain is a search-title fragment ("大口注文" for お菓子屋ニャンライズ),
     # and a Japanese title starts with the shop's own name.
     if _JP_TITLE.search(title) and not has_latin_letters(name) and name not in title:
-        first = re.split(r"[\s　｜|【】]", title.strip())[0]
+        # Not the page's own name: "トップページ-いわてFOOD＆CRAFT" starts with "top page".
+        rest = re.sub(r"^(?:トップページ|トップ|ホーム|TOP|HOME)\s*[-－|｜:：]?\s*", "", title.strip(), flags=re.I)
+        first = re.split(r"[\s　｜|【】]", rest)[0]
         if 2 <= len(first) <= 20:
             return first
-    picked = pick_brand_name(name, profile.get("siteName"), url)
+    # Not the page <title> as a stand-in for a missing og:site_name: on a product page it names
+    # the PARENT company ("Munchy's Topmix" -> "URC Malaysia", "Charleston Chew" -> "Tootsie").
+    picked = _strip_page_words(pick_brand_name(name, profile.get("siteName"), url))
     if _unusable_name(picked) or _category_in_place(picked):
         better = _name_from_title(f"{title} | {profile.get('siteName') or ''}", picked, url)
         if better:
@@ -750,6 +845,29 @@ _NOT_COMPANY_WORDS = {
 }
 # Splits a title into pieces, also on a dash glued to Japanese text ("リブラン-Lis Blanc-話題の").
 _TITLE_PIECES = re.compile(r"\s*[|｜–—:·»【】「」]\s*|\s+-\s+|(?<=[぀-ヿ一-鿿])-|-(?=[぀-ヿ一-鿿])")
+
+
+# Page words around a name (2026-10-29 run): a menu item glued on by the search snippet
+# ("Cotswold Fudge CoStockists") and a page-type prefix ("B2B Choc and Co", the trade
+# catalogue of Choc and Co). Only navigation words no brand name ends with.
+_GLUED_MENU_WORD = re.compile(r"(?<=[a-z])(?:Stockists|Contact|Login|Basket|Cart|Menu|Home)$")
+_PAGE_PREFIX = re.compile(r"^(?:catalogue|catalogo|catálogo|katalog|b2b|espace\s+pro)\s+", re.I)
+# ... and a site-type suffix from the page title ("McVITIES Official", "EDELWEISS エーデル
+# ワイス オフィシャルサイト").
+_SITE_SUFFIX = re.compile(
+    r"\s*(?:official(?:\s+(?:site|website|store|shop))?|online\s+(?:shop|store)|"
+    r"オフィシャルサイト|オフィシャルショップ|公式サイト|公式オンラインショップ|公式通販サイト|公式通販|オンラインショップ)$",
+    re.I,
+)
+# A Latin name followed by its katakana reading: "EDELWEISS エーデルワイス" -> EDELWEISS.
+_LATIN_THEN_KANA = re.compile(r"^([A-Za-z][A-Za-z0-9&'.\- ]*?)\s+[ァ-ヶー・]+$")
+
+
+def _strip_page_words(name: str) -> str:
+    stripped = _SITE_SUFFIX.sub("", _PAGE_PREFIX.sub("", _GLUED_MENU_WORD.sub("", name))).strip()
+    latin = _LATIN_THEN_KANA.match(stripped)
+    stripped = latin.group(1).strip() if latin else stripped
+    return stripped if len(stripped) >= 2 else name
 
 
 def _unusable_name(name: str) -> bool:

@@ -94,7 +94,8 @@ SITES = [
     ("producer", "food", "クッキー", "https://www.mitsuyaseika.co.jp/"),
     ("producer", "food", "会社概要", "https://ginso.co.jp/"),
     ("producer", "food", "佐々木製菓", "https://www.sasakiseika.co.jp/"),
-    ("producer", "food", "株式会社ロワールホールディングス", "http://loire-conf.co.jp/"),
+    # A holding company over several brands (ブランド紹介): one candidate = one brand (user, 2026-10-29).
+    ("junk", "food", "株式会社ロワールホールディングス", "http://loire-conf.co.jp/"),
     ("producer", "food", "会社概要", "https://www.ten-two.jp/"),
 ]
 

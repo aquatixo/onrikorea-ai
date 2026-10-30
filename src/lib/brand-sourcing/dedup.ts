@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { similarityRatio } from "@/lib/brand-sourcing/similarity";
 import { extractDomain } from "@/lib/extract-domain";
+import { toKoreanCountryName } from "@/lib/brand-sourcing/country-names-ko";
 
 const FUZZY_CUTOFF = 0.84;
 const MIN_PARTIAL_LENGTH = 5;
@@ -47,6 +48,27 @@ function normalizeName(name: string): string {
   return name.replace(KOREAN_READING, "").trim().toLowerCase();
 }
 
+// Words that say what kind of business it is, not which one: "Chocolaterie Monbana" is the
+// brand "Monbana" (No.574, already contacted), but with no country/SKU stored on that row
+// the partial match was only a low-confidence hint and the candidate reached the review list.
+const GENERIC_NAME_WORDS = new Set([
+  "chocolaterie", "chocolatier", "chocolatiers", "chocolat", "chocolate", "chocolates", "cioccolato",
+  "cioccolateria", "schokolade", "confiserie", "confectionery", "confetteria", "biscuiterie",
+  "biscuits", "pasticceria", "patisserie", "pâtisserie", "dolciaria", "dolci", "candy", "candies", "sweets",
+  "maison", "fabbrica", "manufaktur", "company", "co", "inc", "ltd", "llc", "srl", "spa", "sa", "sas", "sl",
+  "gmbh", "ag", "the", "la", "le", "les", "el",
+]);
+
+/** The name without business-type words and accents ("Chocolaterie Monbana" -> "monbana"). */
+function coreName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .split(/[\s,&.\-–—|]+/)
+    .filter((w) => w && !GENERIC_NAME_WORDS.has(w))
+    .join(" ");
+}
+
 function isGuardedPartialMatch(a: string, b: string): boolean {
   if (a.length < MIN_PARTIAL_LENGTH || b.length < MIN_PARTIAL_LENGTH) return false;
   return a.includes(b) || b.includes(a);
@@ -63,8 +85,10 @@ function crossCheckConfidence(
   candidate: DedupCandidate,
   existing: { country: string | null; sku: string | null }
 ): { confidence: "high" | "low"; reason: string } {
-  const candidateCountry = candidate.country?.trim().toLowerCase();
-  const existingCountry = existing.country?.trim().toLowerCase();
+  // One language: the engine sends "Italy", Brand rows say "이탈리아" -- compared raw, every
+  // match read as "country differs".
+  const candidateCountry = candidate.country?.trim() ? toKoreanCountryName(candidate.country).toLowerCase() : undefined;
+  const existingCountry = existing.country?.trim() ? toKoreanCountryName(existing.country).toLowerCase() : undefined;
   const candidateSku = candidate.sku?.trim().toLowerCase();
   const existingSku = existing.sku?.trim().toLowerCase();
 
@@ -183,13 +207,34 @@ export async function findDuplicates(candidate: DedupCandidate): Promise<Duplica
       continue;
     }
 
+    // Same name once the business-type words are gone = same brand -- unless both rows
+    // name a country and they differ (a "Chocolaterie Morin" in France and a "Confiserie
+    // Morin" in Canada are two family businesses).
+    const core = coreName(candidateName);
+    if (core.length >= 4 && core === coreName(existingName)) {
+      // Same language on both sides: the engine sends "France", Brand rows say "프랑스".
+      const a = candidate.country?.trim() ? toKoreanCountryName(candidate.country) : null;
+      const b = existing.country?.trim() ? toKoreanCountryName(existing.country) : null;
+      if (!a || !b || a === b) {
+        matches.push(
+          toMatch(existing, "partial", 0.95, "high", "Same name apart from a business-type word (Chocolaterie, Company...)")
+        );
+        continue;
+      }
+    }
+
     if (isGuardedPartialMatch(candidateName, existingName)) {
       const { confidence, reason } = crossCheckConfidence(candidate, existing);
       matches.push(toMatch(existing, "partial", 0.9, confidence, reason));
       continue;
     }
 
-    const score = similarityRatio(candidateName, existingName);
+    // Similar in full AND without the business-type words: in full, "Chocolaterie Monbana"
+    // and "Chocolaterie Morin" scored above the cutoff on the shared "Chocolaterie" alone.
+    // The shorter names alone are not enough either ("bordier" ~ "border", "sweeto" ~ "sweet").
+    const existingCore = coreName(existingName);
+    const fullScore = similarityRatio(candidateName, existingName);
+    const score = core && existingCore ? Math.min(fullScore, similarityRatio(core, existingCore)) : fullScore;
     if (score >= FUZZY_CUTOFF) {
       const { confidence, reason } = crossCheckConfidence(candidate, existing);
       matches.push(toMatch(existing, "fuzzy", score, confidence, reason));

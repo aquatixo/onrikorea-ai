@@ -72,7 +72,8 @@ _MARKERS = {
     ],
     "Belgium": [
         re.compile(r"\+32\b"),
-        re.compile(r"\b(?:Belgique|Belgi[eë]|Belgium|Belgien)\b"),
+        # Also the adjective: "Fabricant belge de chocolat" (Choc and Co, 2026-10-29 run).
+        re.compile(r"\b(?:Belgique|Belgi[eë]|Belgium|Belgien|belges?|Belgian)\b"),
         re.compile(r"\b(?:Bruxelles|Brussel|Brussels|Antwerpen|Anvers|Li[èe]ge|Gent|Gand|Namur)\b"),
     ],
     "Canada": [

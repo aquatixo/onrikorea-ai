@@ -171,6 +171,9 @@ WORDS = [
 ]
 
 RESELLER = [
+    ("b.a. Sweetie Candy Company — North America's Largest Candy Store in Cleveland, OH", True),
+    ("Home - BonBons Wholesale Ltd", True),
+    ("Grandpa's Candy Shop | Handmade fudge maker since 1950", False),  # says it makes them
     ("Distributeur de bonbons et confiseries - Confiserie Mondoux", True),
     ("Acquista Vini e Liquori di Qualità a Torino - Damarco Enoteca", True),
     ("Venar Srl | Dolciumi, Bevande e Forniture per Bar e Ristoranti", True),
@@ -217,6 +220,7 @@ FOUNDED = [
 ]
 
 COUNTRY = [
+    ("Fabricant belge de chocolat artisanal depuis 1964. Tél +32 2 123 45 67", "Belgium"),
     ("Buffalo, NY 14201. Prices $12. Call 1-800-555-1234", "USA"),
     ("Tel 075-561-1234 価格 $12", None),  # Japanese phone, not US
     ("P.IVA 01234567890 Tel 055 123 4567 € 12", None),  # Italian VAT/phone, not UK/US
@@ -352,6 +356,19 @@ JUDGE = [
     (_profile(selfTitle="山田製菓株式会社 | せんべい卸売・直売"), "ok"),  # a maker suffix says it too
     (_profile(selfTitle="Oven Baked Biscuits | Fresh From Our Ovens"), "ok"),  # a bakery's oven
     (_profile(selfTitle="Gumball Machine | Machines"), "ok"),  # singular + plural is one word
+    # One candidate = one brand (user, 2026-10-29): groups with a brand list, brand
+    # distributors, B2B suppliers; cocoa processors are not chocolate brands.
+    (_profile(selfTitle="Le groupe Sucralliance - Confiserie", fullText="Nos Marques " + "x" * 3000), "multi_brand"),
+    (_profile(selfTitle="APOLLO Snacks | APOLLO Food Holdings Berhad"), "ok"),  # one brand, no brand list
+    (_profile(fullText="Fabricant et distributeur de marques reconnues " + "x" * 3000), "multi_brand"),
+    (_profile(selfTitle="Fabricant de chocolat belge | Catalogue B2B Choc and Co"), "b2b_supplier"),
+    (_profile(selfTitle="Fábrica de galletas para Hostelería y Alimentación"), "b2b_supplier"),
+    (_profile(fullText="カカオマス ココアバター ココアパウダー " * 7 + "調製品 原料 " * 3 + "x" * 3000), "not_a_producer"),
+    (_profile(fullText="Ingredients: cocoa butter, cocoa mass. " * 12 + "x" * 3000), "ok"),  # a chocolatier's labels
+    # Wedding/christening favour shops and a Japanese pâtisserie chain (2026-10-30 run).
+    (_profile(fullText="Dragées pour mariages, baptêmes, communions. Contenants. Battesimo " + "x" * 3000), "favor_shop"),
+    (_profile(fullText="Our chocolates for weddings and the holidays: mariage gift box " + "x" * 3000), "ok"),  # one occasion
+    (_profile(fullText="ブーランジェ パティスリー ブランド約80店舗を展開 " + "x" * 3000), "fresh_bakery"),
     (_profile(fullText="ケーキ" * 57 + "x" * 3000, shelfHits=77), "fresh_bakery"),
     (_profile(fullText="ケーキ" * 12 + "パウンドケーキ" * 20 + "x" * 3000, shelfHits=29), "ok"),
 ]
@@ -380,6 +397,13 @@ RESOLVE = [
     ("Nougat de Montélimar | Free Shipping Worldwide", None, "Nougat de Montélimar", "https://nougat.fr/", "Nougat de Montélimar"),
     ("Amaretti di Saronno | Privacy Policy", None, "Amaretti di Saronno", "https://amaretti.it/", "Amaretti di Saronno"),
     ("Chocolate Bars | McVITIES Official", None, "Chocolate Bars ...", "https://www.mcvities.co.uk/", "McVITIES"),
+    ("Cotswold Fudge Co", None, "Cotswold Fudge CoStockists", "https://cotswoldfudgeco.co.uk/", "Cotswold Fudge Co"),  # glued menu word
+    ("EDELWEISS エーデルワイス オフィシャルサイト", None, "EDELWEISS エーデルワイス オフィシャルサイト",
+     "https://www.edelweiss.co.jp/", "EDELWEISS"),  # Japanese "official site" + katakana reading
+    ("Shockino Cioccolato, laboratorio artigianale", "Shockino - Cioccolato", "Shockino Rivenditori cioccolato",
+     "https://www.shockino.it/", "Shockino"),  # a short one-word brand is not a squashed domain
+    ("Fabricant de chocolat belge | Catalogue B2B Choc and Co", "B2B Choc and Co", "Catalogue B2B Choc and Co",
+     "https://www.b2bchocandco.com/", "Choc and Co"),  # page-type prefix
     ("Premiata Fabbrica di Cioccolato Zeno 1926 Srl", None, "Premiata Fabbrica di Cioccolato Zeno 1926 Srl",
      "https://www.zeno1926.it/", "Premiata Fabbrica di Cioccolato Zeno 1926 Srl"),  # long real name kept
 ]
