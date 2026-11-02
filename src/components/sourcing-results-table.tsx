@@ -13,6 +13,12 @@ import { ExpandableText } from "@/components/expandable-text";
 import { WebsiteLink } from "@/components/website-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
@@ -30,12 +36,16 @@ const VERDICT_STYLE: Record<string, string> = {
  * - "review" (/brands/sourcing): download, add to Brands, delete -- and a link to the
  *   deleted candidates.
  * - "hidden" (/brands/sourcing/hidden): the deleted ("hidden") candidates, with restore and
- *   a link back to the review list.
+ *   a link back to the review list. That list is paged: `candidates` is one page,
+ *   `totalCount` all of them, `rowOffset` the rows before this page (for the No column).
  */
 export function SourcingResultsTable({
   mode = "review",
   lastRunAt,
   candidates,
+  totalCount = candidates.length,
+  rowOffset = 0,
+  toolbarStart,
   hiddenCount = 0,
   verdictLabel,
   locale,
@@ -43,6 +53,9 @@ export function SourcingResultsTable({
   mode?: "review" | "hidden";
   lastRunAt: Date | null;
   candidates: SourcingCandidate[];
+  totalCount?: number;
+  rowOffset?: number;
+  toolbarStart?: React.ReactNode;
   hiddenCount?: number;
   verdictLabel: Record<string, string>;
   locale: Locale;
@@ -58,6 +71,8 @@ export function SourcingResultsTable({
   // so a skip can be checked instead of just counted.
   const [skipped, setSkipped] = React.useState<{ name: string; reason: string }[]>([]);
   const headerCheckboxRef = React.useRef<HTMLInputElement>(null);
+  const downloadFormRef = React.useRef<HTMLFormElement>(null);
+  const exportHref = mode === "hidden" ? "/api/brands/sourcing-export?hidden=1" : "/api/brands/sourcing-export";
 
   const selectableCount = candidates.length;
   const allSelected = selectableCount > 0 && selected.size === selectableCount;
@@ -135,10 +150,18 @@ export function SourcingResultsTable({
   return (
     <div className="space-y-3">
       {confirmDialog}
+      {/* "선택 다운로드" posts the ticked ids (too many for a URL, as in Brands); the response
+          is an attachment, so the page stays put. */}
+      <form ref={downloadFormRef} method="post" action="/api/brands/sourcing-export" className="hidden">
+        {mode === "hidden" && <input type="hidden" name="hidden" value="1" />}
+        {[...selected].map((id) => (
+          <input key={id} type="hidden" name="ids" value={id} />
+        ))}
+      </form>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-medium">
-            {mode === "hidden" ? t.hiddenCount(candidates.length) : t.resultsTitle(candidates.length)}
+            {mode === "hidden" ? t.hiddenCount(totalCount) : t.resultsTitle(totalCount)}
           </p>
           {mode === "review" && lastRunAt && (
             <p className="text-xs text-muted-foreground">
@@ -150,6 +173,27 @@ export function SourcingResultsTable({
           {selected.size > 0 && (
             <span className="text-sm font-medium text-muted-foreground">{t.selectedCount(selected.size)}</span>
           )}
+          {toolbarStart}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="outline">
+                  <Download className="size-4" />
+                  {t.downloadExcel}
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem render={<a href={exportHref}>{dict.brands.downloadAll}</a>} />
+              {/* Greyed out until something is ticked. */}
+              <DropdownMenuItem
+                disabled={selected.size === 0}
+                onClick={() => downloadFormRef.current?.requestSubmit()}
+              >
+                {dict.brands.downloadSelected}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {mode === "hidden" ? (
             <>
               <Button disabled={isPending} onClick={handleRestoreSelected}>
@@ -169,16 +213,6 @@ export function SourcingResultsTable({
             </>
           ) : (
             <>
-              <Button
-                variant="outline"
-                nativeButton={false}
-                render={
-                  <a href="/api/brands/sourcing-export">
-                    <Download className="size-4" />
-                    {t.downloadExcel}
-                  </a>
-                }
-              />
               <Button disabled={isPending} onClick={handleAddSelected}>
                 <Plus className="size-4" />
                 {isPending ? t.addingSelected : t.addSelected}
@@ -271,7 +305,7 @@ export function SourcingResultsTable({
                   <TableCell className="sticky left-[44px] z-10 border-r border-border bg-card align-top font-medium">
                     <ExpandableText text={c.name} />
                   </TableCell>
-                  <TableCell className="align-top text-muted-foreground">{i + 1}</TableCell>
+                  <TableCell className="align-top text-muted-foreground">{rowOffset + i + 1}</TableCell>
                   <TableCell
                     className="truncate align-top text-xs text-muted-foreground"
                     title={c.methodology ?? undefined}
