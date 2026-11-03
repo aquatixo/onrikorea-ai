@@ -44,8 +44,10 @@ export type DedupCandidate = {
 // contained the stored name and the same shop came back under its web-shop domain.
 const KOREAN_READING = /\s*[(（][가-힣\s]+[)）]\s*$/;
 
-function normalizeName(name: string): string {
-  return name.replace(KOREAN_READING, "").trim().toLowerCase();
+// An apostrophe is spelling, not a different name: "Walker's Shortbread" is the brand
+// "Walkers Shortbread" (2026-11-03 run).
+export function normalizeName(name: string): string {
+  return name.replace(KOREAN_READING, "").replace(/['’`]/g, "").trim().toLowerCase();
 }
 
 // Words that say what kind of business it is, not which one: "Chocolaterie Monbana" is the
@@ -74,8 +76,29 @@ function coreName(name: string): string {
 // as google.com redirect links, every one of them "matched" that row by domain.
 const SHARED_HOSTS = /^(?:google\.[a-z.]+|facebook\.com|instagram\.com|linktr\.ee|youtube\.com|amazon\.[a-z.]+)$/;
 
-function isSharedHost(domain: string): boolean {
+export function isSharedHost(domain: string): boolean {
   return SHARED_HOSTS.test(domain);
+}
+
+// A country, language or shop subdomain is the same company's site: us.walkersshortbread.com
+// is walkersshortbread.com (existing brand Walkers Shortbread came back, 2026-11-03 run).
+// Same prefixes python-sourcing/name_filter.py's brand_domain_label strips. "ab.co.uk" keeps
+// its "ab": what's left after it would only be a country suffix.
+const SITE_PREFIX = /^(?:www\d*|shop|store|m|online|boutique|eshop|[a-z]{2})$/;
+const SECOND_LEVEL = new Set(["co", "com", "or", "ne", "ac", "go", "org", "net", "gr", "ed"]);
+
+export function siteDomain(domain: string): string {
+  const labels = domain.split(".");
+  while (labels.length > 2 && SITE_PREFIX.test(labels[0]) && !(labels.length === 3 && SECOND_LEVEL.has(labels[1]))) {
+    labels.shift();
+  }
+  return labels.join(".");
+}
+
+/** The website's domain for "same company?" checks, or undefined when it can't tell. */
+export function matchDomain(website: string | null | undefined): string | undefined {
+  const domain = extractDomain(website);
+  return domain && !isSharedHost(domain) ? siteDomain(domain) : undefined;
 }
 
 function isGuardedPartialMatch(a: string, b: string): boolean {
@@ -150,7 +173,7 @@ function toMatch(
  */
 export async function findDuplicates(candidate: DedupCandidate): Promise<DuplicateMatch[]> {
   const candidateName = normalizeName(candidate.name);
-  const candidateDomain = extractDomain(candidate.website) ?? null;
+  const candidateDomain = matchDomain(candidate.website) ?? null;
 
   const [existingBrands, existingCandidates] = await Promise.all([
     db.brand.findMany({
@@ -167,7 +190,7 @@ export async function findDuplicates(candidate: DedupCandidate): Promise<Duplica
       country: b.country,
       sku: b.sku,
       sourceNo: b.sourceNo,
-      domain: b.websiteDomain,
+      domain: b.websiteDomain && !isSharedHost(b.websiteDomain) ? siteDomain(b.websiteDomain) : null,
     })),
     ...existingCandidates.map((c) => ({
       source: "candidate" as const,
@@ -176,7 +199,7 @@ export async function findDuplicates(candidate: DedupCandidate): Promise<Duplica
       country: c.country,
       sku: c.sku,
       sourceNo: null,
-      domain: extractDomain(c.website) ?? null,
+      domain: matchDomain(c.website) ?? null,
     })),
   ];
 
@@ -201,7 +224,7 @@ export async function findDuplicates(candidate: DedupCandidate): Promise<Duplica
     // Same website domain = same company even under a different display name (e.g. a
     // rebrand, or one side using a legal suffix/subsidiary name) -- a strong enough
     // signal to auto-exclude on its own, same as an exact name match.
-    if (candidateDomain && existing.domain && candidateDomain === existing.domain && !isSharedHost(candidateDomain)) {
+    if (candidateDomain && existing.domain && candidateDomain === existing.domain) {
       matches.push(
         toMatch(
           existing,

@@ -150,6 +150,29 @@ _GENERIC_KANA = {
 }
 
 
+# A domain that opens or ends with a product word names the product, not the company,
+# unless the name has that product in it too (扇雀飴本舗 on senjakuame.co.jp is fine):
+# 日進製菓 on ameyasan.co.jp ("candy shop") was read "아메야산 세이카", and 井関食品 on
+# ameiseki.jp "아메이세키" (2026-11-02 run). No reading beats a wrong one.
+_PRODUCT_ROMAJI = {
+    "ame": ("飴", "あめ", "アメ"),
+    "okashi": ("菓子", "おかし"),
+    "kashi": ("菓子", "かし"),
+    "senbei": ("煎餅", "せんべい"),
+    "okaki": ("おかき",),
+    "arare": ("あられ", "霰"),
+    "ume": ("梅", "うめ", "ウメ"),  # 上間菓子店 on amaume.co.jp (甘梅, sweet plum)
+}
+
+
+def _domain_names_product(name: str, romaji: str) -> bool:
+    flat = romaji.replace(" ", "")
+    return any(
+        (flat.startswith(word) or flat.endswith(word)) and not any(s in name for s in spellings)
+        for word, spellings in _PRODUCT_ROMAJI.items()
+    )
+
+
 def _loose_romaji(text: str) -> str:
     """Spelling-tolerant romaji for comparing a name with a domain: no long vowels
     (baikou = baiko, ohno = ono), no doubled consonants, m before b/p is n (hompo = honpo),
@@ -193,7 +216,7 @@ def korean_reading(name: str, website: str | None) -> str | None:
     if not pieces or not all(re.fullmatch(r"[a-z]+", p) for p in pieces):
         return None
     romaji = " ".join(pieces)
-    if not _kana_in_domain(name, romaji):
+    if not _kana_in_domain(name, romaji) or _domain_names_product(name, romaji):
         return None
     for suffix, sr in _SUFFIX_ROMAJI.items():
         if name.endswith(suffix) and not romaji.replace(" ", "").endswith(sr):

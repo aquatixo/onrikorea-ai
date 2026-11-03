@@ -234,6 +234,8 @@ GUESS_NAME = [
     ("Walkers Shortbread Ltd - Scotland's favourite", "https://www.walkersshortbread.com/", "Walkers Shortbread Ltd"),
     ("Pasticceria Fraccaro - Since 1932", "https://www.fraccarospumadoro.it/", "Pasticceria Fraccaro"),
     ("Lebkuchen-Schmidt | Nürnberger Lebkuchen", "https://www.lebkuchen-schmidt.com/", "Lebkuchen-Schmidt"),
+    ("Our Partner Stores I Thorntons", "https://www.thorntons.com/", "Thorntons"),  # "I" typed for "|"
+    ("I Love Sugar Candy", "https://www.ilovesugar.com/", "I Love Sugar Candy"),  # a leading "I" is a word
 ]
 
 PICK_NAME = [
@@ -259,6 +261,15 @@ JP_NAME = [
     ("【さぬき和三盆のばいこう堂】公式オンラインショップ", "ばいこう堂"),  # <product>の<name> in brackets
     ("【鶴の子本舗】公式", "鶴の子本舗"),  # の inside the name: not cut to 子本舗
     ("【森の菓子店】", "森の菓子店"),
+    # 2026-11-02 run: a slogan before the company, 食品 as a company ending.
+    ("【公式】おいしさはやさしさ UHA味覚糖", "UHA味覚糖"),
+    ("【公式サイト】素材と製法にこだわる伝統の手作り飴 地釜本作りの井関食品", "井関食品"),
+    ("健康食品 | 通販", None),
+    # 2026-11-03 run: a lead-in and a product in front of the company.
+    ("沖縄お土産はスッパイマン上間菓子店", "上間菓子店"),
+    ("ヨックモック本店", "ヨックモック本店"),  # nothing left after the katakana: stays whole
+    ("ロイズ工房 | 北海道", "ロイズ工房"),
+    ("カステラ本家福砂屋", "本家福砂屋"),  # the product カステラ goes
 ]
 
 DOMAIN_LABEL = [
@@ -296,6 +307,10 @@ READING = [
     ("おかき処 播磨屋", "https://harimaya.com/", "하리마야"),  # おかき is a product word
     ("おおの製菓", "https://www.ohno-seika.co.jp/", "오노 세이카"),  # ohno = oono
     ("つるや本舗", "https://www.turuya-honpo.jp/", "두루야 혼포"),  # kunrei spelling tu = tsu
+    ("日進製菓", "https://www.ameyasan.co.jp/", None),  # domain says "candy shop", not 日進
+    ("井関食品", "https://ameiseki.jp/", None),  # ame (candy) + iseki
+    ("扇雀飴本舗", "https://www.senjakuame.co.jp/", "센자쿠아메 혼포"),  # 飴 is in the name too
+    ("上間菓子店", "https://www.amaume.co.jp/", None),  # amaume = 甘梅, the product
 ]
 
 CATEGORY = [

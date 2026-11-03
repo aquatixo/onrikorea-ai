@@ -525,7 +525,7 @@ def pick_brand_name(current: str, site_name: str | None, url: str) -> str:
     # Split only on separators with whitespace around them ("A - B", "A | B", "A » B"):
     # guess_brand_name's splitter also cuts a hyphenated name like "Saint-Malo" in half.
     pieces = [site_name.strip()] + [
-        p.strip() for p in re.split(r"\s+[|\-–—:·»]\s+|\s*[｜»]\s*", site_name) if p.strip()
+        p.strip() for p in re.split(r"\s+[|\-–—:·»I]\s+|\s*[｜»]\s*", site_name) if p.strip()
     ]
     # A one-word site name that is just the domain ("Worldsmostfamoustaffy" -- the Shopify
     # default) is always "closest" to the domain, and replaced "Zeno's World's Most Famous
@@ -815,7 +815,9 @@ def generic_overlap_only(name: str, url: str) -> bool:
 # scored as a single "brand name" candidate.
 # An ASCII hyphen only splits with spaces around it: "Lebkuchen-Schmidt", "Saint-Malo",
 # "bean-to-bar" are one word ("Lebkuchen-Schmidt" used to become "Schmidt").
-_TITLE_SEPARATORS = re.compile(r"\s*[|–—:·｜－：・]\s*|\s+-\s+")
+# A capital "I" between spaces is a pipe typed as a letter: "Our Partner Stores I Thorntons"
+# (2026-11-02 run) is the page "Our Partner Stores" on Thorntons' site.
+_TITLE_SEPARATORS = re.compile(r"\s*[|–—:·｜－：・]\s*|\s+-\s+|\s+I\s+")
 
 _BOILERPLATE_PARTS = _GENERIC_TITLES | {
     "official site", "official website", "online store", "welcome to", "buy", "product",
@@ -908,7 +910,7 @@ _JP_CORP_BEFORE = re.compile(rf"(?:株式会社|有限会社|合同会社)\s*(?!
 _JP_CORP_AFTER = re.compile(rf"([^{_JP_STOP}]{{2,20}}?)\s*(?:株式会社|有限会社|合同会社|（株）|\(株\)|㈱)")
 _JP_BRACKET = re.compile(r"【([^】]{2,20})】")
 _JP_LABEL = re.compile(r"^(公式|公式サイト|公式通販|公式オンラインショップ|オンラインショップ|通販|重要|お知らせ|新着|NEW)$", re.I)
-_JP_MAKER_END = re.compile(r"(製菓|本舗|本舖|総本家|総本店|本店|堂|屋|や|庵|亭|舗|工房|製作所|産業|菓子店|菓子司)$")
+_JP_MAKER_END = re.compile(r"(製菓|本舗|本舖|総本家|総本店|本店|堂|屋|や|庵|亭|舗|工房|製作所|産業|食品|菓子店|菓子司)$")
 _JP_TAIL = re.compile(r"\s*(公式オンラインショップ|オンラインショップ|公式通販サイト|公式通販|通販サイト|公式サイト|オフィシャルサイト|公式|official\s*site)\s*$", re.I)
 
 
@@ -920,6 +922,8 @@ _JP_NOT_NAMES = {
     "老舗", "菓匠", "菓子", "お菓子", "和菓子", "洋菓子", "銘菓", "本店", "公式", "通販", "販売", "名物",
     # "confectioner by appointment" -- a title many shops carry: "御菓子司 鶴屋八幡" is 鶴屋八幡.
     "御菓子司", "菓子司", "御菓子処", "菓子処",
+    # 食品 ends a company name (井関食品) but these are kinds of food.
+    "食品", "健康食品", "自然食品", "冷凍食品", "加工食品", "輸入食品",
 }
 
 
@@ -932,6 +936,24 @@ def _after_no(word: str) -> str:
         return word
     tail = word.split("の")[-1]
     return tail if tail in _JP_NOT_NAMES or len(_JP_MAKER_END.sub("", tail)) >= 2 else word
+
+
+# "沖縄お土産はスッパイマン上間菓子店" (2026-11-03 run): an "<X>は" lead-in, then the product
+# (スッパイマン, katakana) in front of the company (上間菓子店). は only counts after a kanji
+# or katakana, so a hiragana name with は in it is left alone.
+_JP_TOPIC = re.compile(r"(?<=[一-鿿々ァ-ヶー])は")
+_JP_KATAKANA_LEAD = re.compile(r"^[ァ-ヶー]{3,}(?=[一-鿿々])")
+
+
+def _company_part(word: str) -> str:
+    """The company name at the end of a word that also carries a lead-in or a product name.
+    The katakana is only dropped when a real name is left (2+ characters before the maker
+    ending): ロイズ工房 / ヨックモック本店 / マルト製菓 stay whole."""
+    word = _JP_TOPIC.split(word)[-1]
+    rest = _JP_KATAKANA_LEAD.sub("", word)
+    if rest != word and _JP_MAKER_END.search(rest) and len(_JP_MAKER_END.sub("", rest)) >= 2:
+        return rest
+    return word
 
 
 def _clean_jp(name: str) -> str:
@@ -975,7 +997,7 @@ def japanese_site_name(title: str | None, site_name: str | None) -> str | None:
             # "創業元禄二年" / "南部せんべい乃" / "長崎" and a trailing "-しあわせをつくるお菓子".
             # A "<product>の<name>" word keeps only the name ("えびせんべいの桂新堂" -> 桂新堂).
             for word in re.split(r"[\s\-–—]+", p):
-                word = _after_no(word.lstrip("#＃"))
+                word = _company_part(_after_no(word.lstrip("#＃")))
                 if (
                     2 <= len(word) <= 20
                     and _JP_MAKER_END.search(word)
@@ -1003,6 +1025,10 @@ def japanese_site_name(title: str | None, site_name: str | None) -> str | None:
             for word in words:
                 word = _clean_jp(word.split("の")[-1] if "の" in word else word)
                 if word in _GENERIC_CATEGORY_WORDS_NON_LATIN or word in _JP_NOT_NAMES or word in _JP_PAGE_WORDS:
+                    continue
+                # A long all-hiragana word is a slogan, not a name: "【公式】おいしさはやさしさ
+                # UHA味覚糖" is UHA味覚糖 (2026-11-02 run). Hiragana names are short (かぎや).
+                if re.fullmatch(r"[ぁ-んー]{6,}", word):
                     continue
                 if (
                     2 <= len(word) <= 12
