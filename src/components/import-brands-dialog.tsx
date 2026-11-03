@@ -14,24 +14,35 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { importBrandsFromExcel } from "@/app/(dashboard)/brands/import-actions";
+import { importBrandsFromExcel, type ImportResult } from "@/app/(dashboard)/brands/import-actions";
 import { getDictionary, type Locale } from "@/lib/i18n/dictionary";
 import { MAX_UPLOAD_BYTES } from "@/lib/upload-limits";
 
-export function ImportBrandsDialog({ locale }: { locale: Locale }) {
+/** Excel upload into Brands -- or, with `action` and `copy`, into another list that takes the
+ * same columns (the deleted sourcing candidates). */
+export function ImportBrandsDialog({
+  locale,
+  action = importBrandsFromExcel,
+  copy,
+}: {
+  locale: Locale;
+  action?: (formData: FormData) => Promise<ImportResult>;
+  copy?: { trigger: string; title: string; description: string };
+}) {
   const t = getDictionary(locale);
+  const text = copy ?? t.brandImport;
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = React.useState<string[]>([]);
-  const [successCount, setSuccessCount] = React.useState<number | null>(null);
+  const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   function handleOpenChange(next: boolean) {
     setOpen(next);
     if (!next) {
       setErrors([]);
-      setSuccessCount(null);
+      setSuccessMessage(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
@@ -51,9 +62,9 @@ export function ImportBrandsDialog({ locale }: { locale: Locale }) {
     formData.set("file", file);
     setErrors([]);
     startTransition(async () => {
-      const result = await importBrandsFromExcel(formData);
+      const result = await action(formData);
       if (result.success) {
-        setSuccessCount(result.count);
+        setSuccessMessage(result.message ?? t.brandImport.successMessage(result.count));
         router.refresh();
       } else {
         setErrors(result.errors);
@@ -66,20 +77,20 @@ export function ImportBrandsDialog({ locale }: { locale: Locale }) {
       <DialogTrigger
         render={
           <Button variant="outline">
-            <Upload className="size-4" /> {t.brandImport.trigger}
+            <Upload className="size-4" /> {text.trigger}
           </Button>
         }
       />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t.brandImport.title}</DialogTitle>
-          <DialogDescription>{t.brandImport.description}</DialogDescription>
+          <DialogTitle>{text.title}</DialogTitle>
+          <DialogDescription>{text.description}</DialogDescription>
         </DialogHeader>
 
-        {successCount !== null ? (
+        {successMessage !== null ? (
           <div className="space-y-4">
             <p className="text-sm text-emerald-700 dark:text-emerald-300">
-              {t.brandImport.successMessage(successCount)}
+              {successMessage}
             </p>
             <DialogFooter>
               <Button onClick={() => handleOpenChange(false)}>{t.brandImport.close}</Button>

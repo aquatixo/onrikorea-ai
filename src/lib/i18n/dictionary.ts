@@ -256,6 +256,17 @@ export const dictionaries = {
       hiddenSubtitle: "Candidates removed from the review list. They stay here so the same site isn't found again, and can be restored.",
       hiddenCount: (n: number) => `${n} deleted candidate${n === 1 ? "" : "s"}`,
       noHidden: "No deleted candidates.",
+      importHiddenTrigger: "Insert Data (Excel)",
+      importHiddenTitle: "Add deleted candidates from Excel",
+      importHiddenDescription:
+        "Same columns as the Excel download (or the empty template below). The rows are added as deleted candidates, so sourcing won't find those brands again. Rows already in the deleted list are skipped, and matching candidates still on the review list are moved here.",
+      importHiddenSummary: (added: number, moved: number, skipped: number) =>
+        [
+          `Added ${added} deleted candidate${added === 1 ? "" : "s"}.`,
+          moved > 0 ? `Moved ${moved} from the review list.` : "",
+          skipped > 0 ? `Skipped ${skipped} already deleted or repeated in the file.` : "",
+        ].filter(Boolean).join(" "),
+      importedReason: "Added from Excel (deleted candidates)",
       restoreSelected: "Restore",
       restoring: "Restoring...",
       confirmRestoreSelected: (n: number) => `Put ${n} selected candidate${n === 1 ? "" : "s"} back on the review list?`,
@@ -959,6 +970,17 @@ export const dictionaries = {
       hiddenSubtitle: "검토 목록에서 지운 후보입니다. 같은 사이트가 다시 발굴되지 않도록 여기 남아 있고, 복원할 수 있습니다.",
       hiddenCount: (n: number) => `지운 후보 ${n}건`,
       noHidden: "지운 후보가 없습니다.",
+      importHiddenTrigger: "데이터 삽입 (엑셀)",
+      importHiddenTitle: "엑셀로 지운 후보 넣기",
+      importHiddenDescription:
+        "엑셀 다운로드와 같은 열 구성(또는 아래 빈 틀)으로 작성한 파일을 올리세요. 들어간 브랜드는 지운 후보가 되어 소싱에서 다시 발굴되지 않습니다. 이미 지운 후보에 있는 행은 건너뛰고, 검토 목록에 있는 같은 후보는 이쪽으로 옮깁니다.",
+      importHiddenSummary: (added: number, moved: number, skipped: number) =>
+        [
+          `${added}개를 지운 후보로 넣었습니다.`,
+          moved > 0 ? `검토 목록에 있던 ${moved}개를 옮겼습니다.` : "",
+          skipped > 0 ? `이미 지운 후보이거나 파일 안에서 겹친 ${skipped}개는 건너뛰었습니다.` : "",
+        ].filter(Boolean).join(" "),
+      importedReason: "엑셀로 넣은 지운 후보",
       restoreSelected: "복원",
       restoring: "복원 중...",
       confirmRestoreSelected: (n: number) => `선택한 후보 ${n}개를 검토 목록으로 되돌리시겠습니까?`,

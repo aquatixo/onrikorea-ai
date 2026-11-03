@@ -5,6 +5,8 @@ import { getDictionary } from "@/lib/i18n/dictionary";
 import { SourcingResultsTable } from "@/components/sourcing-results-table";
 import { ListPagination } from "@/components/list-pagination";
 import { PageSizeControl } from "@/components/page-size-control";
+import { ImportBrandsDialog } from "@/components/import-brands-dialog";
+import { importHiddenCandidatesFromExcel } from "../actions";
 import { parsePage, parsePageSize } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
@@ -62,7 +64,20 @@ export default async function HiddenSourcingCandidatesPage(props: PageProps<"/br
         candidates={candidates}
         totalCount={total}
         rowOffset={(currentPage - 1) * pageSize}
-        toolbarStart={<PageSizeControl value={pageSize} label={t.brands.rowsPerPage} />}
+        toolbarStart={
+          <>
+            <PageSizeControl value={pageSize} label={t.brands.rowsPerPage} />
+            <ImportBrandsDialog
+              locale={locale}
+              action={importHiddenCandidatesFromExcel}
+              copy={{
+                trigger: t.sourcing.importHiddenTrigger,
+                title: t.sourcing.importHiddenTitle,
+                description: t.sourcing.importHiddenDescription,
+              }}
+            />
+          </>
+        }
         verdictLabel={verdictLabel}
         locale={locale}
       />

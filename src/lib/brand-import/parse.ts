@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { findUnsafeTextReason } from "@/lib/security/sanitize-input";
+import type { getDictionary } from "@/lib/i18n/dictionary";
 
 export type ParsedBrandRow = {
   rowNumber: number; // 1-indexed spreadsheet row (header = row 1, so first data row = 2)
@@ -12,6 +13,10 @@ export type ParsedBrandRow = {
   contactPoint: string | null;
   coldEmail: boolean;
   reply: boolean;
+  // Columns K-L, only in the sourcing-candidate export (판정, 메모) -- the Brands template
+  // stops at Reply, so these are null there. Read by the deleted-candidate import.
+  verdict: string | null;
+  notes: string | null;
 };
 
 export type ImportRowError =
@@ -107,9 +112,11 @@ export function parseBrandImportSheet(buffer: Buffer): ParseResult {
       contactPoint: cell(row, 7) || null,
       coldEmail: parseChecked(row[8]),
       reply: parseChecked(row[9]),
+      verdict: cell(row, 10) || null,
+      notes: cell(row, 11) || null,
     };
 
-    const unsafeField = (["name", "methodology", "country", "sku", "website", "contactPoint"] as const).find(
+    const unsafeField = (["name", "methodology", "country", "sku", "website", "contactPoint", "verdict", "notes"] as const).find(
       (field) => {
         const value = parsedRow[field];
         return value !== null && findUnsafeTextReason(value) !== null;
@@ -128,4 +135,33 @@ export function parseBrandImportSheet(buffer: Buffer): ParseResult {
   }
   if (errors.length > 0) return { ok: false, errors };
   return { ok: true, rows };
+}
+
+export function formatImportError(error: ImportError, t: ReturnType<typeof getDictionary>): string {
+  switch (error.code) {
+    case "unreadableFile":
+      return t.brandImport.unreadableFile;
+    case "noSheets":
+      return t.brandImport.noSheets;
+    case "noDataRows":
+      return t.brandImport.noDataRows;
+    case "noFileChosen":
+      return t.brandImport.noFileChosen;
+    case "importFailed":
+      return t.brandImport.importFailed;
+    case "nameRequired":
+      return t.brandImport.rowNameRequired(error.row);
+    case "invalidYear":
+      return t.brandImport.rowInvalidYear(error.row);
+    case "duplicateNameInFile":
+      return t.brandImport.rowDuplicateNameInFile(error.row, error.name);
+    case "duplicateWebsiteInFile":
+      return t.brandImport.rowDuplicateWebsiteInFile(error.row, error.website);
+    case "nameExists":
+      return t.brandImport.rowNameExists(error.row, error.name);
+    case "websiteExists":
+      return t.brandImport.rowWebsiteExists(error.row, error.website);
+    case "unsafeContent":
+      return t.brandImport.rowUnsafeContent(error.row, error.field);
+  }
 }

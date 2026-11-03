@@ -8,6 +8,10 @@ import type { BrandStatus } from "@prisma/client";
 import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
+import { formatImportError, parseBrandImportSheet } from "@/lib/brand-import/parse";
+import { matchDomain, normalizeName } from "@/lib/brand-sourcing/dedup";
+import { MAX_UPLOAD_BYTES } from "@/lib/upload-limits";
+import type { ImportResult } from "@/app/(dashboard)/brands/import-actions";
 
 export async function addSourcingCandidateToBrands(candidateId: string): Promise<{ id: string } | { error: string }> {
   const session = await requireSection("brandSourcing");
@@ -115,4 +119,102 @@ export async function restoreSourcingCandidates(candidateIds: string[]): Promise
   revalidatePath("/brands/sourcing");
   revalidatePath("/brands/sourcing/hidden");
   return { restored: count };
+}
+
+// The 판정 column as the export writes it ("flag") or as someone retyped it ("검토", "Flag").
+const VERDICTS: Record<string, string> = {
+  pass: "pass", flag: "flag", reject: "reject",
+  통과: "pass", 검토: "flag", 거절: "reject",
+};
+
+/** "데이터 삽입 (엑셀)" on the deleted list: the rows become deleted candidates, so the
+ * duplicate check (dedup.ts reads every candidate row) keeps sourcing from finding those
+ * brands again -- e.g. a list the team already turned down outside the app. Same columns
+ * as the Excel download. A row matching a deleted candidate is skipped; one matching a
+ * candidate still on the review list hides that candidate instead of adding a second row. */
+export async function importHiddenCandidatesFromExcel(formData: FormData): Promise<ImportResult> {
+  if (!(await requireSection("brandSourcing"))) return { success: false, errors: [await noAccessMessage()] };
+  const t = getDictionary(await getLocale());
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { success: false, errors: [t.brandImport.noFileChosen] };
+  if (file.size > MAX_UPLOAD_BYTES) return { success: false, errors: [t.common.fileTooLarge] };
+
+  const parsed = parseBrandImportSheet(Buffer.from(await file.arrayBuffer()));
+  if (!parsed.ok) return { success: false, errors: parsed.errors.map((e) => formatImportError(e, t)) };
+
+  // Same name/website matching as the duplicate check (dedup.ts).
+  const existing = await db.sourcingCandidate.findMany({ select: { id: true, name: true, website: true, hiddenAt: true } });
+  const byName = new Map<string, (typeof existing)[number]>();
+  const byDomain = new Map<string, (typeof existing)[number]>();
+  for (const c of existing) {
+    byName.set(normalizeName(c.name), c);
+    const domain = matchDomain(c.website);
+    if (domain) byDomain.set(domain, c);
+  }
+
+  const seen = new Set<string>();
+  const toHide = new Set<string>();
+  const toCreate: (typeof parsed.rows)[number][] = [];
+  let skipped = 0;
+  for (const row of parsed.rows) {
+    const nameKey = normalizeName(row.name);
+    const domain = matchDomain(row.website);
+    if (seen.has(`n:${nameKey}`) || (domain && seen.has(`d:${domain}`))) {
+      skipped++;
+      continue;
+    }
+    seen.add(`n:${nameKey}`);
+    if (domain) seen.add(`d:${domain}`);
+
+    const match = byName.get(nameKey) ?? (domain ? byDomain.get(domain) : undefined);
+    if (!match) toCreate.push(row);
+    else if (match.hiddenAt) skipped++;
+    else toHide.add(match.id);
+  }
+
+  const now = new Date();
+  try {
+    await db.$transaction([
+      ...(toCreate.length
+        ? [
+            // Its own run, so these rows are told apart from what a search run found.
+            // Run lists read by backend ("serper"/"tavily"), so this one never shows there.
+            db.sourcingRun.create({
+              data: {
+                status: "done",
+                backend: "excel",
+                candidates: {
+                  createMany: {
+                    data: toCreate.map((row) => ({
+                      name: row.name,
+                      methodology: row.methodology,
+                      country: row.country,
+                      sku: row.sku,
+                      foundedYear: row.foundedYear,
+                      website: row.website,
+                      verdict: VERDICTS[row.verdict?.toLowerCase() ?? ""] ?? "flag",
+                      reason: row.notes ?? t.sourcing.importedReason,
+                      evidence: [],
+                      hiddenAt: now,
+                    })),
+                  },
+                },
+              },
+            }),
+          ]
+        : []),
+      db.sourcingCandidate.updateMany({ where: { id: { in: [...toHide] }, hiddenAt: null }, data: { hiddenAt: now } }),
+    ]);
+  } catch {
+    return { success: false, errors: [t.brandImport.importFailed] };
+  }
+
+  revalidatePath("/brands/sourcing");
+  revalidatePath("/brands/sourcing/hidden");
+  return {
+    success: true,
+    count: toCreate.length,
+    message: t.sourcing.importHiddenSummary(toCreate.length, toHide.size, skipped),
+  };
 }

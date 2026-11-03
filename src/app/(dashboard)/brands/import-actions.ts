@@ -5,40 +5,12 @@ import { db } from "@/lib/db";
 import { extractDomain } from "@/lib/extract-domain";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
-import { parseBrandImportSheet, type ImportError } from "@/lib/brand-import/parse";
+import { formatImportError, parseBrandImportSheet, type ImportError } from "@/lib/brand-import/parse";
 import { requireSection, noAccessMessage } from "@/lib/auth/require-section";
 import { MAX_UPLOAD_BYTES } from "@/lib/upload-limits";
 
-export type ImportResult = { success: true; count: number } | { success: false; errors: string[] };
-
-function formatError(error: ImportError, t: ReturnType<typeof getDictionary>): string {
-  switch (error.code) {
-    case "unreadableFile":
-      return t.brandImport.unreadableFile;
-    case "noSheets":
-      return t.brandImport.noSheets;
-    case "noDataRows":
-      return t.brandImport.noDataRows;
-    case "noFileChosen":
-      return t.brandImport.noFileChosen;
-    case "importFailed":
-      return t.brandImport.importFailed;
-    case "nameRequired":
-      return t.brandImport.rowNameRequired(error.row);
-    case "invalidYear":
-      return t.brandImport.rowInvalidYear(error.row);
-    case "duplicateNameInFile":
-      return t.brandImport.rowDuplicateNameInFile(error.row, error.name);
-    case "duplicateWebsiteInFile":
-      return t.brandImport.rowDuplicateWebsiteInFile(error.row, error.website);
-    case "nameExists":
-      return t.brandImport.rowNameExists(error.row, error.name);
-    case "websiteExists":
-      return t.brandImport.rowWebsiteExists(error.row, error.website);
-    case "unsafeContent":
-      return t.brandImport.rowUnsafeContent(error.row, error.field);
-  }
-}
+// `message` replaces the dialog's default "N imported" line when an import has more to say.
+export type ImportResult = { success: true; count: number; message?: string } | { success: false; errors: string[] };
 
 export async function importBrandsFromExcel(formData: FormData): Promise<ImportResult> {
   if (!(await requireSection("brands"))) return { success: false, errors: [await noAccessMessage()] };
@@ -53,7 +25,7 @@ export async function importBrandsFromExcel(formData: FormData): Promise<ImportR
   const buffer = Buffer.from(await file.arrayBuffer());
   const parsed = parseBrandImportSheet(buffer);
   if (!parsed.ok) {
-    return { success: false, errors: parsed.errors.map((e) => formatError(e, t)) };
+    return { success: false, errors: parsed.errors.map((e) => formatImportError(e, t)) };
   }
 
   const existing = await db.brand.findMany({ select: { name: true, websiteDomain: true, sourceNo: true } });
@@ -97,7 +69,7 @@ export async function importBrandsFromExcel(formData: FormData): Promise<ImportR
   }
 
   if (errors.length > 0) {
-    return { success: false, errors: errors.map((e) => formatError(e, t)) };
+    return { success: false, errors: errors.map((e) => formatImportError(e, t)) };
   }
 
   try {
