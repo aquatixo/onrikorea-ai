@@ -419,7 +419,9 @@ def is_plausible_brand_name(title: str) -> bool:
 
 _DOMAIN_SHAPED = re.compile(r"^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$", re.I)
 _TRADE_BODY = re.compile(
-    r"協同組合|組合|協会|連合会|商工会|"
+    # Not 企業組合 / 農事組合法人: the legal forms of real small producers ("企業組合
+    # かりんとう工房", "農事組合法人 米の里 おかき工房"), same as site_profile._DIRECTORY_TITLE.
+    r"協同組合|(?<!企業)(?<!農事)組合(?!法人)|協会|連合会|商工会|"
     r"\b(association|federation|chamber of commerce|consorzio|consortium|verband|syndicat)\b",
     re.I,
 )
@@ -450,7 +452,7 @@ _RESELLER_HARD = re.compile(
     # et Walker, both chocolate makers.
     r"\bhampers?\b|gift\s?baskets?\b|geschenkk[öo]rbe?\b|panier\s+garni|cestas?\s+de\s+regalo|cesti?\s+regalo|"
     # A wholesaler NAMED as such ("Jakob Distler Süßwarengroßhandel").
-    r"gro(?:ß|ss)handel|gro(?:ß|ss)h[äa]ndler|wiederverk[äa]ufer|\bgrossiste|\bingrosso\b|\bmayorista\b|"
+    r"wiederverk[äa]ufer|"
     r"cash\s*&\s*carry|\bsundries\b|"
     # Wine/liquor shops ("Acquista Vini e Liquori ... Damarco Enoteca", 2026-10-23 run).
     r"\benoteca\b|\bvinoteca\b|\bvinothek\b|\bcaviste\b|\bwine\s+(?:shop|merchants?)\b|\bliquor\s+store\b|"
@@ -460,6 +462,9 @@ _RESELLER_HARD = re.compile(
 )
 _RESELLER_SOFT = re.compile(
     r"\bwholesalers?\b|\bdistributors?\b|\bdistribuidora\b|\bdistribuzione\b|"
+    # "wholesale" in the lane languages: a maker says it too ("produzione e vendita
+    # all'ingrosso", "fábrica y venta mayorista", "grossiste et fabricant").
+    r"gro(?:ß|ss)handel|gro(?:ß|ss)h[äa]ndler|\bgrossiste|\bingrosso\b|\bmayorista\b|"
     # "Distributeur de bonbons et confiseries" (Confiserie Mondoux, 2026-10-19 run).
     r"\bdistributeurs?\b|\bdistributore\b|"
     r"\bwholesale\s+(?:candy|candies|snacks?|confectionery|groceries|foods?)\b|"

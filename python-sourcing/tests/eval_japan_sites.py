@@ -19,6 +19,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# A Korean Windows console defaults to cp949, which can't print the Japanese/accented names.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from site_profile import build_profile, judge, resolved_name  # noqa: E402
 
@@ -91,12 +93,12 @@ SITES = [
     # --- second Japan-focus run (2026-10-12, brand-oriented queries) ---
     ("junk", "food", "株式会社前田商店", "https://www.j-maeda.co.jp/"),  # ingredient/machinery trader
     ("producer", "food", "株式会社シュクレイ", "https://www.sucrey.co.jp/"),
-    ("producer", "food", "クッキー", "https://www.mitsuyaseika.co.jp/"),
+    ("junk", "food", "クッキー", "https://www.mitsuyaseika.co.jp/"),  # "OEM製造で御社ブランドの立ち上げをサポート" -- no OEM at all (user, 2026-11-04)
     ("producer", "food", "会社概要", "https://ginso.co.jp/"),
     ("producer", "food", "佐々木製菓", "https://www.sasakiseika.co.jp/"),
     # A holding company over several brands (ブランド紹介): one candidate = one brand (user, 2026-10-29).
     ("junk", "food", "株式会社ロワールホールディングス", "http://loire-conf.co.jp/"),
-    ("producer", "food", "会社概要", "https://www.ten-two.jp/"),
+    ("junk", "food", "会社概要", "https://www.ten-two.jp/"),  # "焼菓子のOEM製造を開始" -- no OEM at all (user, 2026-11-04)
 ]
 
 

@@ -2,14 +2,16 @@
 against real candidate text -- search snippet first (cheap, pre-crawl), then the
 scraped site text (more reliable, post-crawl).
 
-A keyword hit here is a signal to record and reject on, not a claim that regex
-understands the page -- "Milk Chocolate" containing "milk" or "BEER NUTS" containing
+A category keyword hit here is a signal to record (main.py adds it to the review note;
+only oem_b2b rejects there), not a claim that regex understands the page -- "Milk
+Chocolate" containing "milk" or "BEER NUTS" containing
 "beer" would be false positives for a naive substring check, so every pattern below
 uses word boundaries and, where the word alone is too ambiguous (milk, beer), a more
 specific compound term instead (e.g. "milk products" / "dairy", not bare "milk").
 """
 
 import re
+import unicodedata
 
 CATEGORY_EXCLUDE_PATTERNS = {
     # category_signal lowercases the text first, so every pattern here is lowercase, and a
@@ -50,16 +52,25 @@ OWN_PORTFOLIO_PARENTS = {
     "hero group", "hero canada", "hero uk", "hero spain", "hero españa",
 }
 
+_COMMON_WORD_PARENTS = {"mars", "asahi", "illy", "hero group"}
+
+# The owner's name stops at a full stop: "part of every celebration. Thorntons is part of
+# the Ferrero Group" took the next sentence into the first name and hid the second.
 _OWNERSHIP_PATTERN = re.compile(
-    r"\b(?:acquired by|part of|a brand of|owned by)\s+([A-Za-z][\w&.\- ]{1,40})", re.I
+    r"\b(?:acquired by|part of|a brand of|owned by)\s+([A-Za-z][\w&\- ]{1,40})", re.I
 )
+
+
+def _fold(text: str) -> str:
+    """Lowercase without accents: "Nestlé" must match "nestle"."""
+    return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if not unicodedata.combining(c))
 
 
 def _find_known_parent(text: str, parents: set[str]) -> str | None:
     """Word-boundary match against a parent-name set -- a naive substring check would
     let "mars" match "marshmallow" or "marseille", which a short conglomerate name like
     this makes a real risk, not a theoretical one."""
-    lower = text.lower()
+    lower = _fold(text)
     for parent in parents:
         if re.search(r"\b" + re.escape(parent) + r"\b", lower):
             return parent
@@ -74,6 +85,14 @@ def known_parent_in_name(name: str) -> tuple[str, str] | None:
     say "owned by Mars" anywhere -- the parent's name is just baked into the name
     itself. Returns (parent, rule_code) or None."""
     hit = _find_known_parent(name, HARD_EXCLUDED_PARENTS)
+    # A parent name that is also an everyday word only counts as the whole name ("Mars",
+    # "Asahi Group Holdings"), not inside a small maker's: "Asahi Seika" (旭/朝日 is a common
+    # Japanese company name), "Les Délices de Mars" (March).
+    if hit in _COMMON_WORD_PARENTS and not re.fullmatch(
+        re.escape(hit) + r"(?:\s+(?:inc\.?|group|holdings|wrigley|global|foods?|japan|co\.?|ltd\.?|corporation))*",
+        _fold(name).strip(),
+    ):
+        hit = None
     if hit:
         return hit, "multinational_parent"
     hit = _find_known_parent(name, OWN_PORTFOLIO_PARENTS)
@@ -115,14 +134,12 @@ def ownership_signal(text: str) -> tuple[str, str, str] | None:
     this phrasing essentially never shows up in a short search snippet."""
     if not text:
         return None
-    m = _OWNERSHIP_PATTERN.search(text)
-    if not m:
-        return None
-    parent = m.group(1).strip().rstrip(".,")
-    hit = _find_known_parent(parent, HARD_EXCLUDED_PARENTS)
-    if hit:
-        return parent, "multinational_parent", m.group(0)
-    hit = _find_known_parent(parent, OWN_PORTFOLIO_PARENTS)
-    if hit:
-        return parent, "own_portfolio_parent", m.group(0)
+    # Every "part of ..." on the page, not just the first: "part of every Scottish
+    # celebration" came before "part of the Ferrero Group" and hid it.
+    for m in _OWNERSHIP_PATTERN.finditer(text):
+        parent = m.group(1).strip().rstrip(".,")
+        if _find_known_parent(parent, HARD_EXCLUDED_PARENTS):
+            return parent, "multinational_parent", m.group(0)
+        if _find_known_parent(parent, OWN_PORTFOLIO_PARENTS):
+            return parent, "own_portfolio_parent", m.group(0)
     return None

@@ -194,8 +194,10 @@ _EXPORT_KEYWORDS = re.compile(
     r"grossista|revendedor|exporta[cç][aã]o|"  # Portuguese
     # Japanese, as phrases: the bare words were matching shop-location and retail text --
     # "阪神百貨店 B1F" (the maker's own counter), "販売店舗も少なく" ("few shops"),
-    # "海外発送は承っておりません" (no overseas shipping), "海外進出".
-    r"卸売|卸販売|業務用|海外(?!発送)|輸出|お取引|取扱店|取扱い店|販売店(?!舗)|代理店|百貨店",
+    # "海外発送は承っておりません" (no overseas shipping). "海外進出 5か国" (overseas
+    # expansion) does count.
+    # Department stores nationwide are a channel; one store's counter is not.
+    r"卸売|卸販売|業務用|海外(?!発送)|輸出|お取引|取扱店|取扱い店|販売店(?!舗)|代理店|(?:全国|各地|主要)の?百貨店",
     re.I,
 )
 

@@ -17,12 +17,15 @@ import re
 # boilerplate is stripped (see _COOKIE_BANNER).
 _FOOD_STEMS = (
     # English
-    "biscuit", "cookie", "cake", "chocolat", "candy", "candies", "confection", "bakery",
+    # "confectioner"/"confections", not "confection": in French that's garment-making
+    # ("confection de vêtements") -- a clothing brand passed as a food site (Le Glazik,
+    # 2026-11-04 run).
+    "biscuit", "cookie", "cake", "chocolat", "candy", "candies", "confectioner", "confections", "bakery",
     "bakes", "baked", "pastr", "sweets", "wafer", "caramel", "toffee", "brittle", "fudge",
     "praline", "snack", "shortbread", "gingerbread", "marshmallow", "licorice", "liquorice",
     "nougat", "marzipan", "lollipop", "gummy", "gummies", "truffle", "coffee", "honey",
-    # pasta and coffee -- a dry run dropped Rustichella d'Abruzzo (pasta exporter, zero
-    # hits) and a coffee roaster whose only matched word was "Kaffee"
+    # pasta and coffee: out of scope, but a pasta or coffee site must still read as FOOD
+    # here, so the off-target rule (site_profile) drops it with the right reason.
     "pasta", "pastificio", "espresso", "roaster", "roastery", "rösterei", "roesterei",
     "torrefaz", "tostador", "torréfact",
     # liquorice in each language -- Amarelli's homepage only ever says "liquirizia"
@@ -63,16 +66,31 @@ _NONFOOD_WORDS = re.compile(
     r"(?<!sesame\s)(?<!poppy\s)(?<!pumpkin\s)(?<!caraway\s)(?<!sunflower\s)(?<!chia\s)\bseeds?\b|"
     r"\bgardening\b|\bgarden\s+(?:centre|center|supplies)\b|\bheirloom\b|\bfertili[sz]\w*|\bperennials?\b|"
     r"\bplanting\b|\bgermination\b|\bplant\s+nursery\b|\breal\s+estate\b|\bsoftware\b|\bapparel\b|"
-    r"\bclothing\b|\btourism\b|\btourist\s+(?:information|office)\b|求人|採用情報|転職",
+    r"\bclothing\b|\btourism\b|\btourist\s+(?:information|office)\b|求人|採用情報|転職|"
+    # Clothing in the lane languages (Le Glazik: "Vêtement Marin Authentique : Cabans & Vareuses").
+    r"\bv[êe]tements?\b|\bcabans?\b|\bvareuses?\b|\bpr[êe]t[\s-][àa][\s-]porter\b|\babbigliamento\b|"
+    r"\bfootwear\b|\bchaussures\b|\blingerie\b|\btextiles?\b",
     re.I,
 )
 
 # "This site uses cookies" etc. -- would otherwise count as a food word on every site.
 _COOKIE_BANNER = re.compile(
     r"[^.!?\n]{0,80}\bcookies?\b[^.!?\n]{0,80}(policy|settings|preferences|consent|"
-    r"browser|accept|manage|enable|track|experience|analytics|necessary)[^.!?\n]{0,40}"
+    # Not "experience"/"track"/"enable": "Our butter cookies ... a unique tea-time experience"
+    # is the product, and the whole sentence was deleted as a banner.
+    r"browser|accept|manage|analytics|necessary)[^.!?\n]{0,40}"
+    r"|\b(?:we|this\s+(?:site|website))\s+uses?\s+cookies?[^.!?\n]{0,120}"
     r"|(accept|manage|reject|allow|decline)\s+(all\s+)?cookies?"
-    r"|\bcookies?\s+(policy|settings|preferences|consent|notice|banner)",
+    r"|\bcookies?\s+(policy|settings|preferences|consent|notice|banner)"
+    # The same banner in the lane languages ("Nous utilisons des cookies ... accepter",
+    # "Utilizziamo i cookie ... accetta", "Usamos cookies ... aceptar"): a French clothing
+    # site's banner gave it most of its "food" words (Le Glazik, 2026-11-04 run).
+    r"|[^.!?\n]{0,80}\bcookies?\b[^.!?\n]{0,80}(param[èe]tres|accepter|refuser|consentement|navigation|"
+    r"g[ée]rer|impostazioni|accett|rifiut|consenso|navigazione|configuraci[oó]n|aceptar|rechazar|"
+    r"pol[ií]tica|politique|informativa)[^.!?\n]{0,40}"
+    # Japanese: "当サイトではCookie（クッキー）を使用" -- not the クッキー a maker bakes.
+    r"|(?:cookie|クッキー)\s*(?:[(（]\s*(?:cookie|クッキー)\s*[)）])?\s*(?:を|の)(?:使用|利用|設定|無効)"
+    r"|(?:cookie|クッキー)ポリシー",
     re.I,
 )
 

@@ -13,7 +13,7 @@ export type SourcingProgress = {
   focus?: string | null;
   target?: { candidatesOut: number; target: number };
   budget?: { searchUsed: number; budget: number };
-  stoppedBy?: "target" | "budget" | "exhausted" | null;
+  stoppedBy?: "target" | "budget" | "exhausted" | "search_error" | null;
   counts?: Record<string, number>;
   errors?: number;
   message?: string;

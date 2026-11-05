@@ -297,6 +297,7 @@ export const dictionaries = {
         target: "Reached today's candidate target",
         budget: "Reached today's search budget",
         exhausted: "All lanes exhausted — add more queries to categories.py",
+        search_error: "Stopped by search errors — those queries run again next time",
       },
       countLabel: {
         discovered: "Candidates found",
@@ -1011,6 +1012,7 @@ export const dictionaries = {
         target: "오늘 목표 후보 수 도달",
         budget: "오늘 검색 예산 소진",
         exhausted: "모든 레인 소진 — categories.py에 쿼리 추가 필요",
+        search_error: "검색 오류로 중단 — 해당 쿼리는 다음 실행 때 다시 검색",
       },
       countLabel: {
         discovered: "발견된 후보",

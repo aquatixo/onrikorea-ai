@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# A Korean Windows console defaults to cp949, which can't print the Japanese/accented names.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from name_filter import is_plausible_brand_name
 from relevance import check_food_relevance, name_on_site

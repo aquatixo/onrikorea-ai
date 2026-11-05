@@ -103,7 +103,16 @@ export function matchDomain(website: string | null | undefined): string | undefi
 
 function isGuardedPartialMatch(a: string, b: string): boolean {
   if (a.length < MIN_PARTIAL_LENGTH || b.length < MIN_PARTIAL_LENGTH) return false;
-  return a.includes(b) || b.includes(a);
+  return containsName(a, b) || containsName(b, a);
+}
+
+/** `name` inside `text` as whole words: "uglies" is inside "taralli dolci pugliesi" only as
+ * letters, and flagged a Puglian taralli maker as a possible duplicate of the chip brand
+ * Uglies (2026-11-04 run). Japanese has no spaces between words, so it stays a substring. */
+function containsName(text: string, name: string): boolean {
+  if (!/[a-z0-9]/.test(name)) return text.includes(name);
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "u").test(text);
 }
 
 /**

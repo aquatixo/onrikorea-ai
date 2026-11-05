@@ -14,6 +14,7 @@ fetches the candidate's own pages.
 
 import json
 import re
+import unicodedata
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -31,7 +32,7 @@ from name_filter import (
     says_it_makes,
     strip_shop_words,
 )
-from relevance import check_food_relevance, check_group_relevance, has_food_words, has_group_words, name_on_site
+from relevance import _COOKIE_BANNER, check_food_relevance, check_group_relevance, has_food_words, has_group_words, name_on_site
 from query_vocab import VOCAB
 from shelf_life import MIN_SHELF_LIFE_MONTHS, chilled_hits, format_months, names_cold_product, shelf_life_months
 from site_scrape import HEADERS, _extract_site_name, _is_parked, extract_founded_year, has_export_signal
@@ -49,7 +50,7 @@ _JP_TITLE = re.compile(r"[぀-ヿ一-鿿]")
 _GROUP_TARGET_WORDS = {
     "beauty": re.compile(
         # EMS case-sensitive and standalone: with re.I it also matched "items", "systems".
-        r"ローラー|かっさ|美顔|美容機器|美容器|(?<![A-Za-z])(?-i:EMS)(?![A-Za-z])|リフト|小顔|フェイスケア|ボディケア|"
+        r"ローラー|かっさ|美顔|美容機器|美容器|(?<![A-Za-z])(?-i:EMS)(?![A-Za-z])|(?<!フォーク)リフト|小顔|フェイスケア|ボディケア|"
         r"マイクロカレント|ラジオ波|"
         r"rollers?|gua\s?sha|beauty\s+device",
         re.I,
@@ -66,16 +67,89 @@ _GROUP_EXCLUDED_WORDS = {
         r"(?<!led\s)(?<!ems\s)\bmasks?\b",
         re.I,
     ),
-    "care": re.compile(r"軟膏|傷薬|きず|絆創膏|マスク|湿布|ointment|bandages?|masks?", re.I),
+    # Not きずな (bond), common in Japanese company copy.
+    "care": re.compile(r"軟膏|傷薬|きず(?!な)|絆創膏|マスク|湿布|ointment|bandages?|masks?", re.I),
 }
 _MIN_EXCLUDED_HITS = 5
-# OEM / contract manufacturing: a factory that makes products for other companies' brands
-# is not a candidate (user, 2026-10-12). Real brand makers measured 0-7 mentions
-# (竹宝堂 23 does OEM on the side, but brushes are out anyway); OEM factories 28-40, and
-# usually say it in the page title ("洋菓子のOEM製造【名月製菓】").
+# OEM / contract manufacturing: a maker that makes products for other companies' brands is
+# not a candidate (user, 2026-10-12). Since 2026-11-04 (user: "OEM 이딴거 나오면 안되지") ONE
+# mention drops a food site -- see _oem_reason; beauty/care lanes keep the old count.
 # Not \bOEM\b: in "洋菓子のOEM製造" the kana before it is a word character, so no boundary.
-_OEM_WORDS = re.compile(r"(?<![A-Za-z])OEM(?![A-Za-z])|受託製造|受託加工|ＯＥＭ", re.I)
-_MIN_OEM_HITS = 15
+#
+# Every site
+# that mentioned it at all was offering the service -- "Produzioni conto terzi e private
+# labels" (Pernigotti), "realizzazione di Private Label" (Brusa), "法人様向けオリジナル商品
+# (OEM)" (パイン), "卸売事業、ODMに関して" (法善寺あられ) -- so a maker that also makes for
+# other brands is out too, not only a pure OEM factory. Same words in each lane language.
+_OEM_WORDS = re.compile(
+    r"(?<![A-Za-z])(?:OEM|ODM)(?![A-Za-z])|ＯＥＭ|ＯＤＭ|受託製造|受託加工|製造受託|委託製造|プライベートブランド|"
+    r"private[\s-]labels?|white[\s-]labels?|contract\s+manufactur\w*|co-?pack(?:er|ers|ing)\b|"
+    r"co-?manufactur\w*|toll\s+manufactur\w*|"
+    # Italian "conto terzi" only about production -- "corriere conto terzi" is a courier.
+    r"(?:produ|lavora|realizz|fabbric)\w*[^.;]{0,30}?conto\s+terzi|terzisti|"
+    r"marcas?\s+blancas?|marcas?\s+de\s+(?:la\s+)?distribuci[oó]n|fabricaci[oó]n\s+para\s+terceros|"
+    r"marques?\s+(?:blanches?|de\s+distributeurs?)|\bMDD\b|fa[çc]onnier|sous[\s-]traitance|"
+    # Not "Handelsmarke": in German it also just means a registered trademark.
+    r"lohnfertigung|lohnherstellung",
+    re.I,
+)
+# "We do not offer private label" / "OEMは行っておりません" is the opposite: a negation at
+# most three words before the term, or a Japanese "not done" right after it. Page text is
+# joined with spaces (no sentence breaks), so nothing reaches further back than that:
+# "No preservatives, no colours -- we also make private label" offers it. Nor "not only":
+# "Non solo cioccolato: produzioni conto terzi" offers it too.
+_OEM_NOT_ONLY = re.compile(r"\b(?:not|non|no|nicht|pas)\s+(?:only|solo|soltanto|seulement|nur|solamente)\b", re.I)
+_OEM_NEGATED_BEFORE = re.compile(
+    r"(?:\b(?:no|not|non|never|niente|nessun\w*|kein\w*|nicht|sin|pas\s+de)|n['’]t)\s+(?:[\w'’-]+\s+){0,3}$", re.I
+)
+# Japanese: ません / お断り within the same phrase (no space): "OEM製造は行っておりません",
+# "OEMのご依頼はお断りしております" -- not "(OEM)のご案内 キャンディを…使用しませんか".
+_OEM_NEGATED_AFTER = re.compile(r"^[^\s。、.!?]{0,12}?(?:ません|お断り)")
+# "We don't do private label OR white label": a term listed right after a negated one.
+_OEM_LIST_JOIN = re.compile(r"^[\s,/&・、]*(?:or|and|nor|ou|et|o|e|y|und|oder)?[\s,/&・、]*$", re.I)
+
+
+def _oem_mention(text: str) -> str | None:
+    """The first mention of making products for other companies' brands, with a little
+    context for the reason line, or None."""
+    text = text or ""
+    negated_end = None
+    for m in _OEM_WORDS.finditer(text):
+        before = _OEM_NOT_ONLY.sub(" ", text[max(0, m.start() - 60) : m.start()])
+        listed = negated_end is not None and _OEM_LIST_JOIN.match(text[negated_end : m.start()])
+        if listed or _OEM_NEGATED_BEFORE.search(before) or _OEM_NEGATED_AFTER.search(text[m.end() : m.end() + 20]):
+            negated_end = m.end()
+            continue
+        return re.sub(r"\s+", " ", text[max(0, m.start() - 25) : m.end() + 15]).strip()
+    return None
+# A factory that says outright it works under other companies' names needs no count:
+# "社名も出さずお菓子づくりに専念" (浜田食品工業, 2026-11-04 run -- "you've eaten our
+# products without knowing it").
+_OEM_ONLY = re.compile(r"社名(?:を|も)?(?:表に)?出さ(?:ず|ない)|自社ブランドを持たず|黒子として")
+# An OEM / private-label page in the site's own menu ("/oem/", "/private-label").
+_OEM_PATH = re.compile(r"/(?:oem|odm|private[-_]?labels?|marque[-_]blanche|marca[-_]blanca|conto[-_]terzi)(?:[/._-]|$)", re.I)
+# Beauty/care lanes keep the old count: a ReFa-type brand is often a planner whose devices
+# an OEM factory makes, and that's the kind those lanes want.
+_MIN_OEM_HITS_BEAUTY = 15
+
+
+def _oem_reason(profile: dict, food: bool) -> str | None:
+    """Why this site is an OEM / private-label maker, or None. See _OEM_WORDS."""
+    text = profile.get("fullText") or ""
+    tail = " — 다른 회사 브랜드 제품(OEM·ODM·PB)을 만드는 곳이라 제외"
+    if _OEM_WORDS.search(profile.get("pageTitle") or ""):
+        return "OEM·위탁생산 (사이트 제목)" + tail
+    only = _OEM_ONLY.search(text)
+    if only:
+        return f"OEM·위탁생산 ('{only.group(0)}')" + tail
+    if not food:
+        n = len(_OEM_WORDS.findall(text))
+        return f"OEM·위탁생산 공장 (언급 {n}회)" + tail if n >= _MIN_OEM_HITS_BEAUTY else None
+    link = profile.get("oemLink")
+    if link:
+        return f"OEM·위탁생산 메뉴 ('{link}')" + tail
+    mention = _oem_mention(text)
+    return f"OEM·위탁생산 언급 ('…{mention}…')" + tail if mention else None
 
 # A beauty/care product company says it develops or makes its products in different words
 # than a food maker ("開発", "メーカー", "製造販売元", "日本製").
@@ -97,11 +171,14 @@ _ABOUT_LINK = re.compile(
     re.I,
 )
 _TRADE_LINK = re.compile(
-    r"wholesale|\btrade\b|b2b|export|stockist|distribut|retailers?\b|"
+    r"wholesale|(?<!fair\s)\btrade\b|b2b|export|stockist|distribut|retailers?\b|"
     # Where-to-buy pages -- what several lanes search with as their tradeTerm, so a maker
     # found that way must not fail for "no trade channel".
     r"where\s+to\s+buy|points?\s+de\s+vente|puntos?\s+de\s+venta|punti\s+vendita|verkaufsstellen|"
-    r"h[äa]ndler|gro[ßs]handel|gesch[äa]ftskunden|wiederverk|fachhandel|gastronom|horeca|food\s?service|"
+    # With ä/ae only (not English "handler"). A "Gastronomia/Gastronomie" LINK stays: on a
+    # maker's own site it is the foodservice line (Amarelli's liquorice for chefs). Running
+    # text is different -- site_scrape only counts German foodservice wording there.
+    r"h(?:ä|ae)ndler|gro[ßs]handel|gesch[äa]ftskunden|wiederverk|fachhandel|gastronom|horeca|food\s?service|"
     r"grossiste|revendeur|professionnels?|"
     r"ingrosso|rivendit|esportaz|"
     r"mayorista|distribuidor|profesionales|exportaci|"
@@ -110,7 +187,8 @@ _TRADE_LINK = re.compile(
     # (stockist list), "代理店" (agents), "輸出" (export) all mean a B2B channel. Not
     # 特定商取引法 (the legal notice every Japanese web shop must have), not 海外発送 (a
     # shop's overseas shipping), and not OEM -- that's a reject reason, not a trade channel.
-    r"卸|業務用|法人|海外(?!発送)|(?<!特定商)取引|取扱店|取り?扱い?店|販売店(?!舗)|代理店|輸出|問屋",
+    # Not 商取引法 / 特定取引法 either ("商取引法に基づく表記" is on every web shop).
+    r"卸|業務用|法人|海外(?!発送)|(?<!商)(?<!特定)取引(?!法)|取扱店|取り?扱い?店|販売店(?!舗)|代理店|輸出|問屋",
     re.I,
 )
 # A Japanese shop's corporate-gift page ("法人・団体様向けギフト", カステラ銀装) is a
@@ -125,7 +203,8 @@ _GIFT_LINK = re.compile(r"ギフト|贈答|手土産")
 _SUPPLIER_GRADE = re.compile(
     r"\bIFS\s*(food|certif)|\bBRC(GS)?\b|FSSC\s*22000|ISO\s*22000|"
     r"stabiliment[oi]\s+produttiv|production\s+(plant|facilit)|produktionsst[äa]tte|"
-    r"\busines?\s+de\s+production|planta\s+de\s+producci[oó]n|自社工場|HACCP|工場見学",
+    # Not HACCP: required by law of every Japanese food business since 2021.
+    r"\busines?\s+de\s+production|planta\s+de\s+producci[oó]n|自社工場|工場見学",
     re.I,
 )
 
@@ -172,7 +251,7 @@ _DIRECTORY_TITLE = re.compile(
 )
 
 # Fresh daily bakery goods can't be imported. Bread/quiche/cream-cake wording vs.
-# shelf-stable wording (biscuits, sweets, coffee, pasta...). Measured on a real run: fresh
+# shelf-stable wording (_SHELF_WORDS: biscuits, sweets, chocolate...). Measured on a real run: fresh
 # bread bakeries 0.46-4.0 (Holtkamp, RepasPAN, Popty Bach Y Wlad) vs. 0.08 for a
 # cookie-led bakery that also mentions breads, 0.00 for the confectioners/roasters.
 _FRESH_WORDS = re.compile(
@@ -181,7 +260,7 @@ _FRESH_WORDS = re.compile(
     r"\b((?<!russisch\s)brot|brote|brötchen|bread|breads|baguettes?|quiches?|sandwich(?!\s+(?:biscuits?|cookies?|wafers?))\w*|"
     r"panes|pan\s+(?:de|artesano|casero)|panader\w*|"
     r"boulangerie|pains?(?!\s+d['’]\s?[ée]pices?)|pane|focaccia|sourdough|sauerteig|semmel\w*|"
-    r"tartas?|torten?|sponges?|cream\s+cakes?|wedding\s+cakes?|hochzeitstorte\w*|"
+    r"tartas?|torten?|sponges?(?!\s+(?:candy|toffee))|cream\s+cakes?|wedding\s+cakes?|hochzeitstorte\w*|"
     r"macarons?|tiramis[uù]|cheesecakes?)\b|"
     # Japanese fresh sweets (no \b: CJK has no word boundary inside a sentence).
     # 要冷蔵 is counted by shelf_life.chilled_hits, not here.
@@ -213,7 +292,11 @@ _OFF_TARGET_WORDS = re.compile(
     # (Imkergut, 2026-10-19 run) -- a honey business, not a confectioner.
     r"imkerei|\bimker\b|propolis|gel[ée]e\s+royale|royal\s+jelly|beekeep\w*|apicoltur\w*|apicultur\w*|"
     # Japanese. Not 抹茶: it's a flavour all over wagashi, not a tea business on its own.
-    r"コーヒー|珈琲|紅茶|緑茶|日本茶|煎茶|蜂蜜|はちみつ|パスタ",
+    r"コーヒー|珈琲|紅茶|緑茶|日本茶|煎茶|蜂蜜|はちみつ|パスタ|"
+    # Drinks: ハタ鉱泉's ラムネ is bottled soda, not the tablet sweet (2026-11-04 run). Not
+    # 炭酸せんべい (a cracker) or baking soda.
+    r"清涼飲料|飲料|炭酸(?!せんべい|煎餅)|サイダー|シャンメリー|ドリンク|ジュース|ひやしあめ|"
+    r"\bbeverages?\b|\bsoft\s+drinks?\b|\blemonades?\b|(?<!baking\s)\bsodas?\b(?!\s+bread)",
     re.I,
 )
 
@@ -247,7 +330,39 @@ _TARGET_WORDS = re.compile(
     re.I,
 )
 _SHELF_WORDS = _TARGET_WORDS
+
+# Every OTHER product category the company doesn't buy (user, 2026-11-04: "관련 없는
+# 카테고리 나오면 안되지"): drinks and alcohol, dairy, meat, fish, oils/vinegar/sauces,
+# cosmetics and soap, maple syrup, supplements, baby and pet food, ice cream. Together with
+# _OFF_TARGET_WORDS (coffee, tea, honey, pasta, drinks) they must stay well below the
+# sweets/biscuit/snack words -- measured on every reviewed site: Mount Mansfield Maple
+# (28 other vs 17 sweets), Pasticceria Bonci (25 wine/soap vs 38), a Basque cheese and
+# charcuterie house (52 vs 4) are out; a candy shop that also scoops ice cream (Granite
+# State: 25 vs 206) or a taralli maker listing "vino" pairings (8 vs 87) stays.
+_OTHER_CATEGORY_WORDS = re.compile(
+    # Not "wine gums", "Swedish Fish", "for the sake of", or a cheese-flavoured cracker.
+    r"\bwines?\b(?!\s+gums?)|\bvino\b|\bvini\b|\bvins?\b|\bbeers?\b|\bbirra\b|\bcerveza\b|\bspirits\b|日本酒|焼酎|ワイン|ビール|"
+    r"\bcheeses?\b(?!\s+(?:crackers?|straws?|biscuits?|puffs?|balls?))|fromages?|formagg\w*|\bquesos?\b|"
+    r"チーズ(?!おかき|せんべい|煎餅|あられ|クッキー|ケーキ)|乳製品|"
+    r"\bsalumi\b|charcuterie|sausages?|\bham\b|jam[oó]n|ハム|ソーセージ|"
+    r"(?<!swedish\s)\bfish\b|poissons?|\bpesce\b|水産|鮮魚|"
+    r"olive\s+oil|huile\s+d['’]olive|olio\s+(?:extra|d['’]oliva)|aceite\s+de\s+oliva|vinegar|vinaigre|aceto|"
+    r"醤油|味噌|調味料|ドレッシング|"
+    r"cosmetics?|\bsoaps?\b|savons?|\bsapon[ei]\b|jab[oó]n|化粧品|石鹸|スキンケア|"
+    r"maple\s+syrup|sirop\s+d['’][ée]rable|メープルシロップ|"
+    r"supplements?|サプリ|健康食品|baby\s+food|離乳食|pet\s+food|ペットフード|"
+    r"ice\s+cream|gelato|gelateria|helado|アイスクリーム",
+    re.I,
+)
+_MIN_OTHER_CATEGORY_HITS = 8
+
+
+def _other_category_hits(text: str) -> int:
+    return len(_OTHER_CATEGORY_WORDS.findall(text or ""))
 _MIN_OFF_TARGET_HITS = 5
+# ラムネ is both a tablet sweet and a bottled soda. On a drinks maker's site (ハタ鉱泉:
+# ラムネ 73, サイダー/シャンメリー/飲料 25, 2026-11-04 run) it isn't a sweets word.
+_DRINK_WORDS = re.compile(r"清涼飲料|飲料|飲み物|サイダー|シャンメリー|ビー玉|\bbeverages?\b|\bsoft\s+drinks?\b", re.I)
 
 # Shop selling OTHER makers' products (marketplace, deli, gift-box assembler). Strong
 # markers count on any site; the weak ones only when the site never says it makes
@@ -378,6 +493,21 @@ def _internal_links(soup: BeautifulSoup, base_url: str) -> list[tuple[str, str]]
     return out
 
 
+def _product_counts(text: str) -> dict:
+    """How often the site names each kind of product -- counted without the cookie banner,
+    whose "cookies"/"クッキー" read as biscuits ("This website uses cookies" = 3 hits)."""
+    text = _COOKIE_BANNER.sub(" ", text)
+    target = len(_TARGET_WORDS.findall(text))
+    return {
+        "freshHits": len(_FRESH_WORDS.findall(text)),
+        "offTargetHits": len(_OFF_TARGET_WORDS.findall(text)),
+        "targetHits": target,
+        "shelfHits": target,
+        "chilledHits": chilled_hits(text),
+        "otherCategoryHits": _other_category_hits(text),
+    }
+
+
 def build_profile(url: str) -> dict:
     """Never raises. Always returns a dict with at least "readable"."""
     home = _get(url)
@@ -410,11 +540,16 @@ def build_profile(url: str) -> dict:
             "thinTrade": has_export_signal(thin) or bool(_TRADE_LINK.search(meta)),
             "thinPublisher": bool(_PUBLISHER_MARKERS.search(thin)),
             "shelfLifeMonths": shelf_life_months(thin),
+            **_product_counts(thin),
             "selfTitle": _self_title(soup),
             "pageTitle": soup.title.string.strip() if soup.title and soup.title.string else "",
         }
 
     links = _internal_links(soup, home.url)
+    oem_link = next(
+        (t or urlparse(h).path for t, h in links if _OEM_WORDS.search(t) or _OEM_PATH.search(urlparse(h).path)),
+        None,
+    )
     about_urls = [h for t, h in links if _ABOUT_LINK.search(t) or _ABOUT_LINK.search(urlparse(h).path)][:_MAX_ABOUT_PAGES]
     trade_links = [
         (t, h)
@@ -465,12 +600,9 @@ def build_profile(url: str) -> dict:
         "food": check_food_relevance(full_text),
         "selfTitle": _self_title(soup),
         "pageTitle": soup.title.string.strip() if soup.title and soup.title.string else "",
-        "freshHits": len(_FRESH_WORDS.findall(full_text)),
-        "offTargetHits": len(_OFF_TARGET_WORDS.findall(full_text)),
-        "targetHits": len(_TARGET_WORDS.findall(full_text)),
-        "shelfHits": len(_SHELF_WORDS.findall(full_text)),
-        "chilledHits": chilled_hits(full_text),
         "shelfLifeMonths": shelf_life_months(full_text),
+        "oemLink": oem_link,
+        **_product_counts(full_text),
     }
 
 
@@ -527,13 +659,14 @@ _FOR_INDUSTRY = re.compile(r"調製品|原料|業務用|\bfood\s+(?:industry|man
 # brands ("Le groupe Sucralliance", "株式会社ロワールホールディングス"), not a distributor of
 # other makers' brands ("Fabricant et distributeur de marques reconnues"), and not a
 # business-to-business supplier that names itself so -- a B2B catalogue ("Catalogue B2B
-# Choc and Co") or a hotel/restaurant supplier ("galletas ... para Hostelería"). Judged on
-# the site's own title and domain: almost every real brand also has a trade page, and that
-# page is the trade-channel signal, not a reason to drop it.
+# Choc and Co") or a hotel/restaurant supplier ("galletas ... para Hostelería"). The B2B
+# rule reads only the site's own title and domain: almost every real brand also has a trade
+# page, and that page is the trade-channel signal, not a reason to drop it.
 # A group name alone isn't enough: "APOLLO Food Holdings" and "OHO GROUP" are each one
 # brand (the team works with both); a group also lists its brands ("Nos Marques").
-# Private-label wording isn't counted either: Mathez (chocolate truffles, a brand the team
-# is talking to) mentions it 13 times -- makers with their own brand often also do it.
+# Private-label wording isn't part of THIS rule -- it is its own reject (_oem_reason) since
+# 2026-11-04, which also drops makers with their own brand that do it on the side (Mathez,
+# chocolate truffles, mentions it 13 times).
 _GROUP_NAME = re.compile(r"\b(?:groupe?|gruppo|grupo|gruppe|holdings?)\b|ホールディングス|グループ", re.I)
 _BRAND_LIST = re.compile(
     r"\b(?:nos\s+marques|our\s+brands|nuestras\s+marcas|i\s+nostri\s+marchi|unsere\s+marken|"
@@ -545,6 +678,10 @@ _BRAND_DISTRIBUTOR = re.compile(
     r"distributore\s+di\s+marchi|vertrieb\s+(?:von\s+)?(?:\w+\s+){0,2}marken",
     re.I,
 )
+# A maker recruiting distributors for its own brand: "Become a distributor of our brands",
+# "Vertrieb unserer Marken", "Diventa distributore di marchi".
+_OWN_BRAND_RECRUIT = re.compile(r"\b(?:our|nos|nostri|nuestras|unserer)\b", re.I)
+_BECOME = re.compile(r"become|devenez|diventa|diventare|hazte|convi[ée]rtete|werden", re.I)
 _B2B_TITLE = re.compile(
     r"\bb2b\b|\bhoreca\b|\bfoodservice\b|\bfood\s+service\b|\bhosteler[ií]a\b|\bristorazione\b|"
     r"pour\s+(?:les\s+)?professionnels|f[üu]r\s+(?:die\s+)?gastronomie|業務用",
@@ -557,7 +694,14 @@ def _not_one_brand(profile: dict, name: str, url: str) -> tuple[str, str] | None
     group = _GROUP_NAME.search(title) or _GROUP_NAME.search(name)
     if group and _BRAND_LIST.search(profile.get("fullText") or ""):
         return "multi_brand", f"그룹·지주회사 ('{group.group(0)}') — 여러 브랜드를 가진 회사라 브랜드 하나가 아님"
-    distributor = _BRAND_DISTRIBUTOR.search(profile.get("fullText") or "")
+    distributor = next(
+        (
+            m for m in _BRAND_DISTRIBUTOR.finditer(profile.get("fullText") or "")
+            if not _OWN_BRAND_RECRUIT.search(m.group(0))
+            and not _BECOME.search((profile.get("fullText") or "")[max(0, m.start() - 25) : m.start()])
+        ),
+        None,
+    )
     if distributor:
         return "multi_brand", f"여러 브랜드를 유통하는 회사 ('{distributor.group(0)}') — 브랜드 하나가 아님"
     b2b = _B2B_TITLE.search(title)
@@ -658,32 +802,30 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
         distributor = _THIN_DISTRIBUTOR.search(profile["fullText"])
         if distributor and not says_it_makes(profile["fullText"]):
             return False, "reseller_site", f"제목/설명이 도매·유통업체형 ('{distributor.group(0)}')"
-        thin_off = len(_OFF_TARGET_WORDS.findall(profile["fullText"]))
+        thin_off = len(_OFF_TARGET_WORDS.findall(profile["fullText"])) + _other_category_hits(profile["fullText"])
         thin_target = len(_TARGET_WORDS.findall(profile["fullText"]))
         # One "miel" next to one "nougat" is a honey-nougat maker ("Nougat au miel de
         # Provence"), not a honey business -- a tie only counts from two hits up.
         if food and (thin_off > thin_target or (thin_off >= 2 and thin_off >= thin_target)):
-            return False, "off_target_category", "취급하지 않는 품목(커피·차·꿀·파스타) 위주 (제목/설명 기준)"
+            return False, "off_target_category", "과자·비스킷·스낵·초콜릿이 아닌 품목 위주 (제목/설명 기준)"
         on_topic = profile["thinFood"] if food else has_group_words(profile["fullText"], group)
-        if not (on_topic and profile["thinProducer"] and profile["thinTrade"]):
+        if not (on_topic and (profile["thinProducer"] or makes) and profile["thinTrade"]):
             return False, "unverifiable_site", "본문이 거의 없고 제목/설명에 제품·제조·도매 근거가 다 있지 않음"
         if not has_latin_letters(name) and name_on_site(name, profile["fullText"]) is False:
             return False, "name_not_on_site", "사이트 제목/설명에 후보 이름이 없음"
         # The checks that only need the title/description, same as the full path below.
-        if _OEM_WORDS.search(profile.get("pageTitle") or ""):
-            return False, "oem_maker", "OEM·위탁생산 공장 (사이트 제목) — 자체 브랜드가 아니라 다른 회사 제품을 만드는 곳"
+        oem = _oem_reason(profile, food)
+        if oem:
+            return False, "oem_maker", oem
         middleman = _japanese_middleman(profile["fullText"])
         if middleman:
             return False, middleman[0], middleman[1]
         ingredient = _ingredient_supplier(profile["fullText"]) if food else None
         if ingredient:
             return False, "not_a_producer", ingredient
-        short = _short_shelf_life(profile) if food else None
-        if short:
-            return False, "shelf_life_short", short
-        cold = _cold_product_title(profile) if food else None
-        if cold:
-            return False, "chilled_frozen", cold
+        product = _product_reason(profile, group)
+        if product:
+            return False, product[0], product[1]
         return True, "ok", "JS 사이트라 본문 대신 제목/설명으로 판정: 식품·제조·도매 모두 명시" + _shelf_note(profile)
     # Strict producer words only: a review listicle (my-best) is full of "メーカー".
     if profile["publisherTypes"] and not profile["producerHits"]:
@@ -701,56 +843,17 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
     ingredient = _ingredient_supplier(profile["fullText"]) if food else None
     if ingredient:
         return False, "not_a_producer", ingredient
-    oem = len(_OEM_WORDS.findall(profile["fullText"]))
-    if oem >= _MIN_OEM_HITS or _OEM_WORDS.search(profile.get("pageTitle") or ""):
-        return False, "oem_maker", f"OEM·위탁생산 공장 (언급 {oem}회) — 자체 브랜드가 아니라 다른 회사 제품을 만드는 곳"
+    oem = _oem_reason(profile, food)
+    if oem:
+        return False, "oem_maker", oem
     food_ok, food_why = profile["food"] if food else check_group_relevance(profile["fullText"], group)
     if food_ok is not True:
         return False, "not_food_site" if food else "off_topic_site", food_why
     if not has_latin_letters(name) and name_on_site(name, profile["fullText"]) is False:
         return False, "name_not_on_site", "사이트 본문에 후보 이름이 없음"
-    if not food:
-        excluded = _GROUP_EXCLUDED_WORDS[group].findall(profile["fullText"])
-        wanted = len(_GROUP_TARGET_WORDS[group].findall(profile["fullText"]))
-        # 2:1 so a device brand that also sells a few combs or sheet masks (ヤーマン, アクシージア)
-        # stays, while a hair-appliance / brush / comb house (SALONIA, 熊野筆, uka) goes.
-        if len(excluded) >= _MIN_EXCLUDED_HITS and len(excluded) > 2 * wanted:
-            top = max(set(excluded), key=excluded.count)
-            return False, "excluded_item", (
-                f"취급하지 않는 품목 위주 ('{top}' 등 {len(excluded)}회 vs 취급 품목 {wanted}회) — "
-                "빗·브러시·화장붓·족집게·면도칼·마스크·연고·드라이어류 제외"
-            )
-    off, target = profile["offTargetHits"], profile["targetHits"]
-    if food and off >= _MIN_OFF_TARGET_HITS and off >= target:
-        return False, "off_target_category", f"취급하지 않는 품목(커피·차·꿀·파스타) 위주 ({off} vs 과자류 {target})"
-    fresh, shelf = profile["freshHits"], profile["shelfHits"]
-    if food and fresh >= _MIN_FRESH_HITS and fresh / max(shelf, 1) >= _MAX_FRESH_RATIO:
-        return False, "fresh_bakery", f"신선 빵·케이크 위주 (빵 단어 {fresh} vs 보존식품 단어 {shelf}) — 수입 불가 품목"
-    cake = len(_JP_CAKE.findall(profile["fullText"]))
-    if food and cake >= _MIN_CAKE_HITS and cake >= _MAX_CAKE_RATIO * shelf:
-        return False, "fresh_bakery", f"케이크 가게 (ケーキ {cake}회 vs 보존식품 단어 {shelf}) — 생케이크는 수입 불가"
-    bakery_chain = len(_JP_BAKERY_CHAIN.findall(profile["fullText"]))
-    if food and bakery_chain >= _MIN_JP_BAKERY_CHAIN_HITS:
-        return False, "fresh_bakery", f"제과점·베이커리 체인 (ブーランジェ/パティスリー/店舗展開 {bakery_chain}회) — 생과자·빵 위주"
-    occasions = {m.group(1).lower() for m in _OCCASIONS.finditer(profile["fullText"])}
-    if food and len(occasions) >= _MIN_OCCASION_KINDS:
-        return False, "favor_shop", f"결혼식·세례식 답례품 가게 (행사 {len(occasions)}종: {', '.join(sorted(occasions)[:4])}) — 수입 브랜드가 아님"
-    short = _short_shelf_life(profile) if food else None
-    if short:
-        return False, "shelf_life_short", short
-    cold = _cold_product_title(profile) if food else None
-    if cold:
-        return False, "chilled_frozen", cold
-    chilled = profile.get("chilledHits", 0)
-    if (
-        food
-        and profile.get("shelfLifeMonths") is None
-        and chilled >= _MIN_CHILLED_HITS
-        and chilled / max(shelf, 1) >= _MAX_CHILLED_RATIO
-    ):
-        return False, "chilled_frozen", (
-            f"냉장·냉동 제품 위주 (냉장/냉동 표현 {chilled} vs 보존식품 단어 {shelf}) — 유통기한 12개월 미달 추정"
-        )
+    product = _product_reason(profile, group)
+    if product:
+        return False, product[0], product[1]
     # A one-page website is a micro business (home kitchen, single shop), not an importable
     # supplier. Measured across every site kept in tests/eval_live_sites.py: the one
     # one-pager (a farmhouse cake maker, 1,257 chars total) vs. 3,225+ for all others.
@@ -761,6 +864,67 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
     if not profile["trade"]:
         return False, "no_export_signal", "도매/수출/거래처 링크나 문구가 없음 (동네 가게 추정)"
     return True, "ok", f"{profile['trade']}; 생산자 신호 {profile['producerHits']}종; {food_why}" + _shelf_note(profile)
+
+
+def _product_reason(profile: dict, group: str) -> tuple[str, str] | None:
+    """(code, reason) when the site's products are ones the company doesn't buy -- other
+    categories, fresh bakery goods, favour boxes, short shelf life, chilled/frozen goods, or
+    for beauty/care the excluded items. Shared by the full and the JS-site (thin) path."""
+    text = profile["fullText"]
+    if group != "food":
+        excluded = _GROUP_EXCLUDED_WORDS[group].findall(text)
+        wanted = len(_GROUP_TARGET_WORDS[group].findall(text))
+        # 2:1 so a device brand that also sells a few combs or sheet masks (ヤーマン, アクシージア)
+        # stays, while a hair-appliance / brush / comb house (SALONIA, 熊野筆, uka) goes.
+        if len(excluded) >= _MIN_EXCLUDED_HITS and len(excluded) > 2 * wanted:
+            top = max(set(excluded), key=excluded.count)
+            return "excluded_item", (
+                f"취급하지 않는 품목 위주 ('{top}' 등 {len(excluded)}회 vs 취급 품목 {wanted}회) — "
+                "빗·브러시·화장붓·족집게·면도칼·마스크·연고·드라이어류 제외"
+            )
+        return None
+    if "targetHits" not in profile:  # a profile built by hand (tests) rather than by build_profile
+        profile = {**profile, **_product_counts(text)}
+    off, target = profile["offTargetHits"], profile["targetHits"]
+    if len(_DRINK_WORDS.findall(text)) >= _MIN_OFF_TARGET_HITS:
+        target -= text.count("ラムネ")
+    if off >= _MIN_OFF_TARGET_HITS and off >= target:
+        return "off_target_category", f"취급하지 않는 품목(커피·차·꿀·파스타·음료) 위주 ({off} vs 과자류 {target})"
+    other = off + profile.get("otherCategoryHits", 0)
+    if other >= _MIN_OTHER_CATEGORY_HITS and other * 2 >= target:
+        words = sorted({m.group(0).lower() for m in _OTHER_CATEGORY_WORDS.finditer(text)})[:5]
+        return "off_target_category", (
+            f"과자·비스킷·스낵·초콜릿이 아닌 품목 비중이 큼 (기타 품목 {other} vs 과자류 {target}: {', '.join(words)})"
+        )
+    fresh, shelf = profile["freshHits"], profile["shelfHits"]
+    if fresh >= _MIN_FRESH_HITS and fresh / max(shelf, 1) >= _MAX_FRESH_RATIO:
+        return "fresh_bakery", f"신선 빵·케이크 위주 (빵 단어 {fresh} vs 보존식품 단어 {shelf}) — 수입 불가 품목"
+    cake = len(_JP_CAKE.findall(text))
+    if cake >= _MIN_CAKE_HITS and cake >= _MAX_CAKE_RATIO * shelf:
+        return "fresh_bakery", f"케이크 가게 (ケーキ {cake}회 vs 보존식품 단어 {shelf}) — 생케이크는 수입 불가"
+    bakery_chain = len(_JP_BAKERY_CHAIN.findall(text))
+    if bakery_chain >= _MIN_JP_BAKERY_CHAIN_HITS:
+        return "fresh_bakery", f"제과점·베이커리 체인 (ブーランジェ/パティスリー/店舗展開 {bakery_chain}회) — 생과자·빵 위주"
+    # One kind per occasion, not per spelling: "mariage"/"mariages", "matrimonio"/"matrimoni"
+    # counted twice and a dragée maker became a favour shop.
+    occasions = {_fold(m.group(1))[:6] for m in _OCCASIONS.finditer(text)}
+    if len(occasions) >= _MIN_OCCASION_KINDS:
+        return "favor_shop", f"결혼식·세례식 답례품 가게 (행사 {len(occasions)}종: {', '.join(sorted(occasions)[:4])}) — 수입 브랜드가 아님"
+    short = _short_shelf_life(profile)
+    if short:
+        return "shelf_life_short", short
+    cold = _cold_product_title(profile)
+    if cold:
+        return "chilled_frozen", cold
+    chilled = profile.get("chilledHits", 0)
+    if profile.get("shelfLifeMonths") is None and chilled >= _MIN_CHILLED_HITS and chilled / max(shelf, 1) >= _MAX_CHILLED_RATIO:
+        return "chilled_frozen", f"냉장·냉동 제품 위주 (냉장/냉동 표현 {chilled} vs 보존식품 단어 {shelf}) — 유통기한 12개월 미달 추정"
+    return None
+
+
+def _fold(text: str) -> str:
+    """Lowercase without accents ("baptêmes" -> "baptemes")."""
+    return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if not unicodedata.combining(c))
 
 
 def _short_shelf_life(profile: dict) -> str | None:

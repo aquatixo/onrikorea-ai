@@ -135,7 +135,6 @@ VOCAB = {
             ("caramels", "캔디/컨펙셔너리"),
             ("hard candy", "캔디/컨펙셔너리"),
             ("toffee", "캔디/컨펙셔너리"),
-            ("maple candy", "캔디/컨펙셔너리"),
             ("licorice", "캔디/컨펙셔너리"),
             ("chocolate bars", "초콜릿"),
             ("chocolate covered almonds", "초콜릿"),

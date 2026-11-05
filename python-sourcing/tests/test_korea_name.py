@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# A Korean Windows console defaults to cp949, which can't print the Japanese/accented names.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from korea_check import korea_search_name  # noqa: E402
 

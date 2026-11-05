@@ -20,6 +20,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# A Korean Windows console defaults to cp949, which can't print the Japanese/accented names.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from site_profile import build_profile, judge, resolved_name  # noqa: E402
 
@@ -108,8 +110,8 @@ SITES = [
     ("producer", "Welsh Cottage Cakes", "https://welshcottagecakes.co.uk/"),
     ("producer", "Whitley's Peanut Factory", "https://whitleyspeanut.com/"),
     ("producer", "Olde Colony Bakery", "https://www.oldecolonybakery.com/"),
-    ("producer", "Hi Vue Maples", "https://hivuemaples.com/"),
-    ("producer", "Agour", "https://agour.com/"),
+    ("junk", "Hi Vue Maples", "https://hivuemaples.com/"),  # maple syrup, cheese, charcuterie -- not sweets (2026-11-04)
+    ("junk", "Agour", "https://agour.com/"),  # cheese and charcuterie house (2026-11-04)
     ("producer", "Biscuiterie La Lorientaise", "https://www.biscuiterielalorientaise.com/"),
     ("producer", "BRIEUC", "https://www.brieuc.bzh/"),
     ("producer", "Wiener Lebkuchen", "https://wiener-lebkuchen.com/"),
@@ -118,13 +120,13 @@ SITES = [
     ("producer", "Ruth Hunt Candy Co.", "https://www.ruthhuntcandy.com/"),
     ("producer", "Johnsons Toffees", "https://www.johnsonstoffees.com/"),
     ("producer", "Amy Smiths Fudge", "https://amysmiths.co.uk/"),
-    ("producer", "The Real Candy Co", "https://www.therealcandyco.co.uk/"),
+    ("junk", "The Real Candy Co", "https://www.therealcandyco.co.uk/"),  # offers private label -- no OEM at all (user, 2026-11-04)
     ("producer", "Giordano Cioccolato", "https://www.giordanocioccolato.it/"),
     ("producer", "Ziccat", "https://www.ziccat.it/"),
-    ("producer", "Cioccolato Menicucci", "https://www.cioccolatomenicucci.it/"),
+    ("junk", "Cioccolato Menicucci", "https://www.cioccolatomenicucci.it/"),  # offers private label -- no OEM at all (user, 2026-11-04)
     ("producer", "Chocolat Encuentro", "https://www.chocolatencuentro.com/"),
     ("producer", "ILE DE RE CHOCOLATS", "https://iledere-chocolats.com/"),
-    ("producer", "Hanse-Bonbon GmbH", "https://www.hansebonbon.de/"),
+    ("junk", "Hanse-Bonbon GmbH", "https://www.hansebonbon.de/"),  # offers white-label production -- no OEM at all (user, 2026-11-04)
     ("producer", "Küfa Bonbons und Lutscher", "https://kuefa-bonbons.de/"),
     ("producer", "Farmhouse Fudge", "https://farmhousefudge.store/"),
     ("producer", "Fesey Schokoladenmanufaktur", "https://www.fesey.de/"),

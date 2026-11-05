@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# A Korean Windows console defaults to cp949, which can't print the Japanese/accented names.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from query_generator import MAX_PAGE, combinations, ledger_key, next_query, split_key, word_scores  # noqa: E402
 from query_vocab import VOCAB  # noqa: E402

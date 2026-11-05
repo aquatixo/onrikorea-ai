@@ -203,7 +203,10 @@ def classify_korea_status(
     # that one page, just about a different "PBS" entirely. Below some length, a name
     # match proves nothing on its own, so the hard exclude is skipped for short names
     # and falls through to the softer, non-rejecting signals instead.
-    name_is_too_short_to_trust = len(brand_name.strip()) < 5
+    # Latin letters only: 六花亭 / ヤーマン are 3-4 characters but as specific as a long
+    # Latin name, and skipping them left official distributors of Japanese brands unseen.
+    latin = bool(re.search(r"[A-Za-z]", brand_name))
+    name_is_too_short_to_trust = len(brand_name.strip()) < (5 if latin else 3)
     if not name_is_too_short_to_trust:
         for h in hits:
             text = f"{h.get('title', '')} {h.get('description', '')}"

@@ -41,7 +41,40 @@ _COUNTRY_BY_SUFFIX = {
     "pl": "Poland",
     "cz": "Czechia",
     "hu": "Hungary",
+    "lu": "Luxembourg",
+    "mc": "Monaco",
+    "us": "USA",
+    # Countries no lane searches, so is_target_country can drop them: a UK biscuit query
+    # found Sun Foods on sun-foods.co.za and it was filed under the lane's country (UK)
+    # because .za wasn't known here (2026-11-04 run). .co / .io / .me / .tv are left out:
+    # they're used as generic domains.
+    "za": "South Africa",
+    "in": "India", "cn": "China", "hk": "Hong Kong", "tw": "Taiwan", "kr": "South Korea",
+    "sg": "Singapore", "my": "Malaysia", "th": "Thailand", "vn": "Vietnam", "id": "Indonesia",
+    "ph": "Philippines", "br": "Brazil", "mx": "Mexico", "ar": "Argentina", "cl": "Chile",
+    "pe": "Peru", "ru": "Russia", "ua": "Ukraine", "ae": "United Arab Emirates",
+    "sa": "Saudi Arabia", "il": "Israel", "eg": "Egypt", "ma": "Morocco", "ng": "Nigeria",
+    "ke": "Kenya", "ro": "Romania", "bg": "Bulgaria", "hr": "Croatia", "si": "Slovenia",
+    "sk": "Slovakia", "rs": "Serbia", "is": "Iceland", "cy": "Cyprus", "mt": "Malta",
 }
+
+# Countries we source from: every lane's country (categories.py) plus where the French-,
+# English- and Italian-language queries legitimately spill over (Swiss, Belgian, Monegasque,
+# Luxembourgish, Irish, Canadian makers). Germany stays out with its disabled lane (user,
+# 2026-10-19: German brand names don't sell to Korean shoppers); South Africa, India,
+# Australia... are found by English queries but are not markets the company buys from.
+# Both spellings each source uses: the domain table says "United Kingdom", the site-text
+# markers "UK".
+TARGET_COUNTRIES = {
+    "Japan", "France", "Italy", "Spain", "UK", "United Kingdom", "USA", "United States",
+    "Switzerland", "Belgium", "Luxembourg", "Monaco", "Ireland", "Canada",
+}
+
+
+def is_target_country(country: str | None) -> bool:
+    """True for a country we source from -- and for an unknown one (None): a blank country
+    is decided by the lane, which is always a target."""
+    return not country or country in TARGET_COUNTRIES
 
 # Checked longest-first so "co.uk" matches before the bare "uk" would.
 _SUFFIXES_LONGEST_FIRST = sorted(_COUNTRY_BY_SUFFIX, key=len, reverse=True)
@@ -75,6 +108,16 @@ _MARKERS = {
         # Also the adjective: "Fabricant belge de chocolat" (Choc and Co, 2026-10-29 run).
         re.compile(r"\b(?:Belgique|Belgi[eë]|Belgium|Belgien|belges?|Belgian)\b"),
         re.compile(r"\b(?:Bruxelles|Brussel|Brussels|Antwerpen|Anvers|Li[èe]ge|Gent|Gand|Namur)\b"),
+    ],
+    # Not sourced from (see TARGET_COUNTRIES): known here so a .com maker there is dropped
+    # instead of taking the lane's country.
+    "South Africa": [
+        re.compile(r"\+27\b|\bZAR\b"),
+        re.compile(r"\b(?:South Africa|Johannesburg|Cape Town|Durban|Pretoria|Gauteng)\b"),
+    ],
+    "Australia": [
+        re.compile(r"\+61\b|\bAUD\b"),
+        re.compile(r"\b(?:Australia|Sydney|Melbourne|Brisbane|Adelaide|Queensland|Victoria,\s*Australia)\b"),
     ],
     "Canada": [
         re.compile(r"\bCAD\b|\$\s?\d[\d.,]*\s?CAD\b"),

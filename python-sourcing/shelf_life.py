@@ -9,7 +9,8 @@ Deterministic, no LLM:
   "after opening" are not the product's shelf life and are skipped.
 - chilled_hits(text): how often the site says its products are kept cold or frozen.
 - names_cold_product(title): the site calls itself an ice-cream/gelato maker.
-- search_shelf_life(name, country): one Google search when the site states nothing.
+- search_shelf_life(name, country, website): one Google search when the site states nothing;
+  a result counts only when it names the brand and is about food or on the brand's own site.
 
 Most brand homepages never state a shelf life at all, so "not stated" is the normal case
 and is never a reason to drop a candidate on its own -- it is noted as unconfirmed.
@@ -17,6 +18,8 @@ and is never a reason to drop a candidate on its own -- it is noted as unconfirm
 
 import re
 
+from name_filter import brand_domain_label
+from relevance import has_food_words
 from search_errors import SearchAuthError
 from serper_search import search
 
@@ -186,7 +189,7 @@ _SEARCH_TERM = {
 }
 
 
-def search_shelf_life(name: str, country: str | None) -> dict:
+def search_shelf_life(name: str, country: str | None, website: str | None = None) -> dict:
     """{"months", "url"} for the longest shelf life found in Google results that mention
     this brand by name, {"months": None} when none does. A result has to name the brand
     in its own title/snippet -- the same search also returns other brands' products.
@@ -203,10 +206,16 @@ def search_shelf_life(name: str, country: str | None) -> dict:
         names_brand = lambda text: bool(mentions.search(text.lower()))
     else:
         names_brand = lambda text: name in text
+    # ...and has to be about food, or be on the brand's own site: a short name is someone
+    # else's too -- "Brusa" (a biscuit maker) got "60 months" from an Aleppo-soap article
+    # (2026-11-04 run).
+    own = brand_domain_label(website or "")
     best = None
     for r in results:
         text = f"{r.get('title', '')} {r.get('description', '')}"
         if not names_brand(text):
+            continue
+        if not has_food_words(text) and not (own and brand_domain_label(r.get("url", "")) == own):
             continue
         months = shelf_life_months(text)
         if months is not None and (best is None or months > best["months"]):

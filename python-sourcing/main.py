@@ -4,13 +4,12 @@ Evidence-only brand sourcing engine -- no LLM anywhere in this file.
 What this replaces from the Claude pipeline: the discovery searches and the mechanical
 dedup/category checks (via the app's own evaluate-candidate API).
 
-What this does NOT replace, on purpose: judging ownership structure, judging whether a
-heritage story is credible, and judging packaging -- none of that is possible without
-something that can actually read and reason about prose, which is exactly the part this
-script deliberately leaves out. Every candidate this script produces is left as "flag"
-(needs human review) unless the deterministic evaluate-candidate check already rejects it
-outright (hard category exclusion or an exact/high-confidence duplicate of an existing
-brand) -- never "pass", because no automated judgment was made here.
+What this does NOT replace, on purpose: judging whether a heritage story is credible, and
+judging packaging -- none of that is possible without something that can actually read
+and reason about prose. Every candidate this script inserts is "flag" (needs human
+review), never "pass". Anything a deterministic rule rejects -- a certain duplicate, an
+excluded category, OEM, a multinational parent, an official Korean distributor, short
+shelf life, a country we don't source from -- is dropped and never inserted.
 
 Daily-run design (added after real feedback that a fixed query list run start-to-finish
 every day just re-asks a search engine the same questions, which answers near-identically
@@ -46,10 +45,26 @@ from urllib.parse import urlparse
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
+def _fail_before_start(message: str) -> None:
+    """Exits on a bad argument/setting found before main() runs. The app already created
+    this run's SourcingRun row (argv[1]); it is marked failed here, or the sourcing page
+    keeps showing it as running."""
+    print(f"[fatal] {message}", file=sys.stderr)
+    if len(sys.argv) > 1 and sys.argv[1]:
+        try:
+            from db import get_connection, update_run_progress
+
+            conn = get_connection()
+            update_run_progress(conn, sys.argv[1], {"stage": "error", "message": message}, status="error")
+            conn.close()
+        except Exception:
+            pass
+    sys.exit(1)
+
+
 BACKEND = sys.argv[2] if len(sys.argv) > 2 else "serper"
 if BACKEND not in ("serper", "tavily"):
-    print(f"[fatal] unknown backend '{BACKEND}' -- expected 'serper' or 'tavily'", file=sys.stderr)
-    sys.exit(1)
+    _fail_before_start(f"unknown backend '{BACKEND}' -- expected 'serper' or 'tavily'")
 
 from categories import BUCKETS, FOCUS_LANES
 from search_errors import SearchAuthError
@@ -59,8 +74,7 @@ from search_errors import SearchAuthError
 # (e.g. Japan Beauty / Japan Care) never run in a normal run.
 FOCUS = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None
 if FOCUS is not None and FOCUS not in FOCUS_LANES:
-    print(f"[fatal] unknown focus '{FOCUS}' -- expected one of {sorted(FOCUS_LANES)}", file=sys.stderr)
-    sys.exit(1)
+    _fail_before_start(f"unknown focus '{FOCUS}' -- expected one of {sorted(FOCUS_LANES)}")
 
 if BACKEND == "tavily":
     from tavily_search import search
@@ -84,7 +98,7 @@ from jp_reading import with_korean_reading
 KOREA_CALLS_PER_CHECK = len(KOREA_QUERY_TEMPLATES)
 from brand_rules import category_signal, ownership_signal, known_parent_in_name
 from known_brands import known_excluded_brand, normalize_brand_name
-from country_guess import guess_country_from_domain
+from country_guess import guess_country_from_domain, is_target_country
 from evaluate_client import evaluate_candidate
 from roster_harvest import harvest_names
 from brand_resolve import resolve_site
@@ -114,7 +128,10 @@ DAILY_SEARCH_BUDGET = DAILY_SEARCH_BUDGET_TAVILY if BACKEND == "tavily" else DAI
 # One-off extra searches for a single manual run (e.g. re-testing after a fix on a day the
 # budget is already used up): SOURCING_EXTRA_SEARCH_BUDGET=40 python main.py ... Never set
 # by the app's run buttons, so the normal daily cap is unchanged.
-DAILY_SEARCH_BUDGET += int(os.environ.get("SOURCING_EXTRA_SEARCH_BUDGET", "0") or 0)
+try:
+    DAILY_SEARCH_BUDGET += int(os.environ.get("SOURCING_EXTRA_SEARCH_BUDGET", "0") or 0)
+except ValueError:
+    _fail_before_start("SOURCING_EXTRA_SEARCH_BUDGET must be a whole number")
 DAILY_CANDIDATE_TARGET = DAILY_CANDIDATE_TARGET_TAVILY if BACKEND == "tavily" else DAILY_CANDIDATE_TARGET_SERPER
 
 
@@ -156,7 +173,7 @@ def dedupe_by_site(candidates: list[dict]) -> list[dict]:
     titles ("Praline Pecans" product page + the homepage) are the same brand."""
     kept, seen = [], set()
     for c in candidates:
-        host = urlparse(c.get("website") or "").netloc.lower().removeprefix("www.")
+        host = _site_host(c)
         if host and host in seen:
             continue
         seen.add(host)
@@ -183,7 +200,7 @@ class Progress:
         self.rejected = 0
         self.flagged = 0
         self.errors = 0
-        self.skipped_crawl = 0  # rejected by the free checks before it would have needed a crawl
+        self.skipped_crawl = 0  # dropped before its site was crawled
         self.duplicates_skipped = 0  # already-known (existing brand / earlier candidate) -- not even inserted
         self.duplicate_names: list[str] = []  # which candidates, not just how many -- the count alone isn't reviewable
         # Per-reason count of raw search results dropped before ever becoming a
@@ -250,13 +267,54 @@ class Progress:
         }
         update_run_progress(self.conn, self.run_id, payload, status=("done" if self.stage == "done" else None))
 
+    def count_drop(self, code: str) -> None:
+        self.filter_drops[code] = self.filter_drops.get(code, 0) + 1
+
+    def drop(self, name: str, code: str, why: str, crawled: bool) -> None:
+        """One candidate dropped by a rule: logged, counted under its reason, pushed."""
+        print(f"  - {name} -> dropped ({code}: {why})")
+        self.count_drop(code)
+        if not crawled:
+            self.skipped_crawl += 1
+        self.push()
+
+    def skip_duplicate(self, name: str, match: dict, when: str = "") -> None:
+        """A certain duplicate of an existing brand or earlier candidate: not inserted."""
+        label = "existing brand" if match.get("source") == "brand" else "a previously found sourcing candidate"
+        print(f"  - {name} -> skipped{when} (duplicate of {label}: {match['name']})")
+        self.duplicates_skipped += 1
+        self.duplicate_names.append(f"{name} (dup of {label}: {match['name']})")
+        self.push()
+
+
+def _certain_duplicates(duplicates: list[dict]) -> list[dict]:
+    """Exact or high-confidence matches -- the same precedence evaluate.ts uses."""
+    return [d for d in duplicates if d.get("matchType") == "exact" or d.get("confidence") == "high"]
+
+
+def _evaluate(bucket: dict, name: str, website: str | None, country: str | None) -> dict:
+    """The app's duplicate/category check (evaluate_client.py) for one candidate."""
+    return evaluate_candidate(
+        {"name": name, "website": website, "sku": bucket["category"], "methodology": methodology_label(bucket), "country": country}
+    )
+
+
+def _parent_in_name(name: str) -> str | None:
+    """Reject reason when the candidate's own name is a multinational's or our own
+    portfolio's parent ("Grupo Ferrero", "Mars México") -- that's the parent's own page."""
+    hit = known_parent_in_name(name)
+    if not hit:
+        return None
+    parent, rule_code = hit
+    label = "자사 포트폴리오와 동일 모기업 계열" if rule_code == "own_portfolio_parent" else "대형 멀티내셔널 본사/계열 페이지로 추정"
+    return f"소유구조 제외 ({label}): 후보명에 '{parent}' 포함"
+
 
 def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress: "Progress") -> tuple[bool, int]:
     """Runs the full evaluate/crawl/Korea-check pipeline for one discovered candidate,
-    inserts it, and returns (is_new, search_calls_used) -- is_new means verdict=="flag"
-    (a genuine, non-duplicate, non-excluded find worth a human's review); search_calls_used
-    is how many Serper calls this candidate itself triggered (0 if pre-rejected/parked,
-    2 if it reached the Korea-distribution check)."""
+    inserts it if it survives, and returns (is_new, search_calls_used). is_new: inserted
+    for review. search_calls_used: the Serper calls this candidate itself made -- 0 when
+    it was dropped before the Korea check, up to 3 after it (Korea check + shelf life)."""
     search_calls = 0
 
     # A search hit is often one inner page (a blog post, one service page of a
@@ -267,29 +325,28 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
         if parsed_site.scheme in ("http", "https") and parsed_site.netloc:
             candidate = {**candidate, "website": f"{parsed_site.scheme}://{parsed_site.netloc}/"}
 
+    # A site in a country we don't source from (sun-foods.co.za from a UK query) is out
+    # before anything else is spent on it. A .com one is caught after the crawl, from the
+    # site's own text.
+    domain_country = guess_country_from_domain(candidate.get("website") or "")
+    if not is_target_country(domain_country):
+        progress.drop(candidate["name"], "foreign_country", f"사이트 도메인 국가 {domain_country} — 소싱 대상 국가 아님", crawled=False)
+        return False, search_calls
+
     # Dedup + category are free (DB lookups / regex only) -- check them *before* spending
     # the expensive steps (site crawl, Korea search). The 8th manual round measured 24%
     # of raw candidates as already-known duplicates, so this ordering alone skips a
     # crawl+search pair for roughly a quarter of candidates.
     try:
-        pre_evaluation = evaluate_candidate(
-            {
-                # Shop/online words stripped for the duplicate check only ("Lambertz Online"
-                # is the web shop of the existing brand Lambertz).
-                "name": strip_shop_words(candidate["name"]),
-                "website": candidate["website"],
-                "sku": bucket["category"],
-                "methodology": methodology_label(bucket),
-                # Best-effort ccTLD guess first (e.g. a .de domain -> Germany) -- falls
-                # back to the bucket's own country (set on every bucket except "Awards",
-                # which genuinely spans several) when the domain is a generic .com/.co/etc
-                # that guess_country_from_domain deliberately refuses to guess from.
-                # Every query in a country-specific bucket already targets that one
-                # country, so this fallback is a known fact, not a guess -- without it,
-                # the country column stayed blank for most .com-hosted candidates even
-                # though the bucket that found them already knew.
-                "country": guess_country_from_domain(candidate["website"]) or bucket.get("country"),
-            }
+        pre_evaluation = _evaluate(
+            bucket,
+            # Shop/online words stripped for the duplicate check only ("Lambertz Online"
+            # is the web shop of the existing brand Lambertz).
+            strip_shop_words(candidate["name"]),
+            candidate["website"],
+            # The ccTLD when it names a country, else the lane's country: every query in a
+            # lane targets that one country, so it's a known fact, not a guess.
+            guess_country_from_domain(candidate["website"]) or bucket.get("country"),
         )
     except Exception as e:
         print(f"  [warn] evaluate-candidate call failed for '{candidate['name']}': {e}", file=sys.stderr)
@@ -301,24 +358,13 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
     verdict = pre_evaluation["verdict"]
     duplicates = pre_evaluation["duplicates"]
 
-    # Already-known for CERTAIN -- an exact/high-confidence duplicate match (same
-    # precedence evaluate.ts's evaluateCandidate uses), and not already superseded by a
-    # category exclusion as the actual reject reason. Nothing new to review here, so
-    # don't even insert it -- showing these in the review list (even correctly marked
-    # "reject") reads as "why did this come back?" confusion to anyone other than
-    # whoever already knows the history (e.g. Sakuraco resurfacing every run after it
-    # was already added to Brands). A LOW-confidence duplicate hint (duplicates
-    # non-empty but not exact/high) is deliberately NOT skipped here -- that's
-    # evaluate.ts saying "possibly the same, a human should glance at it", and dropping
-    # it silently would lose a real review signal, not just noise.
-    has_certain_duplicate = any(d.get("matchType") == "exact" or d.get("confidence") == "high" for d in duplicates)
-    if has_certain_duplicate and not pre_evaluation["categoryExcluded"]["excluded"]:
-        d = duplicates[0]
-        label = "existing brand" if d.get("source") == "brand" else "a previously found sourcing candidate"
-        print(f"  - {candidate['name']} -> skipped (duplicate of {label}: {d['name']})")
-        progress.duplicates_skipped += 1
-        progress.duplicate_names.append(f"{candidate['name']} (dup of {label}: {d['name']})")
-        progress.push()
+    # Already-known for CERTAIN (exact/high-confidence match) and not already rejected for
+    # its category: nothing new to review, so it isn't inserted (Sakuraco resurfaced every
+    # run after it was added to Brands). A LOW-confidence hint is kept as a note below --
+    # that's evaluate.ts saying "possibly the same, a human should glance at it".
+    certain = _certain_duplicates(duplicates)
+    if certain and not pre_evaluation["categoryExcluded"]["excluded"]:
+        progress.skip_duplicate(candidate["name"], certain[0])
         return False, search_calls
 
     reason_parts = []
@@ -329,39 +375,29 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
         label = "기존 브랜드" if d.get("source") == "brand" else "이전 발굴 후보"
         reason_parts.append(f"중복 가능성 ({label}): {d['name']} ({d['reason']})")
 
-    # Cheap category signal from the search snippet alone -- keyword hits here are still
-    # just signals (see brand_rules.py), not a claim the page was read. This used to
-    # hard-reject the whole candidate (verdict="reject"), inconsistent with the identical
-    # check run again after crawling the real site below, which only ever adds a note
-    # ("주의 — ... SKU 단위 확인 필요"), never rejects. A two-line snippet mentioning one
-    # excluded-category word doesn't prove the category is the candidate's main line any
-    # more than the full site text does -- real case: "Peanuts Pralines" got hard-rejected
-    # here purely because its snippet mentioned "rum" (one flavor variant), even though
-    # 조건 B treats alcohol as a per-SKU exclusion, not a whole-brand one. Keep it as a
-    # note and let the real site crawl (and the same check against real page text) make
-    # the actual call, same as every other signal in this function.
+    # Category words in the search snippet stay a NOTE: a two-line snippet mentioning one
+    # excluded word doesn't prove it's the brand's main line ("Peanuts Pralines" mentioned
+    # rum, one flavour). OEM is the exception -- the company never takes an OEM/private-
+    # label maker at all (user, 2026-11-04), and site_profile drops it on one mention too.
     snippet_signal = category_signal(f"{candidate['name']} {candidate.get('sourceSnippet') or ''}")
     if snippet_signal:
         code, matched = snippet_signal
-        reason_parts.append(
-            f"주의 — 검색 스니펫에서 제외 카테고리 문구 발견 ({code}): '{matched}' "
-            f"(브랜드 전체가 아니라 특정 제품일 수 있음, SKU 단위 확인 필요)"
-        )
+        if code == "oem_b2b":
+            verdict = "reject"
+            reason_parts.append(f"OEM·위탁생산 (검색 스니펫: '{matched}') — 다른 회사 브랜드 제품을 만드는 곳이라 제외")
+        else:
+            reason_parts.append(
+                f"주의 — 검색 스니펫에서 제외 카테고리 문구 발견 ({code}): '{matched}' "
+                f"(브랜드 전체가 아니라 특정 제품일 수 있음, SKU 단위 확인 필요)"
+            )
 
-    # 조건 C: 후보 "이름 자체"에 모기업 이름이 들어있으면 하드 제외 -- 이건 ButterFinger/Milky
-    # Way 같은 사례와 다르다. 그 브랜드들은 자기 이름에 "Ferrero"/"Mars"가 전혀 없으니 애초에
-    # 여기 안 걸린다 (known_parent_in_name이 이름 자체를 검사하는 이상, 여기 걸린다는 것
-    # 자체가 이미 "이 후보는 모기업의 자체 페이지"라는 뜻 -- 실제 실행에서 정확히 이 패턴으로
-    # Ferrero/Cargill/Orkla 본사 페이지가 그대로 후보로 들어옴). 대기업 소유의 진짜 개별
-    # 브랜드는 ownership_signal(크롤링 텍스트의 "a brand of X" 문구)에서만 걸러지고, 거긴
-    # 여전히 참고 문구로만 남긴다 -- 그쪽이 실제 마스터리스트 근거(ButterFinger 등)가 있는
-    # 곳이다.
-    name_parent_hit = known_parent_in_name(candidate["name"])
-    if name_parent_hit:
-        parent, rule_code = name_parent_hit
+    # 조건 C: 후보 이름 자체가 모기업 이름이면 하드 제외 (Ferrero/Cargill/Orkla 본사 페이지가
+    # 그대로 후보로 들어온 적이 있다). 이름에 모기업이 안 드러나는 계열 브랜드는 크롤링 후
+    # ownership_signal("a brand of X" 문구)이 잡는다 -- 그것도 하드 제외다.
+    parent_reason = _parent_in_name(candidate["name"])
+    if parent_reason:
         verdict = "reject"
-        label = "자사 포트폴리오와 동일 모기업 계열" if rule_code == "own_portfolio_parent" else "대형 멀티내셔널 본사/계열 페이지로 추정"
-        reason_parts.append(f"소유구조 제외 ({label}): 후보명에 '{parent}' 포함")
+        reason_parts.append(parent_reason)
 
     # 병행 Claude 파이프라인이 9라운드에 걸쳐 실제로 확인해둔 "이미 검토 끝난 브랜드" 목록과
     # 이름 대조 -- 검색 API 호출 없이 공짜로 되는 체크라 여기서 먼저 한다. 이름이 조금이라도
@@ -376,12 +412,10 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
     site_info: dict = {}
     shelf_evidence = None
     korea = {"hitCount": 0, "hits": [], "topHits": []}
-    korea_status, korea_reason = "no_evidence_found", None
+    korea_name = candidate["name"]
 
     if verdict == "reject":
         # Already rejected for free -- skip the crawl and the Korea search entirely.
-        # skipped_crawl is the honest count of how many candidates this saved a
-        # crawl+search on.
         progress.skipped_crawl += 1
     else:
         # Site-first verification (site_profile.py): the candidate's OWN site must show it
@@ -397,10 +431,7 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
         progress.website_scraped += 1
         keep, drop_code, why = judge(profile, candidate["name"], candidate["website"] or "", bucket.get("group", "food"))
         if not keep:
-            print(f"  - {candidate['name']} -> dropped ({drop_code}: {why})")
-            progress.filter_drops[drop_code] = progress.filter_drops.get(drop_code, 0) + 1
-            progress.skipped_crawl += 1
-            progress.push()
+            progress.drop(candidate["name"], drop_code, why, crawled=True)
             return False, search_calls
         site_info = profile
         reason_parts.append(f"사이트 검증 통과 — {why}")
@@ -412,6 +443,7 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
         final = urlparse(profile.get("finalUrl") or "")
         if final.scheme in ("http", "https") and final.netloc:
             candidate = {**candidate, "website": f"{final.scheme}://{final.netloc}/"}
+        moved = _site_host({"website": original_website}) != _site_host(candidate)
 
         better_name = resolved_name(profile, candidate["name"], candidate["website"])
         renamed = better_name != candidate["name"]
@@ -425,68 +457,72 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
         # else the lane's) -- not with the redirected site's domain: a .com that redirects to
         # a .ch site used to keep the lane's country because the new domain "had" one.
         site_country = profile.get("country")
+        if not is_target_country(site_country):
+            progress.drop(candidate["name"], "foreign_country", f"사이트 국가 {site_country} — 소싱 대상 국가 아님", crawled=True)
+            return False, search_calls
         first_country = guess_country_from_domain(original_website) or bucket.get("country")
         country_changed = bool(site_country and site_country != first_country)
-        if renamed or country_changed:
-            # The duplicate check ran on the search-result name; a corrected name can match
-            # a brand that one missed (real case: "Chocolaterie Monbana" -> "monbana", an
-            # existing brand, only got a low-confidence hint and reached the review list).
+        if renamed or moved or country_changed:
+            # The first check saw the search-result name and address. A corrected name or the
+            # site it redirected to can be a brand that check missed (real case: "Chocolaterie
+            # Monbana" -> "monbana", an existing brand, reached the review list as a hint).
             try:
-                re_eval = evaluate_candidate(
-                    {
-                        "name": strip_shop_words(candidate["name"]),
-                        "website": candidate["website"],
-                        "sku": bucket["category"],
-                        "methodology": methodology_label(bucket),
-                        "country": site_country if country_changed else (guess_country_from_domain(candidate["website"]) or bucket.get("country")),
-                    }
+                re_eval = _evaluate(
+                    bucket,
+                    strip_shop_words(candidate["name"]),
+                    candidate["website"],
+                    site_country if country_changed else (guess_country_from_domain(candidate["website"]) or bucket.get("country")),
                 )
-            except Exception:
+            except Exception as e:
+                print(f"  [warn] re-evaluation failed for '{candidate['name']}': {e}", file=sys.stderr)
+                progress.errors += 1
                 re_eval = None
             if re_eval:
                 if country_changed:
                     pre_evaluation = {**pre_evaluation, "normalized": re_eval["normalized"]}
-                certain = [d for d in re_eval["duplicates"] if d.get("matchType") == "exact" or d.get("confidence") == "high"]
-                if renamed and certain:
-                    d = certain[0]
-                    label = "existing brand" if d.get("source") == "brand" else "a previously found sourcing candidate"
-                    print(f"  - {candidate['name']} -> skipped after rename (duplicate of {label}: {d['name']})")
-                    progress.duplicates_skipped += 1
-                    progress.duplicate_names.append(f"{candidate['name']} (dup of {label}: {d['name']})")
-                    progress.push()
+                certain = _certain_duplicates(re_eval["duplicates"])
+                if (renamed or moved) and certain:
+                    progress.skip_duplicate(candidate["name"], certain[0], " after rename/redirect")
                     return False, search_calls
+                if re_eval["categoryExcluded"]["excluded"]:
+                    verdict = "reject"
+                    reason_parts.append(re_eval["categoryExcluded"]["reason"])
 
+        # The free checks that need the crawled site or the corrected name -- all before the
+        # paid Korea search, so a rejected candidate doesn't spend it.
         korea_name = korea_search_name(candidate["name"], candidate["website"])
+        if renamed:
+            parent_reason = _parent_in_name(candidate["name"])
+            if parent_reason:
+                verdict = "reject"
+                reason_parts.append(parent_reason)
         # The registry check before the crawl only saw the search-result name
         # ("ヤーマン公式通販サイト"); the corrected name or the domain name can match it
-        # (ヤーマン / "ya man"). Free, and it saves the 2-search Korea check.
-        # The domain-derived name only when it's long enough to mean something: a 4-5
-        # letter domain word ("solo", "novi", "lance") matched an unrelated registry entry.
+        # (ヤーマン / "ya man"). The domain-derived name only when it's long enough to mean
+        # something: a 4-5 letter domain word ("solo", "novi", "lance") matched an unrelated
+        # registry entry.
         known_after = known_excluded_brand(candidate["name"]) or (
             known_excluded_brand(korea_name) if len(korea_name.replace(" ", "")) >= 6 else None
         )
         if known_after:
             registry, known_reason = known_after
-            print(f"  - {candidate['name']} -> dropped (known_excluded: {registry} — {known_reason})")
-            progress.filter_drops["known_excluded"] = progress.filter_drops.get("known_excluded", 0) + 1
-            progress.push()
+            progress.drop(candidate["name"], "known_excluded", f"{registry} — {known_reason}", crawled=True)
             return False, search_calls
-        korea = check_korea_presence(korea_name)
-        search_calls += KOREA_CALLS_PER_CHECK
-        progress.serper_calls += KOREA_CALLS_PER_CHECK
-        # Classify against ALL hits, not just the capped topHits display list -- a brand's
-        # own (non-Korean) site usually ranks first and could push the one real Korean
-        # marketplace hit out of the display cap. See check_korea_presence.
-        korea_status, korea_reason = classify_korea_status(
-            korea["hits"], korea_name, korea.get("failed", 0), own_domain_label=brand_domain_label(candidate["website"] or "")
-        )
-        progress.korea_checked += 1
-        progress.push()
 
         site_text = profile.get("fullText") or ""
         snippet = site_text[:800]
-        # Excluded-category words on the site stay a NOTE, never a reject: one word can be
-        # one SKU out of many (Dean's of Huntly, a shortbread brand, has one whisky cake).
+        # 조건 C: 자사 기존 포트폴리오와 같은 모기업, 또는 대형 멀티내셔널 계열이면 하드 제외.
+        # 멀티내셔널 계열은 참고 문구로만 남기던 때 Thorntons ("part of the Ferrero Group")가
+        # 후보로 들어왔다 (2026-11-02 run) -- 그런 브랜드의 한국 판권은 그룹 한국 법인 몫이다.
+        owner_hit = ownership_signal(site_text)
+        if owner_hit:
+            parent, rule_code, matched = owner_hit
+            verdict = "reject"
+            label = "자사 포트폴리오와 동일 모기업 계열" if rule_code == "own_portfolio_parent" else "대형 멀티내셔널 계열"
+            reason_parts.append(f"소유구조 제외 ({label}): {parent} ('{matched}')")
+        # Other excluded-category words on the site stay a NOTE: one word can be one SKU out
+        # of many (Dean's of Huntly, a shortbread brand, has one whisky cake). OEM on the site
+        # was already dropped by judge().
         site_signal = category_signal(snippet)
         if site_signal:
             code, matched = site_signal
@@ -495,31 +531,32 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
                 f"(브랜드 전체가 아니라 특정 제품일 수 있음, SKU 단위 확인 필요)"
             )
 
-        # 조건 C: 자사 기존 포트폴리오와 같은 모기업이면 하드 제외. 대형 멀티내셔널 계열이라는
-        # 사실 자체는 참고 문구로만 남긴다 (실제 판정은 조건 A/한국 총판 여부가 한다).
-        owner_hit = ownership_signal(site_text)
-        if owner_hit:
-            parent, rule_code, matched = owner_hit
-            if rule_code == "own_portfolio_parent":
+        if verdict != "reject":
+            korea = check_korea_presence(korea_name)
+            search_calls += KOREA_CALLS_PER_CHECK
+            progress.serper_calls += KOREA_CALLS_PER_CHECK
+            # Classify against ALL hits, not just the capped topHits display list -- a brand's
+            # own (non-Korean) site usually ranks first and could push the one real Korean
+            # marketplace hit out of the display cap. See check_korea_presence.
+            korea_status, korea_reason = classify_korea_status(
+                korea["hits"], korea_name, korea.get("failed", 0), own_domain_label=brand_domain_label(candidate["website"] or "")
+            )
+            progress.korea_checked += 1
+            progress.push()
+            # 조건 A: 지금 독점 총판 자리가 비어 있는지가 기준 -- 공식 총판이 이미 있으면 제외,
+            # 병행수입/구매대행만 있으면 오히려 우선 후보(제외 아님).
+            if korea_status == "official_distributor":
                 verdict = "reject"
-                reason_parts.append(f"소유구조 제외 (자사 포트폴리오와 동일 모기업 계열): {parent} ('{matched}')")
-            else:
-                reason_parts.append(f"참고 — 대기업 계열 브랜드로 추정: {parent} ('{matched}'), 한국 총판 여부로 별도 판단 필요")
-
-        # 조건 A: 지금 독점 총판 자리가 비어 있는지가 기준 -- 공식 총판이 이미 있으면 제외,
-        # 병행수입/구매대행만 있으면 오히려 우선 후보(제외 아님).
-        if korea_status == "official_distributor":
-            verdict = "reject"
-        reason_parts.append(korea_reason)
-        if korea_status == "parallel_import":
-            reason_parts.append("우선 후보: 수요는 검증됐고 총판 자리는 비어있는 것으로 추정됨")
+            reason_parts.append(korea_reason)
+            if korea_status == "parallel_import":
+                reason_parts.append("우선 후보: 수요는 검증됐고 총판 자리는 비어있는 것으로 추정됨")
 
         # Shelf life >= 12 months (user, 2026-10-15). The site's own statement was already
         # judged in site_profile.judge; when it states none, ask Google once (1 search, only
         # for candidates still standing). Not found is a note, never a reject.
         if verdict != "reject" and bucket.get("group", "food") == "food" and profile.get("shelfLifeMonths") is None:
-            # The lane's country (English, "Germany"): the stored one is a Korean label.
-            shelf = search_shelf_life(candidate["name"], bucket.get("country"))
+            # The lane's country (English, "Italy"): the stored one is a Korean label.
+            shelf = search_shelf_life(candidate["name"], bucket.get("country"), candidate["website"])
             search_calls += 1
             progress.serper_calls += 1
             if shelf["months"] is not None and shelf["months"] < MIN_SHELF_LIFE_MONTHS:
@@ -556,7 +593,7 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
         # distributor already in place, ...) is not something to review -- it used to be
         # listed anyway, so "Mars México" and "Grupo Ferrero" showed up as candidates.
         progress.rejected += 1
-        progress.filter_drops["rejected_rule"] = progress.filter_drops.get("rejected_rule", 0) + 1
+        progress.count_drop("rejected_rule")
         print(f"  - {candidate['name']} -> dropped (rejected: {' | '.join(p for p in reason_parts if p)[:120]})")
         progress.push()
         return False, search_calls
@@ -592,9 +629,9 @@ def process_candidate(conn, run_id: str, bucket: dict, candidate: dict, progress
     return verdict == "flag", search_calls
 
 
-def process_discovery_query(conn, run_id: str, bucket: dict, query_text: str, progress: "Progress") -> tuple[int, int, int]:
+def process_discovery_query(conn, run_id: str, bucket: dict, query_text: str, progress: "Progress") -> tuple[int, int, int, bool]:
     """Runs one discovery query, evaluates every candidate it surfaces, inserts them.
-    Returns (search_calls_used, new_candidates_count, results_count)."""
+    Returns (search_calls_used, new_candidates_count, results_count, search_failed)."""
     search_calls = 1  # the discovery call itself
     new_candidates = 0
 
@@ -612,7 +649,7 @@ def process_discovery_query(conn, run_id: str, bucket: dict, query_text: str, pr
         print(f"  [warn] search failed for '{query_text}': {e}", file=sys.stderr)
         progress.errors += 1
         progress.push()
-        return search_calls, 0, 0
+        return search_calls, 0, 0, True
 
     raw = []
     for r in results:
@@ -620,7 +657,7 @@ def process_discovery_query(conn, run_id: str, bucket: dict, query_text: str, pr
         dropped = False
         for reason, check in URL_FILTERS:
             if check(r):
-                progress.filter_drops[reason] = progress.filter_drops.get(reason, 0) + 1
+                progress.count_drop(reason)
                 dropped = True
                 break
         if dropped:
@@ -628,7 +665,7 @@ def process_discovery_query(conn, run_id: str, bucket: dict, query_text: str, pr
         progress.after_url_filters += 1
         name = guess_brand_name(r["title"], r["url"])
         if not name:
-            progress.filter_drops["no_name"] = progress.filter_drops.get("no_name", 0) + 1
+            progress.count_drop("no_name")
             continue
         progress.after_name += 1
         # The core quality fix: only accept a result if it's hosted on a domain that IS
@@ -641,8 +678,7 @@ def process_discovery_query(conn, run_id: str, bucket: dict, query_text: str, pr
             # known, currently-unfixed-without-an-LLM gap (see domain_matches_name's
             # docstring). Tracking it separately turns "how often does this actually
             # happen" from a guess into a number.
-            reason = "generic_token_only" if generic_overlap_only(name, r["url"]) else "domain_mismatch"
-            progress.filter_drops[reason] = progress.filter_drops.get(reason, 0) + 1
+            progress.count_drop("generic_token_only" if generic_overlap_only(name, r["url"]) else "domain_mismatch")
             continue
         progress.after_domain += 1
         raw.append({"name": name, "website": r["url"], "sourceSnippet": r["description"]})
@@ -660,7 +696,7 @@ def process_discovery_query(conn, run_id: str, bucket: dict, query_text: str, pr
         if is_new:
             new_candidates += 1
 
-    return search_calls, new_candidates, len(pooled)
+    return search_calls, new_candidates, len(pooled), False
 
 
 # A single roster page can easily harvest 30-40 names -- without a cap, one query's
@@ -676,12 +712,12 @@ _MAX_RESOLVE_PER_QUERY = 8
 _MAX_ROSTER_ENTRIES_PER_QUERY = 20
 
 
-def process_roster_query(conn, run_id: str, bucket: dict, query_text: str, progress: "Progress") -> tuple[int, int, int]:
+def process_roster_query(conn, run_id: str, bucket: dict, query_text: str, progress: "Progress") -> tuple[int, int, int, bool]:
     """Runs one roster query (see categories.py's "kind": "roster"): finds candidate
     list/roster pages via search, harvests producer names from each (roster_harvest.py),
     dedupes against known brands/candidates BEFORE spending any resolve-search budget,
     then resolves only the survivors to their own official site (brand_resolve.py).
-    Returns (search_calls_used, new_candidates_count, results_count) -- same shape as
+    Returns (search_calls_used, new_candidates_count, results_count, search_failed) -- same shape as
     process_discovery_query so main()'s caller doesn't need to know which path ran.
 
     domain_matches_name is deliberately NOT called anywhere in this function on the
@@ -700,7 +736,7 @@ def process_roster_query(conn, run_id: str, bucket: dict, query_text: str, progr
         print(f"  [warn] search failed for '{query_text}': {e}", file=sys.stderr)
         progress.errors += 1
         progress.push()
-        return search_calls, 0, 0
+        return search_calls, 0, 0, True
 
     harvested: dict[str, dict] = {}  # keyed by normalized name, first hit wins
     for r in results:
@@ -724,39 +760,27 @@ def process_roster_query(conn, run_id: str, bucket: dict, query_text: str, progr
     for entry in harvested.values():
         name = entry["name"]
         if known_excluded_brand(name):
+            progress.count_drop("known_excluded")
             continue
         # A real roster links each producer's name to that producer's own site, so the
         # name must look like a name AND match the linked domain. A reference/citation list
         # fails this -- real run: link text "Manchego wins nail-biting World Cheese Awards
         # 2012" pointing at a news site came back as a "brand".
         if not is_plausible_brand_name(name) or (entry.get("website") and not domain_matches_name(name, entry["website"])):
-            progress.filter_drops["roster_name_mismatch"] = progress.filter_drops.get("roster_name_mismatch", 0) + 1
+            progress.count_drop("roster_name_mismatch")
             continue
         if entry.get("website"):
             survivors.append(entry)
             continue
         try:
-            pre_evaluation = evaluate_candidate(
-                {
-                    "name": name,
-                    "website": None,
-                    "sku": bucket["category"],
-                    "methodology": methodology_label(bucket),
-                    "country": bucket.get("country"),
-                }
-            )
+            pre_evaluation = _evaluate(bucket, name, None, bucket.get("country"))
         except Exception as e:
             print(f"  [warn] evaluate-candidate call failed for harvested name '{name}': {e}", file=sys.stderr)
             progress.errors += 1
             continue
-        has_certain_duplicate = any(
-            d.get("matchType") == "exact" or d.get("confidence") == "high" for d in pre_evaluation["duplicates"]
-        )
-        if has_certain_duplicate:
-            d = pre_evaluation["duplicates"][0]
-            label = "existing brand" if d.get("source") == "brand" else "a previously found sourcing candidate"
-            progress.duplicates_skipped += 1
-            progress.duplicate_names.append(f"{name} (roster, dup of {label}: {d['name']})")
+        certain = _certain_duplicates(pre_evaluation["duplicates"])
+        if certain:
+            progress.skip_duplicate(name, certain[0], " (roster)")
             continue
         survivors.append(entry)
     progress.names_after_dedup += len(survivors)
@@ -791,12 +815,12 @@ def process_roster_query(conn, run_id: str, bucket: dict, query_text: str, progr
         if is_new:
             new_candidates += 1
 
-    return search_calls, new_candidates, len(survivors)
+    return search_calls, new_candidates, len(survivors), False
 
 
 def process_one_query(
     conn, run_id: str, bucket: dict, query_text: str, kind: str, progress: "Progress"
-) -> tuple[int, int, int]:
+) -> tuple[int, int, int, bool]:
     """Dispatches to the discovery or roster pipeline based on this query's "kind" (see
     categories.py) -- the two are different enough (one candidate per search result vs.
     many names harvested from one page) that branching here is clearer than merging
@@ -867,6 +891,7 @@ def main():
     active = list(lane_states)
 
     stopped_by = None
+    search_failed = False
 
     while active:
         if candidates_out >= DAILY_CANDIDATE_TARGET:
@@ -885,10 +910,9 @@ def main():
             state = lane_states[label]
             queries = bucket["queries"]  # each item: {"q": <text>, "category": <Korean SKU label>}
 
-            # Skip past any query already proven dry (2 consecutive zero-yield runs).
-            # Keyed on the query TEXT only (not the category), same as before -- an
-            # existing SourcingQueryLedger row's key is just the string, unaffected by
-            # this file moving "category" from the bucket level down to the query level.
+            # Skip a query the ledger retired (2 consecutive zero-yield runs). The cursor
+            # normally points at a query that hasn't run yet, so this only matters after
+            # categories.py's list was edited. Keyed on the query TEXT only.
             while state["cursor"] < len(queries) and is_query_retired(conn, BACKEND, label, queries[state["cursor"]]["q"]):
                 state["cursor"] += 1
 
@@ -918,22 +942,31 @@ def main():
             query_bucket = {**bucket, "category": query_item["category"], "page": page, "dynamic": dynamic}
             kind = query_item.get("kind", "discovery")
             serper_before = progress.serper_calls
-            calls, new_count, results_count = process_one_query(conn, run_id, query_bucket, query_text, kind, progress)
+            calls, new_count, results_count, failed = process_one_query(conn, run_id, query_bucket, query_text, kind, progress)
+            own_calls = calls
             if BACKEND != "serper":
                 # Korea checks and shelf-life lookups always use Serper (it finds Naver/
-                # Coupang listings far better), so record them on Serper's daily usage too --
-                # otherwise a Tavily run spends Serper credits that never show up there.
-                add_search_usage(conn, "serper", today, progress.serper_calls - serper_before)
+                # Coupang listings far better): they go on Serper's daily usage, not on this
+                # backend's budget, which counts its own credits (config.py).
+                serper_spent = progress.serper_calls - serper_before
+                add_search_usage(conn, "serper", today, serper_spent)
+                own_calls -= serper_spent
 
-            search_used += calls
+            search_used += own_calls
             candidates_out += new_count
-            record_query_result(conn, BACKEND, label, ledger_text, results_count, new_count)
-
-            if not dynamic:
-                state["cursor"] += 1
-            state["totalNewBrands"] += new_count
-            save_lane_state(conn, BACKEND, label, state["cursor"], False, state["totalNewBrands"])
-            update_daily_budget(conn, BACKEND, today, search_used, candidates_out)
+            update_daily_budget(conn, BACKEND, today, own_calls, new_count)
+            if failed:
+                # The search itself failed (network, 429, 5xx): nothing was learned about this
+                # query, so it isn't recorded or skipped past -- the lane sits out the rest of
+                # this run and the same query runs next time.
+                active.remove(label)
+                search_failed = True
+            else:
+                record_query_result(conn, BACKEND, label, ledger_text, results_count, new_count)
+                if not dynamic:
+                    state["cursor"] += 1
+                state["totalNewBrands"] += new_count
+                save_lane_state(conn, BACKEND, label, state["cursor"], False, state["totalNewBrands"])
 
             progress.search_used = search_used
             progress.candidates_out = candidates_out
@@ -945,9 +978,9 @@ def main():
             break  # every remaining active lane got exhausted this round
 
     if stopped_by is None:
-        stopped_by = "exhausted" if not active else "target"
+        stopped_by = ("search_error" if search_failed else "exhausted") if not active else "target"
 
-    update_daily_budget(conn, BACKEND, today, search_used, candidates_out, stopped_by=stopped_by)
+    update_daily_budget(conn, BACKEND, today, 0, 0, stopped_by=stopped_by)
     progress.stage = "done"
     progress.stopped_by = stopped_by
     progress.push()
@@ -958,7 +991,8 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception as e:
+    except (Exception, KeyboardInterrupt) as e:
+        # KeyboardInterrupt too: a run stopped with Ctrl+C must not stay "running" forever.
         import traceback
 
         detail = traceback.format_exc()

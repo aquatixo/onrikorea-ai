@@ -27,7 +27,13 @@ def _clean_dsn(url: str) -> str:
 def get_connection():
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL is not set in .env")
-    return psycopg2.connect(_clean_dsn(DATABASE_URL))
+    conn = psycopg2.connect(_clean_dsn(DATABASE_URL))
+    # Every statement commits on its own. With psycopg2's default, a plain SELECT (lane
+    # state, ledger lookups) opened a transaction that stayed open through the slow crawls
+    # and searches after it -- held "idle in transaction" on Supabase's pooler. Nothing here
+    # needs several statements to be atomic.
+    conn.autocommit = True
+    return conn
 
 
 def create_sourcing_run(conn, backend: str = "serper") -> str:
@@ -40,7 +46,6 @@ def create_sourcing_run(conn, backend: str = "serper") -> str:
             'INSERT INTO "SourcingRun" (id, "createdAt", status, backend) VALUES (%s, %s, %s, %s)',
             (run_id, datetime.now(timezone.utc), "running", backend),
         )
-    conn.commit()
     return run_id
 
 
@@ -56,7 +61,6 @@ def update_run_progress(conn, run_id: str, progress: dict, status: str | None = 
                 'UPDATE "SourcingRun" SET progress = %s::jsonb WHERE id = %s',
                 (json.dumps(progress), run_id),
             )
-    conn.commit()
 
 
 def insert_candidate(conn, run_id: str, candidate: dict) -> None:
@@ -83,7 +87,6 @@ def insert_candidate(conn, run_id: str, candidate: dict) -> None:
                 datetime.now(timezone.utc),
             ),
         )
-    conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -94,30 +97,33 @@ def insert_candidate(conn, run_id: str, candidate: dict) -> None:
 
 def get_or_create_daily_budget(conn, backend: str, run_date: date) -> dict:
     with conn.cursor() as cur:
+        # ON CONFLICT: two runs starting on the same day both found no row and the second
+        # INSERT failed on the (backend, runDate) key.
+        cur.execute(
+            'INSERT INTO "SourcingDailyBudget" (backend, "runDate", "searchUsed", "candidatesOut") VALUES (%s, %s, 0, 0) '
+            'ON CONFLICT (backend, "runDate") DO NOTHING',
+            (backend, run_date),
+        )
         cur.execute(
             'SELECT "searchUsed", "candidatesOut", "stoppedBy" FROM "SourcingDailyBudget" WHERE backend = %s AND "runDate" = %s',
             (backend, run_date),
         )
         row = cur.fetchone()
-        if row:
-            return {"searchUsed": row[0], "candidatesOut": row[1], "stoppedBy": row[2]}
-        cur.execute(
-            'INSERT INTO "SourcingDailyBudget" (backend, "runDate", "searchUsed", "candidatesOut") VALUES (%s, %s, 0, 0)',
-            (backend, run_date),
-        )
-    conn.commit()
-    return {"searchUsed": 0, "candidatesOut": 0, "stoppedBy": None}
+    return {"searchUsed": row[0], "candidatesOut": row[1], "stoppedBy": row[2]}
 
 
 def update_daily_budget(
-    conn, backend: str, run_date: date, search_used: int, candidates_out: int, stopped_by: str | None = None
+    conn, backend: str, run_date: date, add_searches: int, add_candidates: int, stopped_by: str | None = None
 ) -> None:
+    """Adds to today's counts instead of overwriting them: a run that overlapped another
+    (or a Tavily run's add_search_usage on Serper's row) lost the other's searches when
+    each wrote back its own in-memory total."""
     with conn.cursor() as cur:
         cur.execute(
-            'UPDATE "SourcingDailyBudget" SET "searchUsed" = %s, "candidatesOut" = %s, "stoppedBy" = COALESCE(%s, "stoppedBy") WHERE backend = %s AND "runDate" = %s',
-            (search_used, candidates_out, stopped_by, backend, run_date),
+            'UPDATE "SourcingDailyBudget" SET "searchUsed" = "searchUsed" + %s, "candidatesOut" = "candidatesOut" + %s, '
+            '"stoppedBy" = COALESCE(%s, "stoppedBy") WHERE backend = %s AND "runDate" = %s',
+            (add_searches, add_candidates, stopped_by, backend, run_date),
         )
-    conn.commit()
 
 
 def add_search_usage(conn, backend: str, run_date: date, calls: int) -> None:
@@ -131,7 +137,6 @@ def add_search_usage(conn, backend: str, run_date: date, calls: int) -> None:
             'UPDATE "SourcingDailyBudget" SET "searchUsed" = "searchUsed" + %s WHERE backend = %s AND "runDate" = %s',
             (calls, backend, run_date),
         )
-    conn.commit()
 
 
 def get_lane_state(conn, backend: str, lane_code: str) -> dict:
@@ -160,7 +165,6 @@ def save_lane_state(conn, backend: str, lane_code: str, cursor: int, exhausted: 
             """,
             (backend, lane_code, cursor, exhausted, datetime.now(timezone.utc), total_new_brands),
         )
-    conn.commit()
 
 
 def is_query_retired(conn, backend: str, lane_code: str, query_text: str) -> bool:
@@ -210,5 +214,4 @@ def record_query_result(conn, backend: str, lane_code: str, query_text: str, res
             """,
             (str(uuid.uuid4()), backend, lane_code, query_text, datetime.now(timezone.utc), results_count, new_candidates, streak, retired),
         )
-    conn.commit()
     return retired

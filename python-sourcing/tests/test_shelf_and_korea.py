@@ -7,9 +7,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# A Korean Windows console defaults to cp949, which can't print the Japanese/accented names.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from brand_rules import category_signal  # noqa: E402
-from country_guess import guess_country_from_text  # noqa: E402
+from brand_rules import category_signal, known_parent_in_name, ownership_signal  # noqa: E402
+from country_guess import guess_country_from_domain, guess_country_from_text, is_target_country  # noqa: E402
 from korea_check import (  # noqa: E402
     _OFFICIAL_PHRASES,
     _is_korea_retail_hit,
@@ -26,7 +28,7 @@ from name_filter import (  # noqa: E402
     looks_like_reseller,
     pick_brand_name,
 )
-from relevance import check_food_relevance, check_group_relevance  # noqa: E402
+from relevance import _COOKIE_BANNER, check_food_relevance, check_group_relevance  # noqa: E402
 from shelf_life import chilled_hits, names_cold_product, shelf_life_months  # noqa: E402
 from site_profile import (  # noqa: E402
     _DIRECTORY_TITLE,
@@ -42,7 +44,12 @@ from site_profile import (  # noqa: E402
     _THIN_DISTRIBUTOR,
     _TRADE_LINK,
     _category_in_place,
+    _OEM_PATH,
     _japanese_middleman,
+    _not_one_brand,
+    _product_reason,
+    _oem_mention,
+    _other_category_hits,
     _unusable_name,
     judge,
     resolved_name,
@@ -313,6 +320,59 @@ READING = [
     ("上間菓子店", "https://www.amaume.co.jp/", None),  # amaume = 甘梅, the product
 ]
 
+OEM_TEXT = [
+    ("PRODUZIONI CONTO TERZI E PRIVATE LABELS Accanto alle offerte di marchio", True),
+    ("variazioni di grammatura e realizzazione di Private Label.", True),
+    ("法人様向けオリジナル商品(OEM)のご案内 キャンディを販促で使用しませんか", True),
+    ("卸売事業、ODMに関してご質問・ご相談がございましたら", True),
+    ("Auch White-Label Produktionen sind möglich", True),
+    ("We do not offer private label products.", False),
+    ("Sorry, we don't do private label or white label work.", False),
+    ("OEMは行っておりません。", False),
+    ("Handmade fudge from our own kitchen since 1952.", False),
+    # 2026-11-05 review: a negation further back doesn't cancel an offer...
+    ("Non solo cioccolato: produzioni conto terzi e private label per la GDO", True),
+    ("No preservatives, no artificial colours — we also make private label for retailers", True),
+    ("If you don't see your favourite we also offer private label and co-packing", True),
+    ("We offer co-manufacturing for other brands", True),
+    ("Fabricación para terceros y marcas de distribuidor", True),
+    ("法人様向けオリジナル商品(OEM)のご案内 キャンディを販促で使用しませんか", True),
+    # ...and these say they don't, or aren't about it at all.
+    ("OEMには対応しておりません", False),
+    ("OEMのご依頼はお断りしております", False),
+    ("OEM・PBは承っておりません", False),
+    ("Wir bieten keine Lohnfertigung an", False),
+    ("Lindt ist eine eingetragene Handelsmarke der Lindt & Sprüngli AG", False),
+    ("Spedizione con corriere conto terzi in tutta Italia", False),
+]
+
+# Rules fixed in the 2026-11-05 review: (label, keep expected) for judge-level checks.
+REVIEW_TEXT = [
+    # A dragée maker names weddings and baptisms in singular and plural: 2 occasions, not 4.
+    ("dragees", "Dragées artisanales pour mariage et baptême. Nos dragées pour mariages et baptêmes. " * 3),
+    # Buffalo sponge candy keeps for months: not a fresh sponge cake.
+    ("sponge candy", "Sponge candy dipped in chocolate. Our sponge candy and sponge toffee. " * 3),
+]
+
+OEM_PATHS = [
+    ("/oem/", True),
+    ("/private-label", True),
+    ("/pages/private_label.html", True),
+    ("/en/marque-blanche/", True),
+    ("/boemia-chocolate/", False),
+    ("/products/oembed", False),
+]
+
+COUNTRY_TARGET = [
+    ("https://sun-foods.co.za/", "South Africa", False),
+    ("https://www.example.de/", "Germany", False),
+    ("https://www.example.com.au/", "Australia", False),
+    ("https://www.vicens.com/", None, True),  # generic .com: the lane decides
+    ("https://www.massera.it/", "Italy", True),
+    ("https://www.certin.be/", "Belgium", True),
+    ("https://shop.example.co.uk/", "United Kingdom", True),
+]
+
 CATEGORY = [
     ("We are an OEM partner", "oem_b2b"),
     ("fresh anchovies", "seafood"),
@@ -517,6 +577,39 @@ if __name__ == "__main__":
         {"name": "Chocolaterie Marin", "website": "https://chocolaterie-marin.fr/"},
     ])
     check(len(dupes) == 2, "different makers with similar names on different sites are both kept")
+    # No OEM / private label at all (user, 2026-11-04) -- but not when the site says it doesn't.
+    for text, expected in OEM_TEXT:
+        check((_oem_mention(text) is not None) == expected, f"oem {text[:50]!r}")
+    for path, expected in OEM_PATHS:
+        check(bool(_OEM_PATH.search(path)) == expected, f"oem path {path}")
+    check(_other_category_hits("Maple syrup, maple cream, cheese and charcuterie boards, vinegar") >= 4, "other categories counted")
+    check(_other_category_hits("Fudge, toffee, brittle, caramel corn and chocolate bars") == 0, "sweets are not other categories")
+    check(_other_category_hits("Swedish Fish, wine gums, cheese crackers, チーズおかき, for the sake of taste") == 0,
+          "candy names and cheese snacks are not other categories")
+    for label, text in REVIEW_TEXT:
+        check(_product_reason({"fullText": text}, "food") is None, f"not dropped for its products: {label}")
+    for text in ("Become a distributor of our brands", "Vertrieb unserer Marken im Handel", "Diventa distributore di marchi"):
+        check(_not_one_brand({"fullText": text, "selfTitle": "Maker"}, "Maker", "https://maker.it/") is None,
+              f"a maker recruiting distributors is one brand: {text}")
+    check(_not_one_brand({"fullText": "Fabricant et distributeur de marques reconnues", "selfTitle": "X"}, "X", "https://x.fr/")
+          is not None, "a distributor of other makers' brands is still out")
+    for title in ("Torronificio Rossi - produzione e vendita all'ingrosso", "Turrones Pérez | fábrica y venta mayorista"):
+        check(not looks_like_reseller(title), f"a maker that also sells wholesale: {title}")
+    for text in ("商取引法に基づく表記", "特定取引法に基づく表記", "Fair Trade cocoa", "Food Handler"):
+        check(not _TRADE_LINK.search(text), f"not a trade link: {text}")
+    check(_COOKIE_BANNER.sub(" ", "Our butter cookies are baked by hand for a unique tea-time experience").strip() != "",
+          "a product sentence about cookies is not a cookie banner")
+    # The multinational owner further down the page, past another "part of".
+    check(ownership_signal("Shortbread is part of every celebration. Thorntons is part of the Ferrero Group.") is not None,
+          "ownership: the second 'part of' is read too")
+    check(known_parent_in_name("Asahi Seika") is None and known_parent_in_name("Les Délices de Mars") is None,
+          "a small maker's name with a common word is not a multinational")
+    check(known_parent_in_name("Mars Wrigley") is not None and known_parent_in_name("Nestlé Japan") is not None,
+          "the multinationals' own names still are")
+    # Countries we don't source from (sun-foods.co.za from a UK query, 2026-11-04).
+    for url, country, target in COUNTRY_TARGET:
+        got = guess_country_from_domain(url)
+        check(got == country and is_target_country(got) == target, f"country {url} -> {got}")
 
     print(f"\n{total - failed}/{total} passed, {failed} failed")
     sys.exit(1 if failed else 0)
