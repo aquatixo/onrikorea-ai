@@ -35,7 +35,7 @@ from name_filter import (
 from relevance import _COOKIE_BANNER, check_food_relevance, check_group_relevance, has_food_words, has_group_words, name_on_site
 from query_vocab import VOCAB
 from shelf_life import MIN_SHELF_LIFE_MONTHS, chilled_hits, format_months, names_cold_product, shelf_life_months
-from site_scrape import HEADERS, _extract_site_name, _is_parked, extract_founded_year, has_export_signal
+from site_scrape import HEADERS, _extract_site_name, _is_parked, extract_founded_year, has_export_signal, jsonld_founding_year
 
 MIN_READABLE_CHARS = 400
 _MIN_SITE_CHARS = 2000
@@ -155,7 +155,7 @@ def _oem_reason(profile: dict, food: bool) -> str | None:
 # than a food maker ("開発", "メーカー", "製造販売元", "日本製").
 _DEVICE_MAKER_MARKERS = re.compile(r"開発|研究|メーカー|製品|製造販売|自社ブランド|特許|日本製|made\s+in\s+japan|our\s+products", re.I)
 _PAGE_TEXT_CAP = 6000
-_MAX_ABOUT_PAGES = 2
+_MAX_ABOUT_PAGES = 3
 _MAX_TRADE_PAGES = 2
 
 # Internal links worth following, found in the homepage's own menus/footer instead of
@@ -167,7 +167,23 @@ _ABOUT_LINK = re.compile(
     r"chi[\s-]siamo|storia|azienda|"
     r"qui[eé]nes[\s-]somos|nuestra[\s-]historia|historia|empresa|"
     r"sobre[\s-]n[oó]s|hist[oó]ria|"
-    r"会社概要|私たちについて|歴史|沿革|当店について",
+    r"notre[\s-](?:aventure|[ée]quipe|savoir|chocolaterie|biscuiterie|confiserie)|"
+    r"会社概要|会社情報|会社案内|企業情報|企業概要|私たちについて|歴史|沿革|当店について",
+    re.I,
+)
+# The history of a PRODUCT, not of the company: "Historia del chocolate" (Chocolates Artesanos
+# Isabel, 2026-11-06 run) dated the company 1819 from "En 1819, Cailler fundó la primera
+# fábrica de chocolate".
+_TOPIC_HISTORY = re.compile(
+    r"(?:histor\w*|storia|geschichte)[\s_-]+(?:(?:del|de|du|des|of|della|dello|der|the|la|le|el)[\s_-]+)*"
+    r"(?:chocolate|chocolat|cioccolato|schokolade|cacao|cocoa|turr[oó]n|torrone|nougat|caramel|candy|biscuit|liquori|regaliz)",
+    re.I,
+)
+# Company pages before stories: 昔飴本舗 links two product "our-story" pages ahead of its
+# 会社情報, and only those were read -- the founding year sits on the company page.
+_COMPANY_PAGE = re.compile(
+    r"about|company|unternehmen|geschichte|histoire|qui[\s-]sommes|chi[\s-]siamo|storia|azienda|"
+    r"qui[eé]nes[\s-]somos|empresa|history|historia|会社概要|会社情報|会社案内|企業情報|企業概要|沿革|歴史",
     re.I,
 )
 _TRADE_LINK = re.compile(
@@ -372,6 +388,14 @@ _RETAILER_MARKERS = re.compile(
     r"\b(shop\s+by\s+brand|all\s+brands|brands\s+we\s+(stock|carry)|marketplace)\b",
     re.I,
 )
+# A sweet SHOP rather than a maker (2026-11-06 run): a range counted in the title ("400+
+# Types of Liquorice Sweets", Liquorice Heaven) and pick & mix counters (SugarSin, a Covent
+# Garden sweet shop: 8 mentions). Of every reviewed maker, one mentioned pick & mix once.
+_SHOP_RANGE_TITLE = re.compile(r"\b\d{2,}\+?\s+(?:types|varieties|brands|kinds|flavou?rs)\s+of\b", re.I)
+_PICK_AND_MIX = re.compile(r"pick\s*(?:&|'n'|’n’|n|and|\+)\s*mix", re.I)
+_MIN_PICK_AND_MIX = 3
+# Shopify/WooCommerce product listings: never a trade page.
+_PRODUCT_LISTING_PATH = re.compile(r"/(?:collections|products|product-category|categorie|categoria)/", re.I)
 # A distributor describing itself (judged on a JS site's title + meta description only):
 # "Wholesale candy, snacks, and sundries" (General Candy Company). Not "wholesalers" /
 # "distributors of" -- a maker's own description says "available through wholesalers and
@@ -493,6 +517,11 @@ def _internal_links(soup: BeautifulSoup, base_url: str) -> list[tuple[str, str]]
     return out
 
 
+def _earliest(*years: int | None) -> int | None:
+    found = [y for y in years if y]
+    return min(found) if found else None
+
+
 def _product_counts(text: str) -> dict:
     """How often the site names each kind of product -- counted without the cookie banner,
     whose "cookies"/"クッキー" read as biscuits ("This website uses cookies" = 3 hits)."""
@@ -533,7 +562,7 @@ def build_profile(url: str) -> dict:
             "finalUrl": home.url,
             "siteName": _extract_site_name(soup),
             "fullText": thin,
-            "foundedYear": extract_founded_year(thin),
+            "foundedYear": _earliest(extract_founded_year(thin), jsonld_founding_year(soup)),
             "country": guess_country_from_domain(home.url) or guess_country_from_text(thin),
             "thinFood": has_food_words(thin),
             "thinProducer": bool(_PRODUCER_MARKERS.search(thin)),
@@ -550,11 +579,21 @@ def build_profile(url: str) -> dict:
         (t or urlparse(h).path for t, h in links if _OEM_WORDS.search(t) or _OEM_PATH.search(urlparse(h).path)),
         None,
     )
-    about_urls = [h for t, h in links if _ABOUT_LINK.search(t) or _ABOUT_LINK.search(urlparse(h).path)][:_MAX_ABOUT_PAGES]
+    about = [
+        (t, h)
+        for t, h in links
+        if (_ABOUT_LINK.search(t) or _ABOUT_LINK.search(urlparse(h).path))
+        and not _TOPIC_HISTORY.search(f"{t} {urlparse(h).path}")
+    ]
+    about.sort(key=lambda th: not (_COMPANY_PAGE.search(th[0]) or _COMPANY_PAGE.search(urlparse(th[1]).path)))
+    about_urls = [h for _, h in about][:_MAX_ABOUT_PAGES]
+    # A web shop's product collection is never its trade page, whatever its slug says:
+    # "/collections/finnish-liquorice-lakritsi-uk-stockist" is a liquorice retailer's
+    # shelf of Finnish brands (Liquorice Heaven, 2026-11-06 run).
     trade_links = [
         (t, h)
         for t, h in links
-        if (_TRADE_LINK.search(t) or _TRADE_LINK.search(urlparse(h).path))
+        if (_TRADE_LINK.search(t) or (_TRADE_LINK.search(urlparse(h).path) and not _PRODUCT_LISTING_PATH.match(urlparse(h).path)))
         and not _GIFT_LINK.search(f"{t} {urlparse(h).path}")
     ]
     texts = [home_text]
@@ -588,7 +627,7 @@ def build_profile(url: str) -> dict:
         "siteName": _extract_site_name(soup),
         "homeText": home_text,
         "fullText": full_text,
-        "foundedYear": extract_founded_year(full_text),
+        "foundedYear": _earliest(extract_founded_year(full_text), jsonld_founding_year(soup)),
         "country": guess_country_from_domain(home.url) or guess_country_from_text(full_text),
         "jsonldTypes": sorted(types),
         "publisherTypes": sorted(types & _PUBLISHER_TYPES),
@@ -837,6 +876,12 @@ def judge(profile: dict, name: str, url: str, group: str = "food") -> tuple[bool
         return False, "publisher_site", f"언론/블로그형 사이트 (출판 용어 {profile['publisherHits']}, 날짜 {profile['dateStamps']})"
     if looks_like_reseller(profile.get("selfTitle") or "") or looks_like_reseller(name) or profile["retailerHits"] >= 2:
         return False, "reseller_site", f"재판매/편집숍형 사이트 (신호 {profile['retailerHits']})"
+    shop_range = _SHOP_RANGE_TITLE.search(profile.get("selfTitle") or "")
+    if shop_range:
+        return False, "reseller_site", f"여러 브랜드를 파는 판매점 (사이트 제목: '{shop_range.group(0)}')"
+    pick_mix = len(_PICK_AND_MIX.findall(profile["fullText"]))
+    if pick_mix >= _MIN_PICK_AND_MIX:
+        return False, "reseller_site", f"pick & mix 사탕 가게 (언급 {pick_mix}회) — 여러 브랜드를 파는 판매점"
     middleman = _japanese_middleman(profile["fullText"])
     if middleman:
         return False, middleman[0], middleman[1]

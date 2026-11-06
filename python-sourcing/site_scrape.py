@@ -23,26 +23,68 @@ _ANNIVERSARY_MAX_YEARS = 300
 # An anniversary that is not the company's own age: an age gate ("18 years or older"), a
 # regional tradition ("Seit 1950 ... 200 Jahre alte Tradition" gave 1826, "recipes go back
 # over 200 years in this region"), or a vague claim ("plus de 300 ans").
-_NOT_COMPANY_AGE_BEFORE = re.compile(r"(?:over|more\s+than|plus\s+de|[üu]ber|oltre|m[áa]s\s+de|back)\s*$", re.I)
+# Also a person's age or career on a team page (Sunshine Chocolats, 2026-11-06 run: "à 25
+# ans", "Avant ses 18 ans", "Après 20 ans comme technico-commercial", "19 ans plus tard").
+_NOT_COMPANY_AGE_BEFORE = re.compile(
+    r"(?:over|more\s+than|plus\s+de|[üu]ber|oltre|m[áa]s\s+de|back|"
+    r"\b(?:à|a|at|aged?|ses|son|his|her|their|after|après|apr[eè]s|avant|before|dopo|prima\s+di|tras|antes\s+de|nach|vor))\s*$",
+    re.I,
+)
 _NOT_COMPANY_AGE_AFTER = re.compile(
     r"^\s*(?:or\s+older|of\s+age|old\b|ago\b|alte?n?\b|et\s+plus|vieille|d['’]histoire|di\s+storia|de\s+historia|"
-    r"tradition|Tradition)",
+    r"tradition|Tradition|plus\s+tard|later\b|più\s+tardi|m[áa]s\s+tarde|sp[äa]ter|comme\b|en\s+tant|as\s+an?\b|"
+    r"d['’]expatriation|de\s+carri[èe]re)",
     re.I,
 )
 
 # Japanese: 創業1902年 / 1902年創業 / 設立 / 創立, also as an era year (明治35年創業).
-_JP_ERAS = {"明治": 1867, "大正": 1911, "昭和": 1925, "平成": 1988, "令和": 2018}
+# Each era's year 0, so 元年 (year 1) = value + 1. The Edo-period eras too: old wagashi
+# houses date themselves that way -- 榮太樓總本鋪 "文政元年の江戸出府から始まる" is 1818,
+# and without 文政 the engine stored 1962, the year it became a company (2026-11-06 run).
+_JP_ERAS = {
+    "慶長": 1595, "元和": 1614, "寛永": 1623, "正保": 1643, "慶安": 1647, "承応": 1651, "明暦": 1654,
+    "万治": 1657, "寛文": 1660, "延宝": 1672, "天和": 1680, "貞享": 1683, "元禄": 1687, "宝永": 1703,
+    "正徳": 1710, "享保": 1715, "元文": 1735, "寛保": 1740, "延享": 1743, "寛延": 1747, "宝暦": 1750,
+    "明和": 1763, "安永": 1771, "天明": 1780, "寛政": 1788, "享和": 1800, "文化": 1803, "文政": 1817,
+    "天保": 1829, "弘化": 1843, "嘉永": 1847, "安政": 1853, "万延": 1859, "文久": 1860, "元治": 1863,
+    "慶応": 1864, "明治": 1867, "大正": 1911, "昭和": 1925, "平成": 1988, "令和": 2018,
+}
+_ERA = "(" + "|".join(_JP_ERAS) + ")"
+_JP_YEAR = rf"(?:(\d{{4}})|{_ERA}\s*(\d{{1,2}}|元))\s*年"
 # Also "創立(設立) 大正10年" (a label in brackets after the word) and "1950年12月 …が個人創業"
 # (a month and a few words before it) -- 三立製菓 and ばいこう堂 write it that way.
 _JP_FOUNDED = re.compile(
-    r"(?:創業|設立|創立)\s*(?:[（(][^）)]{0,6}[）)])?\s*(?:は|：|:)?\s*(?:(\d{4})|(明治|大正|昭和|平成|令和)\s*(\d{1,2}|元))\s*年?|"
+    rf"(?:創業|設立|創立)\s*(?:[（(][^）)]{{0,6}}[）)])?\s*(?:は|：|:)?\s*(?:(\d{{4}})|{_ERA}\s*(\d{{1,2}}|元))\s*年?|"
     # The few words in between never name a facility ("2015年4月 新工場を設立"), and the
     # word isn't 創業者 ("2023年10月 創業者 山田太郎" is about the founder).
-    r"(?:(\d{4})|(明治|大正|昭和|平成|令和)\s*(\d{1,2}|元))\s*年\s*(?:\d{1,2}\s*月)?"
-    r"(?:(?!工場|子会社|支店|支社|営業所|店舗|事業所|研究所|センター|社屋|物流)[^。\d]){0,15}?(?:に)?\s*(?:創業|設立|創立)(?!者)"
+    rf"{_JP_YEAR}\s*(?:\d{{1,2}}\s*月)?"
+    r"(?:(?!工場|子会社|支店|支社|営業所|店舗|事業所|研究所|センター|社屋|物流)[^。\d]){0,15}?(?:に)?\s*(?:創業|設立|創立)(?!者)|"
+    # The story's first line: "文政元年の江戸出府から始まる", "安政4年に暖簾を掲げ", "明治10年開業".
+    rf"{_JP_YEAR}[^。\d]{{0,15}}?(?:から始ま|に始ま|開業|開店|創始|暖簾|のれん|創製)"
 )
-_JP_YEARS_SINCE = re.compile(r"創業\s*(\d{1,3})\s*(?:年|周年)")
+# A dated anniversary in a timeline: "2019年3月 …創業60年記念…" is 1959. Read before
+# _JP_FOUNDED's "創業 1963年": in a timeline "…を創業 1963年9月 …" is the NEXT entry's date.
+_JP_DATED_ANNIVERSARY = re.compile(r"(\d{4})\s*年\s*(?:\d{1,2}\s*月)?[^。\d]{0,30}?創業\s*(\d{1,3})\s*(?:年|周年)")
+# "創業100年" / "創業百年" / "二百年の歴史" -- the company's age, digits or kanji numerals.
+_JP_YEARS_SINCE = re.compile(r"創業\s*([\d一二三四五六七八九十百]{1,6})\s*(?:年|周年)|([\d一二三四五六七八九十百]{1,6})\s*(?:年|周年)の(?:歴史|伝統|歩み|あゆみ)")
+_KANJI_DIGITS = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
 _FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
+
+
+def _jp_number(s: str) -> int | None:
+    """"二百" -> 200, "百五十" -> 150, "120" -> 120 (up to 999)."""
+    if s.isdigit():
+        return int(s)
+    total, digit = 0, 0
+    for ch in s:
+        if ch in _KANJI_DIGITS:
+            digit = _KANJI_DIGITS[ch]
+        elif ch in ("十", "百"):
+            total += (digit or 1) * (10 if ch == "十" else 100)
+            digit = 0
+        else:
+            return None
+    return total + digit
 
 FOUNDED_PATTERNS = [
     re.compile(r"founded in (\d{4})", re.I),
@@ -64,6 +106,23 @@ FOUNDED_PATTERNS = [
     re.compile(r"\bfondat[ao]\s*nel (\d{4})", re.I),  # Italian "founded"
     re.compile(r"\bdesde (\d{4})", re.I),  # Spanish "since"
     re.compile(r"\bfundad[ao]\s*en (\d{4})", re.I),  # Spanish "founded"
+    # The same without the preposition, with "the year", or with a creation verb:
+    # "Established 1880", "Founded 1926", "créée en 1952", "nata nel 1924", "desde el año
+    # 1880", "fundada en el año 1880", "dal lontano 1924", "since the year 1890".
+    # Not "opened"/"started": "our new factory opened in 2015", "started exporting in 2010".
+    re.compile(
+        r"\b(?:founded|established|incorporated)\s*(?:in\s+)?(?:the\s+year\s+)?(\d{4})\b|"
+        r"\b(?:since|depuis|desde|dal|seit)\s+(?:the\s+year\s+|l['’]ann[ée]e\s+|el\s+a[ñn]o\s+|lontano\s+|anno\s+|dem\s+jahr\s+)(\d{4})\b|"
+        r"\b(?:cr[ée]{2}e?|n[ée]e?|fond[ée]e?)\s+en\s+(?:l['’]ann[ée]e\s+)?(\d{4})\b|"
+        r"\b(?:nat[ao]|fondat[ao]|nasce|naque|cread[ao]|nacid[ao]|fundad[ao])\s+(?:nel(?:l['’]anno)?|en(?:\s+el\s+a[ñn]o)?|el\s+a[ñn]o)\s+(\d{4})\b",
+        re.I,
+    ),
+    # "In 1880, Giuseppe founded ..." / "En 1880, ... fundó" / "Nel 1924 ... fondò".
+    re.compile(
+        r"\b(?:in|en|nel|im\s+jahr)\s+(\d{4}),?\s+(?:[\w'’.-]+\s+){0,5}?"
+        r"(?:founded|established|fonde|fonda|cr[ée]a|fond[òo]|fund[óo]|gr[üu]ndete)\b",
+        re.I,
+    ),
 ]
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; OnriBrandSourcing/1.0)"}
@@ -113,6 +172,23 @@ def _extract_site_name(soup: BeautifulSoup) -> str | None:
 _ORG_TYPES = {"Organization", "LocalBusiness", "Bakery", "Store", "FoodEstablishment", "Corporation", "CafeOrCoffeeShop"}
 
 
+def jsonld_founding_year(soup: BeautifulSoup) -> int | None:
+    """The year in a JSON-LD Organization's "foundingDate" ("1924", "1924-03-01") -- many
+    shop platforms and SEO plugins fill it in, where the page text never says it."""
+    for script in soup.find_all("script", type="application/ld+json"):
+        try:
+            data = json.loads(script.string or "")
+        except (ValueError, TypeError):
+            continue
+        items = data if isinstance(data, list) else data.get("@graph", [data]) if isinstance(data, dict) else []
+        for item in items:
+            if isinstance(item, dict):
+                m = re.match(r"\s*(\d{4})", str(item.get("foundingDate") or ""))
+                if m and 1590 <= int(m.group(1)) <= date.today().year:
+                    return int(m.group(1))
+    return None
+
+
 def extract_founded_year(text: str) -> int | None:
     """Collects every plausible year this text could be claiming (every FOUNDED_PATTERNS
     match anywhere in the text, plus every anniversary phrase converted via
@@ -139,22 +215,26 @@ def extract_founded_year(text: str) -> int | None:
     text = text.translate(_FULLWIDTH_DIGITS)
 
     for m in _JP_FOUNDED.finditer(text):
-        year_s, era, era_n, year_s2, era2, era_n2 = m.groups()
-        if year_s or year_s2:
-            year = int(year_s or year_s2)
-        else:
-            n = era_n or era_n2
-            year = _JP_ERAS[era or era2] + (1 if n == "元" else int(n))
-        if 1600 <= year <= this_year:
+        groups = m.groups()
+        # Three (4-digit year, era, era year) triples, one per alternative -- one is set.
+        for year_s, era, era_n in zip(groups[0::3], groups[1::3], groups[2::3]):
+            if year_s or era:
+                year = int(year_s) if year_s else _JP_ERAS[era] + (1 if era_n == "元" else int(era_n))
+                if 1590 <= year <= this_year:
+                    years.append(year)
+                break
+    for m in _JP_DATED_ANNIVERSARY.finditer(text):
+        year = int(m.group(1)) - int(m.group(2))
+        if 1590 <= year <= this_year:
             years.append(year)
     for m in _JP_YEARS_SINCE.finditer(text):
-        n = int(m.group(1))
-        if _ANNIVERSARY_MIN_YEARS <= n <= 500:
+        n = _jp_number(m.group(1) or m.group(2))
+        if n and _ANNIVERSARY_MIN_YEARS <= n <= 500:
             years.append(this_year - n)
 
     for pattern in FOUNDED_PATTERNS:
         for match in pattern.finditer(text):
-            year = int(match.group(1))
+            year = int(next(g for g in match.groups() if g))
             if 1700 <= year <= this_year:
                 years.append(year)
 

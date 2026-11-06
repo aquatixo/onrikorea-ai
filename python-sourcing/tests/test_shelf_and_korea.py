@@ -45,6 +45,9 @@ from site_profile import (  # noqa: E402
     _TRADE_LINK,
     _category_in_place,
     _OEM_PATH,
+    _PICK_AND_MIX,
+    _PRODUCT_LISTING_PATH,
+    _SHOP_RANGE_TITLE,
     _japanese_middleman,
     _not_one_brand,
     _product_reason,
@@ -224,6 +227,16 @@ FOUNDED = [
     ("You must be 18 years or older", None),
     ("Maison fondée en 1878, 100 ans de savoir-faire", 1878),
     ("Depuis 1963 ... 60 ans", 1963),
+    # 2026-11-06: Edo eras, kanji numerals, dated anniversaries, more phrasings, no ages.
+    ("文政元年の江戸出府から始まる榮太樓二百年の歴史。昭和37年 株式会社設立", 1818),  # not 1962
+    ("安政4年に暖簾を掲げ", 1857),
+    ("飴菓子製造業を創業 1963年9月 主に卸 … 2019年3月 創業60年記念の植樹", 1959),
+    ("Established 1880 in Leeds", 1880),
+    ("Azienda famigliare nata nel 1990 a Ceglie", 1990),
+    ("desde el año 1880", 1880),
+    ("In 1898 William Shriver founded Shriver's", 1898),
+    ("Our new factory opened in 2015", None),
+    ("Avant d'arriver chez Sunshine à 25 ans. Après 20 ans comme technico-commercial. 19 ans plus tard", None),
 ]
 
 COUNTRY = [
@@ -606,6 +619,14 @@ if __name__ == "__main__":
           "a small maker's name with a common word is not a multinational")
     check(known_parent_in_name("Mars Wrigley") is not None and known_parent_in_name("Nestlé Japan") is not None,
           "the multinationals' own names still are")
+    # 2026-11-06 run: two sweet shops and a slogan name.
+    check(bool(_SHOP_RANGE_TITLE.search("400+ Types of Liquorice Sweets | Free UK delivery")), "a range in the title is a shop")
+    check(not _SHOP_RANGE_TITLE.search("Since 1925: 3 generations of toffee makers"), "a maker's history is not a range")
+    check(len(_PICK_AND_MIX.findall("Pick & Mix, pick n mix, Pick 'n' Mix sweets")) == 3, "pick & mix spellings")
+    check(bool(_PRODUCT_LISTING_PATH.match("/collections/finnish-liquorice-lakritsi-uk-stockist")), "a product collection")
+    check(not _PRODUCT_LISTING_PATH.match("/pages/stockists"), "a stockist page is not a product collection")
+    check(japanese_site_name("京都・手作りの味　大文字飴", "大文字飴本舗") == "大文字飴本舗",
+          "a slogan title falls back to the site name")
     # Countries we don't source from (sun-foods.co.za from a UK query, 2026-11-04).
     for url, country, target in COUNTRY_TARGET:
         got = guess_country_from_domain(url)

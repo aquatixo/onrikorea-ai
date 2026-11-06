@@ -1018,9 +1018,14 @@ def japanese_site_name(title: str | None, site_name: str | None) -> str | None:
         #    亀屋良長" past the English tagline.
         #    A one-word Latin piece first is the brand itself ("flaneru (フラネル) | 粉と砂糖と");
         #    a multi-word Latin piece is a tagline and is skipped. Only place names and
-        #    generic words are read past -- any other Japanese word ends the search, so a
-        #    slogan in a later piece is never taken for the name.
+        #    generic words are read past -- any other Japanese word ends the search IN THIS
+        #    TEXT, so a slogan in a later piece is never taken for the name. The site name is
+        #    still read: "京都・手作りの味　大文字飴" gave up on 京都・手作りの味, and the
+        #    site name 大文字飴本舗 was never looked at (2026-11-06 run).
+        slogan = False
         for piece in pieces:
+            if slogan:
+                break
             words = [w for w in re.split(r"[\s:：]", re.sub(r"「[^」]*」", "", piece)) if w]
             if words and not _JP_CHARS.search(piece):
                 # ...but not a page name ("TOP | 鶴屋八幡").
@@ -1041,7 +1046,8 @@ def japanese_site_name(title: str | None, site_name: str | None) -> str | None:
                     and not re.search(r"おすすめ|ランキング|比較|まとめ", word)
                 ):
                     return word
-                return None
+                slogan = True
+                break
     return None
 
 
