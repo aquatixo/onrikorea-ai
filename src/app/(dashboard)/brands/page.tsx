@@ -30,6 +30,7 @@ import { STATUS_STYLE } from "@/lib/brand-status";
 import { getLocale } from "@/lib/i18n/get-locale";
 import { getDictionary } from "@/lib/i18n/dictionary";
 import { getPageWindow, parsePageSize, parsePage } from "@/lib/pagination";
+import { fuzzySearchBrandIds } from "@/lib/search/brand-fuzzy-search";
 import type { Prisma } from "@prisma/client";
 
 function pageHref(page: number, q: string, pageSize: number) {
@@ -64,15 +65,26 @@ export default async function BrandsPage(props: PageProps<"/brands">) {
       }
     : {};
 
-  const [total, brands] = await Promise.all([
-    db.brand.count({ where }),
-    db.brand.findMany({
-      where,
-      orderBy: { sourceNo: "asc" },
-      skip: (currentPage - 1) * pageSize,
-      take: pageSize,
-    }),
-  ]);
+  // A search forgives typos, accents and hyphens and puts the best matches first
+  // (Postgres pg_trgm, src/lib/search/brand-fuzzy-search.ts); if that fails, it's the
+  // plain `contains` search below.
+  const found = q ? await fuzzySearchBrandIds(q, { from: (currentPage - 1) * pageSize, size: pageSize }) : null;
+  const [total, brands] = found
+    ? [
+        found.total,
+        await db.brand
+          .findMany({ where: { id: { in: found.ids } } })
+          .then((rows) => found.ids.map((id) => rows.find((b) => b.id === id)).filter((b) => b !== undefined)),
+      ]
+    : await Promise.all([
+        db.brand.count({ where }),
+        db.brand.findMany({
+          where,
+          orderBy: { sourceNo: "asc" },
+          skip: (currentPage - 1) * pageSize,
+          take: pageSize,
+        }),
+      ]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasPrevious = currentPage > 1;

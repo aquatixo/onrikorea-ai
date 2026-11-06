@@ -63,6 +63,8 @@ model Brand {
   updatedAt     DateTime    @updatedAt
 
   @@index([name])
+  // Trigram index for the typo-tolerant brand search (pg_trgm, src/lib/search/brand-fuzzy-search.ts).
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Brand_name_trgm_idx")
   @@index([websiteDomain])
   @@index([createdById])
   @@unique([name, websiteDomain], map: "brand_name_domain_unique")

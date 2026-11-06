@@ -5,6 +5,7 @@ import { getDictionary } from "@/lib/i18n/dictionary";
 import { buildBrandsWorkbook } from "@/lib/brand-export/build-workbook";
 import { parsePage, parsePageSize } from "@/lib/pagination";
 import { requireSectionAccess } from "@/lib/auth/require-section-access";
+import { fuzzySearchBrandIds } from "@/lib/search/brand-fuzzy-search";
 import type { Brand, Prisma } from "@prisma/client";
 
 function xlsxResponse(brands: Brand[], headers: readonly string[], filename: string) {
@@ -42,11 +43,20 @@ export async function GET(request: NextRequest) {
       }
     : {};
 
-  const brands = await db.brand.findMany({
-    where,
-    orderBy: { sourceNo: "asc" },
-    ...(scope === "page" ? { skip: (page - 1) * pageSize, take: pageSize } : {}),
-  });
+  // The same search, rows and order as the list on screen (pg_trgm, else `contains` --
+  // see src/app/(dashboard)/brands/page.tsx).
+  const found = q
+    ? await fuzzySearchBrandIds(q, scope === "page" ? { from: (page - 1) * pageSize, size: pageSize } : {})
+    : null;
+  const brands = found
+    ? await db.brand
+        .findMany({ where: { id: { in: found.ids } } })
+        .then((rows) => found.ids.map((id) => rows.find((b) => b.id === id)).filter((b) => b !== undefined))
+    : await db.brand.findMany({
+        where,
+        orderBy: { sourceNo: "asc" },
+        ...(scope === "page" ? { skip: (page - 1) * pageSize, take: pageSize } : {}),
+      });
 
   return xlsxResponse(brands, t.exportHeaders, scope === "page" ? `brands-page-${page}.xlsx` : "brands-all.xlsx");
 }
