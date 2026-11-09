@@ -358,6 +358,9 @@ _SHELF_WORDS = _TARGET_WORDS
 _OTHER_CATEGORY_WORDS = re.compile(
     # Not "wine gums", "Swedish Fish", "for the sake of", or a cheese-flavoured cracker.
     r"\bwines?\b(?!\s+gums?)|\bvino\b|\bvini\b|\bvins?\b|\bbeers?\b|\bbirra\b|\bcerveza\b|\bspirits\b|日本酒|焼酎|ワイン|ビール|"
+    # Spirits by name ("Cioccolato, distillati e altre passioni", ADELIA DI FANT, 2026-11-09
+    # run: 16 of them vs 21 chocolate words). Not "liquirizia" (liquorice).
+    r"distillat\w*|\bgrappa\b|\bliquori\b|\bliqueurs?\b|\bwhiske?y\b|\bvodka\b|\bdistiller\w*|"
     r"\bcheeses?\b(?!\s+(?:crackers?|straws?|biscuits?|puffs?|balls?))|fromages?|formagg\w*|\bquesos?\b|"
     r"チーズ(?!おかき|せんべい|煎餅|あられ|クッキー|ケーキ)|乳製品|"
     r"\bsalumi\b|charcuterie|sausages?|\bham\b|jam[oó]n|ハム|ソーセージ|"
@@ -1060,7 +1063,13 @@ _TITLE_PIECES = re.compile(r"\s*[|｜–—:·»【】「」]\s*|\s+-\s+|(?<=[�
 # ("Cotswold Fudge CoStockists") and a page-type prefix ("B2B Choc and Co", the trade
 # catalogue of Choc and Co). Only navigation words no brand name ends with.
 _GLUED_MENU_WORD = re.compile(r"(?<=[a-z])(?:Stockists|Contact|Login|Basket|Cart|Menu|Home)$")
-_PAGE_PREFIX = re.compile(r"^(?:catalogue|catalogo|catálogo|katalog|b2b|espace\s+pro)\s+", re.I)
+# Also the name of the page the search hit was on: "PRESENTATION BISCUITERIE LE DREAN"
+# (the "Présentation" page of Biscuiterie Le Drean, 2026-11-09 run).
+_PAGE_PREFIX = re.compile(
+    r"^(?:catalogue|catalogo|catálogo|katalog|b2b|espace\s+pro|pr[ée]sentation|accueil|home|about(?:\s+us)?|"
+    r"l['’]entreprise|qui\s+sommes[\s-]nous|chi\s+siamo|qui[ée]nes\s+somos|notre\s+histoire|la\s+storia|historique)\s+",
+    re.I,
+)
 # ... and a site-type suffix from the page title ("McVITIES Official", "EDELWEISS エーデル
 # ワイス オフィシャルサイト").
 _SITE_SUFFIX = re.compile(
@@ -1105,7 +1114,12 @@ def _name_from_title(text: str, current: str, url: str) -> str | None:
     page/slogan word in it ("Hijas de Alberto Monerris Sirvent"). Lower-case words mean a
     description ("Elaboración artesanal de turrones y dulces de Jijona")."""
     pieces = []
+    # Also what comes before a comma: "La Dragée de Valence, dragées et pralines pour mariage"
+    # is the company, then what it sells (2026-11-09 run: the domain "Drageepraline" won).
+    candidates = []
     for p in _TITLE_PIECES.split(text):
+        candidates += [p, p.split(",")[0]] if "," in p else [p]
+    for p in candidates:
         p = re.sub(r"\s+", " ", p).strip(" -")
         content = [w for w in p.split() if w.lower() not in _PLACE_PREPOSITIONS and w.lower() not in _CONNECTORS]
         if (

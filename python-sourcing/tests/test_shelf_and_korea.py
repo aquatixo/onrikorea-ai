@@ -45,7 +45,9 @@ from site_profile import (  # noqa: E402
     _TRADE_LINK,
     _category_in_place,
     _OEM_PATH,
+    _PAGE_PREFIX,
     _PICK_AND_MIX,
+    _name_from_title,
     _PRODUCT_LISTING_PATH,
     _SHOP_RANGE_TITLE,
     _japanese_middleman,
@@ -627,6 +629,14 @@ if __name__ == "__main__":
     check(not _PRODUCT_LISTING_PATH.match("/pages/stockists"), "a stockist page is not a product collection")
     check(japanese_site_name("京都・手作りの味　大文字飴", "大文字飴本舗") == "大文字飴本舗",
           "a slogan title falls back to the site name")
+    # 2026-11-09 run: a page name in front, a comma before the description, spirits.
+    check(_PAGE_PREFIX.sub("", "PRESENTATION BISCUITERIE LE DREAN") == "BISCUITERIE LE DREAN", "page name before the company")
+    check(_PAGE_PREFIX.sub("", "Maison Drans") == "Maison Drans", "a real name is left alone")
+    check(_name_from_title("La Dragée de Valence, dragées et pralines pour mariage, baptême et communion 100% française",
+                           "La Dragée de Valence, dragées et pralines pour mariage ...", "https://www.drageepraline.com/")
+          == "La Dragée de Valence", "the company before a comma in the title")
+    check(_other_category_hits("Cioccolato, distillati e altre passioni. Grappa e liquori.") >= 3, "spirits are another category")
+    check(_other_category_hits("Liquirizia pura di Calabria") == 0, "liquorice is not a liqueur")
     # Countries we don't source from (sun-foods.co.za from a UK query, 2026-11-04).
     for url, country, target in COUNTRY_TARGET:
         got = guess_country_from_domain(url)
